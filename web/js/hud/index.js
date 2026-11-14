@@ -5,12 +5,17 @@
 //   - 'stop:select' updates the next stop.
 //   - Any state field may be null; the HUD must never throw.
 //   - The HUD loads its own stylesheet (hud.css); every selector there starts with #hud-root.
-// Returns a small controller ({toggle, setTime, render}) for the later simulation clock.
+// Simulation clock: play / pause, speed and a time slider move the HUD through the EVA.
+// Returns a controller ({toggle, setTime, render, clock}).
 
 import {
-  compass, distanceM, evaDose, evalAlerts, evaStatus, fmtDuration, fmtLmst,
-  parseUtc, sunAt,
+  activityFraction, compass, distanceM, doseAt, evaDose, evalAlerts, evaStatus, fmtDuration,
+  fmtLmst, nextStop, o2At, parseUtc, routePosition, routeTimeline, stopSchedule, sunAt,
 } from './model.js';
+import { createClock, SPEEDS } from './sim.js';
+
+// The slider covers the EVA window plus this margin on both sides (UI only).
+const SIM_MARGIN_MIN = 30;
 
 const CSS_URL = new URL('../../css/hud.css', import.meta.url).href;
 
@@ -58,14 +63,23 @@ function fmtDist(m) {
   return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
 
-// Default snapshot time: EVA start, else the highest Sun in sun.json.
-function defaultTime(state) {
+// Simulation range: EVA window +/- margin, clamped to sun.json; else all of sun.json.
+// Initial time: EVA start, else the highest Sun.
+function simRange(state) {
+  const rows = Array.isArray(state?.sun?.rows) ? state.sun.rows : [];
+  const first = rows.length ? parseUtc(rows[0].utc) : null;
+  const last = rows.length ? parseUtc(rows[rows.length - 1].utc) : null;
   const evaStart = parseUtc(state?.eva?.start_utc);
-  if (evaStart) return evaStart;
-  const rows = state?.sun?.rows;
-  if (Array.isArray(rows) && rows.length) {
+  const evaEnd = parseUtc(state?.eva?.end_utc);
+  const pad = SIM_MARGIN_MIN * 60000;
+  if (evaStart && evaEnd) {
+    const start = new Date(Math.max(evaStart.getTime() - pad, first ? first.getTime() : -Infinity));
+    const end = new Date(Math.min(evaEnd.getTime() + pad, last ? last.getTime() : Infinity));
+    return { start, end, initial: evaStart };
+  }
+  if (first && last) {
     const top = rows.reduce((a, b) => (b.sun_el > a.sun_el ? b : a));
-    return parseUtc(top.utc);
+    return { start: first, end: last, initial: parseUtc(top.utc) };
   }
   return null;
 }
@@ -78,14 +92,31 @@ export function initHUD(state, el) {
   ensureStylesheet();
   state = state || {};
 
-  let time = defaultTime(state);
-  let selectedStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
+  const range = simRange(state);
+  let time = range?.initial ?? null;
+  // Manual pick from the map ('stop:select'); cleared when the clock starts playing.
+  let pinnedStop = null;
+  const fallbackStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
+
+  // Route timing (null until Demir's route.geojson / summary.json exist)
+  let timeline = null;
+  let schedule = [];
+  try {
+    timeline = routeTimeline(state.route, state.summary);
+    schedule = stopSchedule(timeline, state.stops);
+  } catch (err) {
+    console.error('[hud] route timeline failed', err);
+  }
+  const evaStart = parseUtc(state.eva?.start_utc);
+  const activeMin = timeline?.total_min ?? state.eva?.duration_min ?? null;
 
   // el is the #hud-root box (fixed overlay from base.css); we only fill it.
   const root = h('div', 'hud');
   root.setAttribute('role', 'region');
   root.setAttribute('aria-label', 'Astronaut HUD');
+  const content = h('div', 'hud-content');
+  root.append(content);
   el.replaceChildren(root);
 
   function safe(name, fn, body) {
@@ -101,7 +132,12 @@ export function initHUD(state, el) {
     const s = sunAt(state.sun, time);
     const eva = state.eva;
     const status = evaStatus(eva, time);
-    const dose = evaDose(state.radiation, eva);
+    const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
+    const frac = activityFraction(elapsed, activeMin);
+    const dose = evaDose(state.radiation, eva, timeline?.total_min);
+    const doseNow = doseAt(dose, frac);
+    const o2 = o2At(state.summary, frac);
+    const pos = routePosition(timeline, elapsed);
 
     // --- top bar
     const bar = h('header', 'hud-bar');
@@ -131,10 +167,15 @@ export function initHUD(state, el) {
       sun_el: s?.sun_el ?? null,
       earth_el: s?.earth_el ?? null,
       light_time_min: s?.light_time_min ?? null,
-      o2_used_pct: state.summary?.o2_used_pct ?? null,
-      dose_mSv: dose?.mSv ?? null,
+      o2_used_pct: o2?.used_pct ?? null,
+      o2_remaining_pct: o2?.remaining_pct ?? null,
+      dose_mSv: doseNow ?? null,
+      elapsed_min: elapsed,
+      eva_remaining_min: status?.state === 'open' ? status.min : null,
       max_slope_deg: state.summary?.max_slope_deg ?? null,
       eva_state: status?.state ?? null,
+      // back inside once the planned route is done (only known with route timing)
+      at_habitat: timeline && frac != null ? frac >= 1 || elapsed < 0 : null,
       radiation_status: state.radiation?.status ?? null,
       radiation_message: state.radiation?.message ?? null,
     };
@@ -147,21 +188,21 @@ export function initHUD(state, el) {
     // --- life support
     const life = panel('Life support');
     safe('life', () => {
-      const used = state.summary?.o2_used_pct;
-      if (Number.isFinite(used)) {
-        const left = Math.max(0, 100 - used);
-        row(life.body, 'O₂ planned use', fmtNum(used, 0, '%'));
-        row(life.body, 'O₂ at return', fmtNum(left, 0, '%'));
+      if (o2) {
+        row(life.body, 'O₂ remaining', fmtNum(o2.remaining_pct, 0, '%'), 'est.');
         const meter = h('div', 'hud-meter');
         const fill = h('div', 'hud-meter__fill');
-        fill.style.width = `${left}%`;
+        fill.style.width = `${o2.remaining_pct}%`;
         meter.append(fill);
         life.body.append(meter);
+        row(life.body, 'O₂ at return', fmtNum(o2.at_return_pct, 0, '%'));
       } else {
         row(life.body, 'O₂', '—');
         life.body.append(h('p', 'hud-muted', 'Waiting for route summary'));
       }
-      row(life.body, 'EVA dose', dose ? `${dose.mSv.toFixed(3)} mSv` : '—', dose?.estimated ? 'est.' : null);
+      row(life.body, 'Dose so far', Number.isFinite(doseNow) ? `${doseNow.toFixed(3)} mSv` : '—',
+        dose?.estimated ? 'est.' : null);
+      if (dose) row(life.body, 'Planned dose', `${dose.mSv.toFixed(3)} mSv`);
       if (dose && dose.multiplier !== 1) row(life.body, 'Solar event', `×${dose.multiplier}`);
       if (Number.isFinite(eva?.duration_min)) row(life.body, 'EVA length', fmtDuration(eva.duration_min));
     }, life.body);
@@ -169,15 +210,24 @@ export function initHUD(state, el) {
     // --- next stop
     const stopP = panel('Next stop');
     safe('stop', () => {
-      if (!selectedStop) {
-        stopP.body.append(h('p', 'hud-muted', 'No stop selected'));
+      const scheduled = nextStop(schedule, elapsed);
+      const stop = pinnedStop ?? scheduled?.stop ?? (schedule.length ? null : fallbackStop);
+      if (!stop) {
+        let msg = 'No stop selected';
+        if (schedule.length) msg = frac >= 1 ? 'EVA complete: back at habitat' : 'All stops visited: return to habitat';
+        stopP.body.append(h('p', 'hud-muted', msg));
         return;
       }
-      stopP.body.append(h('p', 'hud-stop__name', selectedStop.name || selectedStop.id || 'Stop'));
-      const d = distanceM(state.area?.habitat, selectedStop.coord);
-      row(stopP.body, 'From habitat', fmtDist(d));
-      if (selectedStop.science) {
-        stopP.body.append(h('p', 'hud-stop__note', selectedStop.science));
+      stopP.body.append(h('p', 'hud-stop__name', stop.name || stop.id || 'Stop'));
+      const from = pos ?? state.area?.habitat;
+      row(stopP.body, pos ? 'Distance' : 'From habitat', fmtDist(distanceM(from, stop.coord)));
+      const entry = schedule.find((x) => x.stop === stop || (stop.id != null && x.stop.id === stop.id));
+      if (entry && Number.isFinite(elapsed)) {
+        const eta = entry.t_min - elapsed;
+        row(stopP.body, 'ETA', eta >= 0 ? `in ${fmtDuration(eta)}` : 'passed');
+      }
+      if (stop.science) {
+        stopP.body.append(h('p', 'hud-stop__note', stop.science));
       }
     }, stopP.body);
 
@@ -209,7 +259,78 @@ export function initHUD(state, el) {
     bottom.append(sunP.box, comms.box);
     grid.append(colL, colR);
 
-    root.replaceChildren(bar, alertBox, grid, bottom);
+    content.replaceChildren(bar, alertBox, grid, bottom);
+  }
+
+  // --- simulation controls (built once; only their values change)
+  const sim = h('div', 'hud-sim');
+  const playBtn = h('button', 'hud-sim__play', 'Play');
+  playBtn.type = 'button';
+  const speedSel = h('select', 'hud-sim__speed');
+  speedSel.setAttribute('aria-label', 'Simulation speed');
+  for (const sp of SPEEDS) {
+    const o = h('option', null, sp === 1 ? 'Real time' : `x${sp}`);
+    o.value = String(sp);
+    speedSel.append(o);
+  }
+  const slider = h('input', 'hud-sim__range');
+  slider.type = 'range';
+  slider.setAttribute('aria-label', 'Mission time');
+  const simLabel = h('span', 'hud-sim__label');
+  sim.append(playBtn, speedSel, slider, simLabel);
+
+  let lastMinute = null;
+  let clock = null;
+
+  function tLabel() {
+    if (!time) return '—';
+    if (!evaStart) return `${time.toISOString().slice(11, 16)} UTC`;
+    const m = (time - evaStart) / 60000;
+    return `T${m < 0 ? '-' : '+'}${fmtDuration(Math.abs(m))}`;
+  }
+
+  function syncControls() {
+    if (!clock) return;
+    playBtn.textContent = clock.playing ? 'Pause' : 'Play';
+    playBtn.setAttribute('aria-pressed', String(clock.playing));
+    slider.value = String(Math.round((time - clock.start) / 60000));
+    slider.setAttribute('aria-valuetext', tLabel());
+    simLabel.textContent = tLabel();
+  }
+
+  if (range) {
+    clock = createClock({
+      start: range.start,
+      end: range.end,
+      initial: range.initial,
+      onTick(t) {
+        time = t;
+        syncControls();
+        const minute = Math.floor(t.getTime() / 60000);
+        if (open && (minute !== lastMinute || !clock.playing)) {
+          lastMinute = minute;
+          render();
+        }
+      },
+    });
+    slider.min = '0';
+    slider.max = String(Math.round((clock.end - clock.start) / 60000));
+    slider.step = '1';
+    speedSel.value = String(clock.speed);
+    playBtn.addEventListener('click', () => {
+      if (clock.playing) {
+        clock.pause();
+      } else {
+        pinnedStop = null;
+        clock.play();
+      }
+    });
+    speedSel.addEventListener('change', () => clock.setSpeed(Number(speedSel.value)));
+    slider.addEventListener('input', () => {
+      clock.seek(clock.start.getTime() + Number(slider.value) * 60000);
+    });
+    root.append(sim);
+    syncControls();
   }
 
   function toggle(force) {
@@ -217,6 +338,7 @@ export function initHUD(state, el) {
     el.hidden = !open;
     document.body.dataset.mode = open ? 'hud' : 'map'; // only the HUD writes this
     if (open) render();
+    else if (clock?.playing) clock.pause();
   }
 
   document.addEventListener('hud:toggle', () => toggle());
@@ -228,7 +350,7 @@ export function initHUD(state, el) {
   });
   document.addEventListener('stop:select', (e) => {
     if (!e.detail) return;
-    selectedStop = e.detail;
+    pinnedStop = e.detail;
     if (open) render();
   });
 
@@ -236,9 +358,11 @@ export function initHUD(state, el) {
     toggle,
     render: () => open && render(),
     setTime(t) {
-      time = t instanceof Date ? t : parseUtc(t);
-      if (open) render();
+      const d = t instanceof Date ? t : parseUtc(t);
+      if (clock) clock.seek(d);
+      else { time = d; if (open) render(); }
     },
     get time() { return time; },
+    get clock() { return clock; },
   };
 }
