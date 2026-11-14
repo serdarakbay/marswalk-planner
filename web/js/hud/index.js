@@ -3,6 +3,8 @@
 //   - H key and the 'hud:toggle' event (header button) toggle the HUD.
 //   - On open/close the HUD sets document.body.dataset.mode = 'hud' / 'map'.
 //   - 'stop:select' updates the next stop.
+//   - Emits 'hud:time' {active, playing, utc, elapsed_min, coord, d_m} on every simulated
+//     minute, seek, pause and open/close, so the map can move an astronaut marker.
 //   - Any state field may be null; the HUD must never throw.
 //   - The HUD loads its own stylesheet (hud.css); every selector there starts with #hud-root.
 // Simulation clock: play / pause, speed and a time slider move the HUD through the EVA.
@@ -292,6 +294,29 @@ export function initHUD(state, el) {
   let lastMinute = null;
   let clock = null;
 
+  // 'hud:time' tells the map where the astronaut is (approved by Ege, 2026-11-14).
+  // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
+  // coord and d_m are null until route.geojson exists. active is false when the HUD is closed.
+  function emitTime() {
+    const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
+    let rs = null;
+    try {
+      rs = routeState(timeline, elapsed);
+    } catch (err) {
+      console.error('[hud] route state failed', err);
+    }
+    document.dispatchEvent(new CustomEvent('hud:time', {
+      detail: {
+        active: open,
+        playing: Boolean(clock?.playing),
+        utc: time ? time.toISOString() : null,
+        elapsed_min: Number.isFinite(elapsed) ? Math.round(elapsed * 10) / 10 : null,
+        coord: rs?.coord ? rs.coord.map((v) => Math.round(v * 1e6) / 1e6) : null,
+        d_m: Number.isFinite(rs?.d_m) ? Math.round(rs.d_m) : null,
+      },
+    }));
+  }
+
   function tLabel() {
     if (!time) return '—';
     if (!evaStart) return `${time.toISOString().slice(11, 16)} UTC`;
@@ -316,10 +341,12 @@ export function initHUD(state, el) {
       onTick(t) {
         time = t;
         syncControls();
+        // While playing, update once per simulated minute; seeks and pauses update at once.
         const minute = Math.floor(t.getTime() / 60000);
-        if (open && (minute !== lastMinute || !clock.playing)) {
+        if (minute !== lastMinute || !clock.playing) {
           lastMinute = minute;
-          render();
+          emitTime();
+          if (open) render();
         }
       },
     });
@@ -349,6 +376,7 @@ export function initHUD(state, el) {
     document.body.dataset.mode = open ? 'hud' : 'map'; // only the HUD writes this
     if (open) render();
     else if (clock?.playing) clock.pause();
+    emitTime();
   }
 
   document.addEventListener('hud:toggle', () => toggle());
