@@ -4,10 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HUD dev</title>
-  <!-- Same stylesheets and boxes as web/index.html, so the HUD is tested under the real rules. -->
+  <!-- Same stylesheets and boxes as web/index.html (hud.css is loaded by the HUD itself). -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
   <link rel="stylesheet" href="../../css/base.css">
-  <link rel="stylesheet" href="../../css/hud.css">
   <style>
     /* dev page only: stand-in for the map and a test toolbar */
     .dev-map { height: 100%; background: radial-gradient(circle at 30% 40%, var(--color-dust), var(--color-bg) 70%); }
@@ -26,7 +25,7 @@
     </header>
     <main class="dev-map"></main>
   </div>
-  <div id="hud" hidden></div>
+  <div id="hud-root" hidden></div>
 
   <script type="module">
     import { initHUD } from './index.js';
@@ -57,7 +56,7 @@
     new MutationObserver(() => btn.setAttribute('aria-pressed', String(document.body.dataset.mode === 'hud')))
       .observe(document.body, { attributes: true, attributeFilter: ['data-mode'] });
 
-    const hud = initHUD(state, document.getElementById('hud'));
+    const hud = initHUD(state, document.getElementById('hud-root'));
     window.__hud = hud; // dev only
     hud.toggle(true);
 

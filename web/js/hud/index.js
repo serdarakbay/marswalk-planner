@@ -1,16 +1,28 @@
 // HUD mode (Serdar). Contract (CLAUDE.md, "Sayfa yerleşimi"):
-//   export function initHUD(state, el)   // el = #hud from index.html, starts hidden
+//   export function initHUD(state, el)   // el = #hud-root from index.html, starts hidden
 //   - H key and the 'hud:toggle' event (header button) toggle the HUD.
 //   - On open/close the HUD sets document.body.dataset.mode = 'hud' / 'map'.
 //   - 'stop:select' updates the next stop.
 //   - Any state field may be null; the HUD must never throw.
-//   - Styles live in hud.css (linked by index.html), every selector starts with #hud.
+//   - The HUD loads its own stylesheet (hud.css); every selector there starts with #hud-root.
 // Returns a small controller ({toggle, setTime, render}) for the later simulation clock.
 
 import {
   compass, distanceM, evaDose, evalAlerts, evaStatus, fmtDuration, fmtLmst,
   parseUtc, sunAt,
 } from './model.js';
+
+const CSS_URL = new URL('../../css/hud.css', import.meta.url).href;
+
+// index.html does not link hud.css; the HUD adds it once, after base.css.
+function ensureStylesheet() {
+  const already = [...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => l.href === CSS_URL);
+  if (already) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = CSS_URL;
+  document.head.appendChild(link);
+}
 
 function h(tag, cls, text) {
   const n = document.createElement(tag);
@@ -63,13 +75,14 @@ export function initHUD(state, el) {
     console.error('[hud] initHUD: no container element');
     return null;
   }
+  ensureStylesheet();
   state = state || {};
 
   let time = defaultTime(state);
   let selectedStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
 
-  // el is the #hud box (fixed overlay from base.css); we only fill it.
+  // el is the #hud-root box (fixed overlay from base.css); we only fill it.
   const root = h('div', 'hud');
   root.setAttribute('role', 'region');
   root.setAttribute('aria-label', 'Astronaut HUD');
