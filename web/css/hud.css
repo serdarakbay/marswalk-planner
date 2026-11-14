@@ -129,6 +129,7 @@
 #hud-root .hud-pill--open { color: var(--hud-ok); }
 #hud-root .hud-pill--before { color: var(--hud-muted); }
 #hud-root .hud-pill--closed { color: var(--hud-crit); }
+#hud-root .hud-pill--replay { color: var(--color-text-inverse); background: var(--hud-crit); border-color: var(--hud-crit); letter-spacing: 0.05em; }
 
 /* alerts */
 #hud-root .hud-alerts { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
