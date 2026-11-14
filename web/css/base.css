@@ -358,6 +358,12 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
   font-weight: 600;
 }
 .leaflet-tooltip.shelter-alert-label::before { display: none; }
+/* Same label for a HUD path outside the storm (science target, back to the route) */
+.leaflet-tooltip.shelter-alert-label.is-calm {
+  background: var(--color-ok) !important;
+  color: var(--color-bg) !important;
+  border-color: var(--color-ok) !important;
+}
 
 .leaflet-tooltip {
   background: var(--color-surface) !important;

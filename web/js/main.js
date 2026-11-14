@@ -18,6 +18,7 @@ const DATA_FILES = {
   donki: 'data/donki.json',
   radiation: 'data/radiation.json',
   alerts: 'data/alerts.json',
+  mission: 'data/mission.json',   // copied from config/ at deploy time (git-ignored locally)
 };
 
 async function loadJSON(key, url) {

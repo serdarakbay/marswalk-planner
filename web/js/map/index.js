@@ -6,7 +6,7 @@
 // Any file in state may be null; missing layers are skipped quietly.
 
 /* global L */
-import { MARS_CRS, coordsToLatLng, toBounds, toLatLng } from './geo.js';
+import { MARS_CRS, MARS_RADIUS_M, coordsToLatLng, toBounds, toLatLng } from './geo.js';
 import { initProfile } from './profile.js';
 import { loadHeightmap } from '../landing/heightmap.js';
 
@@ -104,11 +104,18 @@ function coordsControl(map) {
 
 // Click on the map: elevation and slope there, from Demir's heightmap (summary.json "terrain").
 // The heightmap is loaded on the first click. Slope: steepest direction, from the elevation one
-// pixel either side (~4.6 m), like the slope layer.
-const SLOPE_WARN_DEG = 15;   // slope_warn_deg in config/mission.json
-const SLOPE_MAX_DEG = 25;    // slope_max_deg
-function terrainClick(map, terrain) {
+// pixel either side (~4.6 m), like the slope layer. The "steep" / "too steep" notes use
+// slope_warn_deg and slope_max_deg from config/mission.json; without it there is no note.
+function terrainClick(map, terrain, mission) {
   if (!terrain?.png) return;
+  const warnDeg = Number.isFinite(mission?.slope_warn_deg) ? mission.slope_warn_deg : null;
+  const maxDeg = Number.isFinite(mission?.slope_max_deg) ? mission.slope_max_deg : null;
+  const slopeNote = (s) => {
+    if (s == null) return '';
+    if (maxDeg != null && s > maxDeg) return ' (too steep to walk)';
+    if (warnDeg != null && s >= warnDeg) return ' (steep)';
+    return '';
+  };
   let hm = null;
   map.on('click', async (e) => {
     try {
@@ -123,8 +130,8 @@ function terrainClick(map, terrain) {
     if (z == null) return;
     const dLon = (hm.bounds.east - hm.bounds.west) / hm.width;
     const dLat = (hm.bounds.north - hm.bounds.south) / hm.height;
-    const mLat = (dLat * Math.PI / 180) * 3396190;
-    const mLon = (dLon * Math.PI / 180) * 3396190 * Math.cos(lat * Math.PI / 180);
+    const mLat = (dLat * Math.PI / 180) * MARS_RADIUS_M;
+    const mLon = (dLon * Math.PI / 180) * MARS_RADIUS_M * Math.cos(lat * Math.PI / 180);
     const ze = hm.at(lon + dLon, lat);
     const zw = hm.at(lon - dLon, lat);
     const zn = hm.at(lon, lat + dLat);
@@ -133,7 +140,7 @@ function terrainClick(map, terrain) {
     if ([ze, zw, zn, zs].every((v) => v != null)) {
       slope = Math.atan(Math.hypot((ze - zw) / (2 * mLon), (zn - zs) / (2 * mLat))) * 180 / Math.PI;
     }
-    const note = slope == null ? '' : slope > SLOPE_MAX_DEG ? ' (too steep to walk)' : slope >= SLOPE_WARN_DEG ? ' (steep)' : '';
+    const note = slopeNote(slope);
     const box = document.createElement('div');
     box.textContent = `Elevation ${Math.round(z).toLocaleString('en-US')} m · Slope ${slope == null ? '—' : `${Math.round(slope)}°`}${note}`;
     L.popup({ closeButton: false, autoPan: false }).setLatLng(e.latlng).setContent(box).openOn(map);
@@ -367,7 +374,7 @@ export function initMap(state, mapEl) {
   L.control.zoom({ position: 'topright' }).addTo(map);
   L.control.scale({ imperial: false }).addTo(map);
   coordsControl(map);
-  terrainClick(map, state.summary?.terrain);
+  terrainClick(map, state.summary?.terrain, state.mission);
 
   // Base layers and tile overlays (layers.json)
   const layers = state.layers || [];
@@ -498,9 +505,11 @@ export function initMap(state, mapEl) {
   const astronaut = L.circleMarker([0, 0], {
     radius: 7, color: cssVar('--color-bg'), weight: 2,
     fillColor: cssVar('--color-hud'), fillOpacity: 1, interactive: false,
-  });
-  // Storm replay: pulsing ring on the refuge and the path from the astronaut to it
+  }).bindTooltip('Astronaut', { direction: 'top', offset: [0, -8] });
+  // HUD path (refuge_path): during the storm a pulsing red ring on the refuge and the path to it;
+  // otherwise (science target, its preview, back to the route) the same in a calm colour
   const danger = cssVar('--color-danger');
+  const calm = cssVar('--color-ok');
   const shelterRing = L.circleMarker([0, 0], {
     radius: 14, color: danger, weight: 3, fill: false, interactive: false, className: 'shelter-alert',
   }).bindTooltip('Nearest shelter', { permanent: true, direction: 'right', offset: [14, 0], className: 'shelter-alert-label' });
@@ -529,11 +538,17 @@ export function initMap(state, mapEl) {
       : storm && Array.isArray(coord) && Array.isArray(shelter) ? [coord, shelter] : null;
     const showStorm = Boolean(active && path);
     if (showStorm) {
+      const color = storm ? danger : calm;
       shelterRing.setLatLng(toLatLng(path[path.length - 1]));
+      shelterRing.setStyle({ color });
+      shelterLine.setStyle({ color });
       shelterRing.setTooltipContent(refugeLabel || 'Nearest shelter');
       shelterLine.setLatLngs(path.map(toLatLng));
       if (!map.hasLayer(shelterLine)) shelterLine.addTo(map);
       if (!map.hasLayer(shelterRing)) shelterRing.addTo(map);
+      // Pulse and red label only during the storm
+      shelterRing.getElement()?.classList.toggle('shelter-alert', Boolean(storm));
+      shelterRing.getTooltip()?.getElement()?.classList.toggle('is-calm', !storm);
       // When a path first shows, zoom to the astronaut and the path once, with the dust devil in
       // view too (it is why the astronaut steps aside); not again within the same event
       // (e.g. stepping aside, then walking back after the wait).
@@ -557,8 +572,8 @@ export function initMap(state, mapEl) {
     astronaut.setLatLng(toLatLng(coord));
     if (!map.hasLayer(astronaut)) astronaut.addTo(map);
     astronaut.bringToFront();
-    const label = Number.isFinite(elapsed) ? `Astronaut · T+${Math.round(elapsed)} min` : 'Astronaut';
-    astronaut.bindTooltip(label, { direction: 'top', offset: [0, -8] });
+    // hud:time comes ~10 times a second: update the tooltip text, do not rebuild it
+    astronaut.setTooltipContent(Number.isFinite(elapsed) ? `Astronaut · T+${Math.round(elapsed)} min` : 'Astronaut');
   });
 
   // Elevation profile under the map; hovering it marks the same spot on the route
