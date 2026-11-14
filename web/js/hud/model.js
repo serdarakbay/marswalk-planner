@@ -206,8 +206,9 @@ const AT_STOP_M = 25;
 const OFF_ROUTE_M = 100;
 
 // Arrival (t_min) and departure (t_leave) of each stop on the route, sorted by arrival.
-// The route stays at a stop for the dwell time, so arrival is the first vertex near the
-// stop and departure the last vertex of that same visit.
+// The route stays at a stop for the dwell time. It may also pass close to a stop on the
+// way somewhere else, so of all the visits (runs of vertices near the stop) the longest
+// one in time is the real stop; arrival / departure are its first / last vertex.
 export function stopSchedule(tl, stops) {
   if (!tl || !Array.isArray(stops)) return [];
   const out = [];
@@ -220,10 +221,16 @@ export function stopSchedule(tl, stops) {
       continue;
     }
     const near = Math.max(AT_STOP_M, dMin + 1);
-    let first = dist.findIndex((d) => d <= near);
-    let last = first;
-    while (last + 1 < dist.length && dist[last + 1] <= near) last++;
-    out.push({ stop, t_min: tl.t[first], t_leave: tl.t[last] });
+    let best = null;
+    for (let i = 0; i < dist.length; i++) {
+      if (dist[i] > near) continue;
+      let j = i;
+      while (j + 1 < dist.length && dist[j + 1] <= near) j++;
+      const span = tl.t[j] - tl.t[i];
+      if (!best || span > best.span) best = { first: i, last: j, span };
+      i = j;
+    }
+    out.push({ stop, t_min: tl.t[best.first], t_leave: tl.t[best.last] });
   }
   return out.sort((a, b) => a.t_min - b.t_min);
 }
