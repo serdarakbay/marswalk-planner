@@ -34,12 +34,25 @@ export const MOCK_STATE = {
   summary: {
     distance_m: 4600, duration_min: 300, o2_used_pct: 46, dose_mSv: null, max_slope_deg: 12, profile: [],
   },
+  // MOCK safety.json (Utku): route[].d in metres along the route
+  safety: {
+    overlays: [],
+    shelters: [{ coord: [137.385, -4.746], svf: 0.6 }],
+    route: [
+      { d: 0, comm_ok: true, shelter_min: 2.0 },
+      { d: 1800, comm_ok: false, shelter_min: 6.5 },
+      { d: 2300, comm_ok: true, shelter_min: 4.0 },
+    ],
+    offline_min: 12,
+  },
   radiation: { base_mSv_per_day: 0.64, event_multiplier: 1, status: 'nominal', message: 'Quiet Sun' },
+  // MOCK alerts.json (Utku): levels info / warn / danger as in docs/contracts.md
   alerts: {
     rules: [
-      { id: 'o2-low', metric: 'o2_remaining_pct', op: '<', value: 60, level: 'warn', text: 'O₂ below 60%: keep to the plan' },
-      { id: 'eva-ending', metric: 'eva_remaining_min', op: '<', value: 30, level: 'warn', text: 'EVA window closes in under 30 min' },
-      { id: 'earth-low', metric: 'earth_el', op: '<', value: 10, level: 'info', text: 'Earth low on horizon: link may degrade' },
+      { id: 'o2_low', metric: 'o2_remaining_pct', op: '<', value: 60, level: 'warn', text: 'O2 below 60%: keep to the plan' },
+      { id: 'comm_lost', metric: 'comm_ok', op: '==', value: false, level: 'warn', text: 'Radio shadow: no link to habitat' },
+      { id: 'slope_high', metric: 'slope_deg', op: '>', value: 10, level: 'info', text: 'Steep section: slow down' },
+      { id: 'eva_ending', metric: 'eva_remaining_min', op: '<', value: 30, level: 'danger', text: 'EVA window closes in under 30 min' },
     ],
   },
 };

@@ -1,5 +1,5 @@
 /* HUD mode (Serdar). Plain/modern look for now.
-   Rules (CLAUDE.md, "Sayfa yerleşimi"):
+   Rules (CLAUDE.md, page layout section):
    - every selector starts with #hud-root
    - colours, fonts, spacing, radii and z-index come only from base.css variables
    - loaded by web/js/hud/index.js itself (not linked in index.html)
@@ -128,6 +128,7 @@
 }
 #hud-root .hud-alert--warn,
 #hud-root .hud-alert--warning { border-left-color: var(--hud-warn); }
+#hud-root .hud-alert--danger,
 #hud-root .hud-alert--crit,
 #hud-root .hud-alert--critical { border-left-color: var(--hud-crit); font-weight: 600; }
 #hud-root .hud-alert--info { border-left-color: var(--hud-info); }

@@ -1,4 +1,4 @@
-// HUD mode (Serdar). Contract (CLAUDE.md, "Sayfa yerleşimi"):
+// HUD mode (Serdar). Contract (CLAUDE.md, page layout section):
 //   export function initHUD(state, el)   // el = #hud-root from index.html, starts hidden
 //   - H key and the 'hud:toggle' event (header button) toggle the HUD.
 //   - On open/close the HUD sets document.body.dataset.mode = 'hud' / 'map'.
@@ -10,7 +10,7 @@
 
 import {
   activityFraction, compass, distanceM, doseAt, evaDose, evalAlerts, evaStatus, fmtDuration,
-  fmtLmst, nextStop, o2At, parseUtc, routePosition, routeTimeline, stopSchedule, sunAt,
+  fmtLmst, nextStop, o2At, parseUtc, routeState, routeTimeline, safetyAt, stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
 
@@ -134,10 +134,12 @@ export function initHUD(state, el) {
     const status = evaStatus(eva, time);
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
     const frac = activityFraction(elapsed, activeMin);
-    const dose = evaDose(state.radiation, eva, timeline?.total_min);
+    const dose = evaDose(state.radiation, eva, timeline?.total_min, state.summary);
     const doseNow = doseAt(dose, frac);
     const o2 = o2At(state.summary, frac);
-    const pos = routePosition(timeline, elapsed);
+    const rs = routeState(timeline, elapsed);
+    const pos = rs?.coord ?? null;
+    const safe1 = safetyAt(state.safety, rs?.d_m);
 
     // --- top bar
     const bar = h('header', 'hud-bar');
@@ -173,6 +175,9 @@ export function initHUD(state, el) {
       elapsed_min: elapsed,
       eva_remaining_min: status?.state === 'open' ? status.min : null,
       max_slope_deg: state.summary?.max_slope_deg ?? null,
+      slope_deg: rs?.slope_deg ?? null,
+      comm_ok: typeof safe1?.comm_ok === 'boolean' ? safe1.comm_ok : null,
+      shelter_min: Number.isFinite(safe1?.shelter_min) ? safe1.shelter_min : null,
       eva_state: status?.state ?? null,
       // back inside once the planned route is done (only known with route timing)
       at_habitat: timeline && frac != null ? frac >= 1 || elapsed < 0 : null,
@@ -204,6 +209,7 @@ export function initHUD(state, el) {
         dose?.estimated ? 'est.' : null);
       if (dose) row(life.body, 'Planned dose', `${dose.mSv.toFixed(3)} mSv`);
       if (dose && dose.multiplier !== 1) row(life.body, 'Solar event', `×${dose.multiplier}`);
+      if (Number.isFinite(safe1?.shelter_min)) row(life.body, 'Nearest shelter', `${safe1.shelter_min.toFixed(1)} min`);
       if (Number.isFinite(eva?.duration_min)) row(life.body, 'EVA length', fmtDuration(eva.duration_min));
     }, life.body);
 
@@ -226,6 +232,7 @@ export function initHUD(state, el) {
         const eta = entry.t_min - elapsed;
         row(stopP.body, 'ETA', eta >= 0 ? `in ${fmtDuration(eta)}` : 'passed');
       }
+      if (Number.isFinite(rs?.slope_deg)) row(stopP.body, 'Slope here', fmtNum(rs.slope_deg, 0, '°'));
       if (stop.science) {
         stopP.body.append(h('p', 'hud-stop__note', stop.science));
       }
@@ -244,6 +251,9 @@ export function initHUD(state, el) {
       const up = Number.isFinite(s?.earth_el) ? s.earth_el >= 0 : null;
       row(comms.body, 'Earth elevation', fmtNum(s?.earth_el, 1, '°'));
       row(comms.body, 'Direct link', up == null ? '—' : up ? 'Line of sight' : 'Below horizon');
+      if (typeof safe1?.comm_ok === 'boolean') {
+        row(comms.body, 'Radio to habitat', safe1.comm_ok ? 'Clear' : 'Radio shadow');
+      }
       row(comms.body, 'One-way delay', fmtNum(s?.light_time_min, 1, ' min'));
       if (Number.isFinite(s?.light_time_min)) {
         row(comms.body, 'Round trip', fmtNum(2 * s.light_time_min, 1, ' min'));

@@ -125,7 +125,11 @@ def build() -> dict:
         else:
             cur = None
 
-    temp_note = "temperature MOCK" if temp_src == "MOCK" else "temperature from weather.json"
+    if temp_src == "MOCK":
+        temp_note = "temperature MOCK"
+    else:
+        approx = json.loads(WEATHER_JSON.read_text(encoding="utf-8")).get("approximate") is True
+        temp_note = "temperature from weather.json" + (", approximate" if approx else "")
     if best is None:
         return {"start_lmst": None, "end_lmst": None,
                 "reason": (f"No window: sun_el >= {min_el:g} deg and temp >= {min_t:g} C "
