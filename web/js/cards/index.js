@@ -1,7 +1,7 @@
 // Stop cards: photo + science note for the selected Marswalk stop.
 // Owner: Egemen (branch `veri`)
 //
-// Contract (CLAUDE.md):
+// Contract (project rules + docs/contracts.md):
 //   export function initCards(state, el)
 //   listens to document 'stop:select' (detail = stop from stops.json)
 //   stop = {id, name, coord[lon,lat], science, photos[{url, sol, camera, credit}]}
@@ -44,14 +44,26 @@ function fmtCoord(coord) {
   return `${Math.abs(lat).toFixed(4)}°${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(4)}°${lon < 0 ? 'W' : 'E'}`;
 }
 
-// Mastcam / MAHLI / MARDI are MSSS-operated; CLAUDE.md requires the MSSS credit.
+// contracts.md uses instrument codes (MAST_LEFT, NAV_LEFT_B, ...); show readable names.
+const CAMERA_NAMES = [
+  [/^MAST_/i, 'Mastcam'], [/^NAV_/i, 'Navcam'], [/^MAHLI/i, 'MAHLI'], [/^MARDI/i, 'MARDI'],
+  [/^FHAZ_/i, 'Front Hazcam'], [/^RHAZ_/i, 'Rear Hazcam'], [/^CHEMCAM/i, 'ChemCam RMI'],
+];
+function cameraName(photo) {
+  if (photo.camera_name) return photo.camera_name;
+  const code = photo.camera || '';
+  const hit = CAMERA_NAMES.find(([re]) => re.test(code));
+  return hit ? hit[1] : code;
+}
+
+// Mastcam / MAHLI / MARDI are MSSS-operated; project rules require the MSSS credit.
 function creditFor(photo) {
   if (photo.credit) return photo.credit;
-  return /mastcam|mahli|mardi/i.test(photo.camera || '') ? 'NASA/JPL-Caltech/MSSS' : DEFAULT_CREDIT;
+  return /mastcam|mahli|mardi/i.test(cameraName(photo)) ? 'NASA/JPL-Caltech/MSSS' : DEFAULT_CREDIT;
 }
 
 function photoMeta(photo) {
-  return [photo.sol != null ? `Sol ${photo.sol}` : null, photo.camera].filter(Boolean).join(' · ');
+  return [photo.sol != null ? `Sol ${photo.sol}` : null, cameraName(photo)].filter(Boolean).join(' · ');
 }
 
 // ------------------------------------------------------------ weather chart
@@ -61,7 +73,7 @@ function weatherChart(weather, eva) {
     .filter((r) => r.t != null && Number.isFinite(r.c));
   if (rows.length < 2) return null;
 
-  const W = 300, H = 96, L = 30, R = 6, T = 8, B = 18;
+  const W = 300, H = 100, L = 36, R = 8, T = 10, B = 20;
   const cs = rows.map((r) => r.c);
   const lo = Math.floor(Math.min(...cs) / 10) * 10;
   let hi = Math.ceil(Math.max(...cs) / 10) * 10 + 0; // +0 turns -0 into 0
@@ -76,7 +88,7 @@ function weatherChart(weather, eva) {
   const e0 = lmstToH(eva?.start_lmst), e1 = lmstToH(eva?.end_lmst);
   if (e0 != null && e1 != null && e1 > e0) {
     svg.append(s('rect', { x: x(e0), y: T, width: x(e1) - x(e0), height: H - T - B, class: 'mm-card__chart-eva' }));
-    const lab = s('text', { x: (x(e0) + x(e1)) / 2, y: T + 9, class: 'mm-card__chart-evalabel', 'text-anchor': 'middle' });
+    const lab = s('text', { x: (x(e0) + x(e1)) / 2, y: T + 12, class: 'mm-card__chart-evalabel', 'text-anchor': 'middle' });
     lab.textContent = 'EVA';
     svg.append(lab);
   }
@@ -88,7 +100,7 @@ function weatherChart(weather, eva) {
     svg.append(t);
   }
   for (const hr of [0, 6, 12, 18, 24]) {
-    const t = s('text', { x: x(hr), y: H - 5, 'text-anchor': 'middle', class: 'mm-card__chart-tick' });
+    const t = s('text', { x: x(hr), y: H - 4, 'text-anchor': 'middle', class: 'mm-card__chart-tick' });
     t.textContent = String(hr).padStart(2, '0');
     svg.append(t);
   }
@@ -114,15 +126,15 @@ export function initCards(state, el) {
     return { show() {}, hide() {} };
   }
   const st = state || {};
-  el.classList.add('mm-cards');
 
   let current = null; // {stop, photos, index}
 
-  const card = h('article', { class: 'mm-card', hidden: true, 'aria-live': 'polite', tabindex: '-1' });
-  el.append(card);
+  // Not attached while closed: an empty #cards shows base.css's "Select a stop" hint.
+  const card = h('article', { class: 'mm-card', 'aria-live': 'polite', tabindex: '-1' });
+  const isOpen = () => card.isConnected;
 
   function hide() {
-    card.hidden = true;
+    card.remove();
     current = null;
   }
 
@@ -198,7 +210,7 @@ export function initCards(state, el) {
     current = { stop, photos, index: sameStop ? current.index : 0 };
     try {
       render();
-      card.hidden = false;
+      if (!isOpen()) el.append(card);
     } catch (err) {
       console.error('[cards] render failed', err);
     }
@@ -206,7 +218,7 @@ export function initCards(state, el) {
 
   document.addEventListener('stop:select', (ev) => show(ev.detail));
   document.addEventListener('keydown', (ev) => {
-    if (card.hidden || ev.defaultPrevented) return;
+    if (!isOpen() || ev.defaultPrevented) return;
     const t = ev.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     if (ev.key === 'Escape') hide();
