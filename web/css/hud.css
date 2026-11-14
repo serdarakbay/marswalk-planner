@@ -99,6 +99,8 @@
   white-space: nowrap;
 }
 #hud-root .hud-sim__storm[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-crit); }
+#hud-root .hud-sim__dust { color: var(--hud-warn); border-color: var(--hud-warn); }
+#hud-root .hud-sim__dust[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-warn); }
 #hud-root .hud-panel--danger { border-color: var(--hud-crit); }
 
 /* top bar */

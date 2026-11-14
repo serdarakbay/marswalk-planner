@@ -7,8 +7,10 @@
 //     simulated minute, seek, pause, open/close and storm toggle, so the map can move an
 //     astronaut marker (storm / shelter are extra fields the map may use to highlight a shelter).
 //   - "Storm replay" button or ?radiation=replay in the URL (only when radiation.json has a
-//     replay block): status, event_multiplier and message come from radiation.replay, the top
-//     bar shows "REPLAY: <date>", and the HUD raises a danger alert with the nearest shelter.
+//     replay block): the storm hits (now, or 40 min into the walk from the URL), the astronaut
+//     walks to the nearest shelter or the habitat, waits until it ends, then resumes the route.
+//   - "Dust devil" button or ?hazard=dustdevil: a dust devil crosses the route; the astronaut
+//     holds position until it has passed. Both scenarios are simulated in scenario.js.
 //   - Any state field may be null; the HUD must never throw.
 //   - The HUD loads its own stylesheet (hud.css); every selector there starts with #hud-root.
 // Simulation clock: play / pause, speed and a time slider move the HUD through the EVA.
@@ -16,10 +18,12 @@
 
 import {
   activityFraction, compass, distanceM, doseAt, effectiveRadiation, evaDose, evalAlerts, evaStatus, radiationAt,
-  fmtDuration, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState, routeTimeline, safetyAt,
+  bearingDeg, FALLBACK, fmtDuration, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState,
+  routeTimeline, safetyAt,
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
+import { isOutside, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
@@ -117,6 +121,14 @@ export function initHUD(state, el) {
   try {
     storm = hasReplay && new URLSearchParams(location.search).get('radiation') === 'replay';
   } catch { /* no location (tests) */ }
+  // Dust devil demo (?hazard=dustdevil starts with it on)
+  let dustOn = false;
+  try {
+    dustOn = new URLSearchParams(location.search).get('hazard') === 'dustdevil';
+  } catch { /* no location (tests) */ }
+  // When each scenario starts, in minutes after the EVA start (URL links use fixed demo times)
+  let stormT0 = SCENARIO.STORM_URL_START_MIN;
+  let dustT0 = SCENARIO.DUST_URL_START_MIN;
   const fallbackStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
 
@@ -131,6 +143,38 @@ export function initHUD(state, el) {
   }
   const evaStart = parseUtc(state.eva?.start_utc);
   const activeMin = timeline?.total_min ?? state.eva?.duration_min ?? null;
+
+  // Step-by-step plan of the walk with the scenarios that are switched on (see scenario.js)
+  let plan = null;
+  function rebuildPlan() {
+    plan = null;
+    if (!timeline || !evaStart || !range) return;
+    try {
+      const rp = state.radiation?.replay || {};
+      const base = Number.isFinite(state.radiation?.base_mSv_per_day)
+        ? state.radiation.base_mSv_per_day : FALLBACK.rad_base_mSv_per_day;
+      plan = simulate({
+        tl: timeline,
+        shelters: state.safety?.shelters,
+        habitat: state.area?.habitat ?? timeline.coords[0],
+        startMin: (range.start - evaStart) / 60000,
+        endMin: (range.end - evaStart) / 60000,
+        o2PerMin: Number.isFinite(state.summary?.o2_used_pct) ? state.summary.o2_used_pct / timeline.total_min : 0,
+        doseBasePerMin: base / 1440,
+        storm: storm && hasReplay ? {
+          t0: stormT0,
+          duration: Number.isFinite(rp.duration_min) ? rp.duration_min : 120,
+          mult: Number.isFinite(rp.event_multiplier) ? rp.event_multiplier : 1,
+          habitatFactor: Number.isFinite(rp.habitat_dose_factor) ? rp.habitat_dose_factor : 1,
+        } : null,
+        dust: dustOn ? { t0: dustT0 } : null,
+      });
+    } catch (err) {
+      console.error('[hud] scenario plan failed', err);
+      plan = null;
+    }
+  }
+  rebuildPlan();
 
   // Look: visor by default (the challenge describes the HUD as projected on the helmet visor).
   // ?hud=plain in the page URL switches to the plain/modern look.
@@ -162,24 +206,42 @@ export function initHUD(state, el) {
     const eva = state.eva;
     const status = evaStatus(eva, time);
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
-    const frac = activityFraction(elapsed, activeMin);
-    // Live status follows the simulation clock; the replay (storm) overrides it when on.
-    const rad = effectiveRadiation(radiationAt(state.radiation, time), storm);
+    // Scenario plan (null without route timing): where the astronaut is and what they are doing
+    const p = plan ? plan.at(elapsed) : null;
+    // Route progress in route minutes; equals elapsed unless a scenario delayed the walk
+    const tau = p ? p.tau : elapsed;
+    const frac = activityFraction(tau, activeMin);
+    const stormOn = p ? p.stormOn : storm;
+    // Live status follows the simulation clock; the replay (storm) overrides it while it lasts.
+    const rad = effectiveRadiation(radiationAt(state.radiation, time), stormOn);
+    const plannedDose = evaDose(radiationAt(state.radiation, time), eva, timeline?.total_min, state.summary);
     const dose = evaDose(rad, eva, timeline?.total_min, state.summary);
-    const doseNow = doseAt(dose, frac);
-    const o2 = o2At(state.summary, frac);
-    // Inside the habitat before the EVA starts and after the route ends (known only with route timing).
+    const doseNow = p ? p.dose : doseAt(dose, frac);
+    let o2 = null;
+    if (p && Number.isFinite(state.summary?.o2_used_pct)) {
+      const perMin = state.summary.o2_used_pct / timeline.total_min;
+      const atReturn = p.o2 + perMin * Math.max(0, timeline.total_min - p.tau);
+      o2 = { used_pct: p.o2, remaining_pct: Math.max(0, 100 - p.o2), at_return_pct: Math.max(0, 100 - atReturn) };
+    } else if (!p) {
+      o2 = o2At(state.summary, frac);
+    }
+    // Inside the habitat: before the EVA, after the route, or back early because of the storm.
     // T+0 counts as inside: the astronaut is still at the habitat door.
-    const atHabitat = timeline && frac != null ? frac >= 1 || elapsed <= 0 : null;
-    const rs = atHabitat ? null : routeState(timeline, elapsed);
-    const pos = rs?.coord ?? null;
-    // Shelter / radio-shadow info only matters while outside.
-    let safe1 = atHabitat ? null : safetyAt(state.safety, rs?.d_m);
+    const atHabitat = p ? !isOutside(p.mode) : (timeline && frac != null ? frac >= 1 || elapsed <= 0 : null);
+    const onRoute = p ? p.mode === 'route' || p.mode === 'hold' : !atHabitat;
+    const rs = onRoute ? routeState(timeline, tau) : null;
+    const pos = p ? (atHabitat ? null : p.coord) : rs?.coord ?? null;
+    // Shelter / radio-shadow info only matters while walking the route.
+    let safe1 = onRoute ? safetyAt(state.safety, rs?.d_m) : null;
     // safety.json built for another route: its row is far from here, so ignore it (stale data)
     if (safe1 && Number.isFinite(rs?.d_m) && Math.abs(safe1.d - rs.d_m) > 50) safe1 = null;
     const isStorm = rad?.status === 'storm';
-    const shelter = isStorm && !atHabitat
+    // Without a plan (no route timing) fall back to pointing at the nearest shelter
+    const shelter = !p && isStorm && !atHabitat
       ? nearestShelter(state.safety?.shelters, pos ?? state.area?.habitat) : null;
+    const refuge = p?.refuge ?? null;
+    const stormLeft = plan?.storm && Number.isFinite(elapsed)
+      ? plan.storm.t0 + plan.storm.duration - elapsed : null;
 
     // --- top bar
     const bar = h('header', 'hud-bar');
@@ -202,8 +264,8 @@ export function initHUD(state, el) {
       }[status.state];
       right.append(h('span', `hud-pill hud-pill--${status.state}`, label));
     }
-    if (rad?.replay_date) {
-      right.prepend(h('span', 'hud-pill hud-pill--replay', `REPLAY: ${fmtDate(rad.replay_date)}`));
+    if (storm && state.radiation?.replay?.date) {
+      right.prepend(h('span', 'hud-pill hud-pill--replay', `REPLAY: ${fmtDate(state.radiation.replay.date)}`));
     }
     bar.append(left, right);
 
@@ -211,6 +273,7 @@ export function initHUD(state, el) {
     // Walk-only metrics are null inside the habitat, so alerts.json rules about O2, dose or
     // the EVA clock ("shorten the stop") do not fire before leaving or after returning.
     const out = atHabitat !== true;
+    const resting = p && (p.mode === 'sheltered' || !out);
     const metrics = {
       sun_el: s?.sun_el ?? null,
       earth_el: s?.earth_el ?? null,
@@ -225,28 +288,49 @@ export function initHUD(state, el) {
       comm_ok: typeof safe1?.comm_ok === 'boolean' ? safe1.comm_ok : null,
       shelter_min: Number.isFinite(safe1?.shelter_min) ? safe1.shelter_min : null,
       eva_state: status?.state ?? null,
-      // back inside once the planned route is done (only known with route timing)
       at_habitat: atHabitat,
-      radiation_status: rad?.status ?? null,
+      // "go to the shelter" rules make no sense once sheltered or inside
+      radiation_status: resting ? null : rad?.status ?? null,
       radiation_message: rad?.message ?? null,
     };
     const alertBox = h('div', 'hud-alerts');
     alertBox.setAttribute('aria-live', 'polite');
     const alerts = evalAlerts(state.alerts, metrics);
-    if (shelter) {
+    const scen = [];
+    if (p) {
+      const where = (to) => `${fmtDist(distanceM(p.coord, to))} ${compass(bearingDeg(p.coord, to))}`;
+      if (p.mode === 'to_refuge' && refuge) {
+        const mins = distanceM(p.coord, refuge.coord) / SCENARIO.WALK_M_PER_MIN;
+        scen.push({ level: 'danger', text: refuge.habitat
+          ? `Return to the habitat: ${mins.toFixed(1)} min, ${where(refuge.coord)}`
+          : `Take shelter: ${mins.toFixed(1)} min, ${where(refuge.coord)}` });
+      } else if (p.mode === 'sheltered') {
+        scen.push({ level: 'warn', text: `Sheltered (sky-view ${fmtNum(refuge?.svf, 2)}): storm ends in ${fmtDuration(stormLeft)}` });
+      } else if (p.mode === 'home' && stormOn) {
+        scen.push({ level: 'warn', text: `Back in the habitat: storm ends in ${fmtDuration(stormLeft)}` });
+      } else if (p.mode === 'pre' && stormOn && elapsed > 0) {
+        scen.push({ level: 'warn', text: `EVA on hold in the habitat: storm ends in ${fmtDuration(stormLeft)}` });
+      } else if (p.mode === 'return' && p.resume) {
+        scen.push({ level: 'info', text: `Storm over. Back to the route: ${where(p.resume.coord)}` });
+      }
+      if (p.mode === 'hold' && p.devil) {
+        scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing, ${where(p.devil)}` });
+      } else if (p.mode === 'route' && p.devil && p.approaching && p.devilDist < SCENARIO.DUST_APPROACH_M) {
+        scen.push({ level: 'warn', text: `Dust devil ${where(p.devil)}, crossing the route ahead` });
+      } else if (p.mode === 'route' && p.justCleared) {
+        scen.push({ level: 'info', text: 'Dust devil passed. Resume the walk.' });
+      }
+    } else if (shelter) {
       const mins = Number.isFinite(safe1?.shelter_min) ? `${safe1.shelter_min.toFixed(1)} min, ` : '';
-      alerts.unshift({
-        id: 'hud-shelter', level: 'danger',
-        text: `Take shelter: ${mins}${fmtDist(shelter.d_m)} ${compass(shelter.bearing_deg)}`,
-      });
+      scen.push({ level: 'danger', text: `Take shelter: ${mins}${fmtDist(shelter.d_m)} ${compass(shelter.bearing_deg)}` });
     }
-    for (const a of alerts) {
+    for (const a of [...scen, ...alerts]) {
       alertBox.append(h('div', `hud-alert hud-alert--${a.level}`, a.text));
     }
 
     // --- life support
     const life = panel('Life support');
-    if (isStorm) life.box.classList.add('hud-panel--danger');
+    if (isStorm && out) life.box.classList.add('hud-panel--danger');
     safe('life', () => {
       if (o2) {
         row(life.body, 'O₂ remaining', fmtNum(o2.remaining_pct, 0, '%'), 'est.');
@@ -262,11 +346,21 @@ export function initHUD(state, el) {
       }
       row(life.body, 'Dose so far', Number.isFinite(doseNow) ? `${doseNow.toFixed(3)} mSv` : '—',
         dose?.estimated ? 'est.' : null);
-      if (dose) row(life.body, 'Planned dose', `${dose.mSv.toFixed(3)} mSv`);
+      if (p && plan.storm && elapsed >= plan.storm.t0) {
+        row(life.body, 'No-shelter dose', `${plan.noShelterDose(elapsed).toFixed(3)} mSv`);
+      } else if (plannedDose) {
+        row(life.body, 'Planned dose', `${plannedDose.mSv.toFixed(3)} mSv`);
+      }
       if (dose && dose.multiplier !== 1) {
         row(life.body, 'Solar event', `×${dose.multiplier}`, rad?.replay_date ? 'replay' : null);
       }
-      if (shelter) {
+      if (p?.mode === 'to_refuge' && refuge) {
+        const d = distanceM(p.coord, refuge.coord);
+        row(life.body, refuge.habitat ? 'Habitat' : 'Shelter',
+          `${(d / SCENARIO.WALK_M_PER_MIN).toFixed(1)} min · ${fmtDist(d)} ${compass(bearingDeg(p.coord, refuge.coord))}`);
+      } else if (p?.mode === 'sheltered') {
+        row(life.body, 'Shelter', `In shelter · svf ${fmtNum(refuge?.svf, 2)}`);
+      } else if (shelter) {
         const mins = Number.isFinite(safe1?.shelter_min) ? `${safe1.shelter_min.toFixed(1)} min · ` : '';
         row(life.body, 'Shelter', `${mins}${fmtDist(shelter.d_m)} ${compass(shelter.bearing_deg)}`);
       } else if (isStorm && atHabitat) {
@@ -274,17 +368,21 @@ export function initHUD(state, el) {
       } else if (Number.isFinite(safe1?.shelter_min)) {
         row(life.body, 'Nearest shelter', `${safe1.shelter_min.toFixed(1)} min`);
       }
+      if (p && p.delay >= 0.5 && p.mode !== 'done') row(life.body, 'Delay', `+${fmtDuration(p.delay)}`);
       if (Number.isFinite(eva?.duration_min)) row(life.body, 'EVA length', fmtDuration(eva.duration_min));
     }, life.body);
 
     // --- next stop
     const stopP = panel('Next stop');
     safe('stop', () => {
-      const scheduled = nextStop(schedule, elapsed);
+      const scheduled = nextStop(schedule, tau);
       const stop = pinnedStop ?? scheduled?.stop ?? (schedule.length ? null : fallbackStop);
       if (!stop) {
         let msg = 'No stop selected';
-        if (schedule.length) msg = frac >= 1 ? 'EVA complete: back at habitat' : 'All stops visited: return to habitat';
+        if (schedule.length) {
+          if (p?.mode === 'home') msg = 'EVA ended early: back in the habitat';
+          else msg = (p ? p.mode === 'done' : frac >= 1) ? 'EVA complete: back at habitat' : 'All stops visited: return to habitat';
+        }
         stopP.body.append(h('p', 'hud-muted', msg));
         return;
       }
@@ -292,12 +390,14 @@ export function initHUD(state, el) {
       const from = pos ?? state.area?.habitat;
       row(stopP.body, pos ? 'Distance' : 'From habitat', fmtDist(distanceM(from, stop.coord)));
       const entry = schedule.find((x) => x.stop === stop || (stop.id != null && x.stop.id === stop.id));
-      if (entry && Number.isFinite(elapsed)) {
+      if (entry && Number.isFinite(tau)) {
         const leave = entry.t_leave ?? entry.t_min;
-        if (elapsed < entry.t_min) {
-          row(stopP.body, 'ETA', `in ${fmtDuration(entry.t_min - elapsed)}`);
-        } else if (elapsed <= leave) {
-          row(stopP.body, 'At stop', `leave in ${fmtDuration(leave - elapsed)}`);
+        if (p && !onRoute && out) {
+          row(stopP.body, 'ETA', 'paused');
+        } else if (tau < entry.t_min) {
+          row(stopP.body, 'ETA', `in ${fmtDuration(entry.t_min - tau)}`);
+        } else if (tau <= leave) {
+          row(stopP.body, 'At stop', `leave in ${fmtDuration(leave - tau)}`);
         } else {
           row(stopP.body, 'ETA', 'passed');
         }
@@ -365,6 +465,11 @@ export function initHUD(state, el) {
   stormBtn.title = 'Replay the 20 May 2024 solar storm (radiation.json)';
   stormBtn.setAttribute('aria-pressed', String(storm));
   if (hasReplay) sim.append(stormBtn);
+  const dustBtn = h('button', 'hud-sim__storm hud-sim__dust', 'Dust devil');
+  dustBtn.type = 'button';
+  dustBtn.title = 'A dust devil crosses the route: hold position until it passes (scenario)';
+  dustBtn.setAttribute('aria-pressed', String(dustOn));
+  sim.append(dustBtn);
 
   let lastMinute = null;
   let clock = null;
@@ -372,32 +477,34 @@ export function initHUD(state, el) {
   // 'hud:time' tells the map where the astronaut is (approved by Ege, 2026-11-14).
   // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
   // coord and d_m are null until route.geojson exists. active is false when the HUD is closed.
-  // Same rule as atHabitat in render(): inside at or before T+0 and after the route ends.
-  function insideAt(elapsed) {
-    if (!timeline || !Number.isFinite(elapsed)) return false;
-    return elapsed <= 0 || elapsed >= timeline.total_min;
-  }
-
+  // Extra fields: storm, shelter (refuge the astronaut is heading to or sits in, while the storm
+  // is on), hazard ({coord, radius_m} of a dust devil, for the map) and mode (see scenario.js).
   function emitTime() {
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
-    let rs = null;
+    const p = plan ? plan.at(elapsed) : null;
+    let coord = p ? p.coord : null;
+    let dM = null;
     try {
-      rs = routeState(timeline, elapsed);
+      const tau = p ? p.tau : elapsed;
+      const rs = routeState(timeline, tau);
+      if (!p) coord = rs?.coord ?? null;
+      if (!p || p.mode === 'route' || p.mode === 'hold') dM = rs?.d_m ?? null;
     } catch (err) {
       console.error('[hud] route state failed', err);
     }
+    const r6 = (c) => c.map((v) => Math.round(v * 1e6) / 1e6);
     document.dispatchEvent(new CustomEvent('hud:time', {
       detail: {
         active: open,
         playing: Boolean(clock?.playing),
         utc: time ? time.toISOString() : null,
         elapsed_min: Number.isFinite(elapsed) ? Math.round(elapsed * 10) / 10 : null,
-        coord: rs?.coord ? rs.coord.map((v) => Math.round(v * 1e6) / 1e6) : null,
-        d_m: Number.isFinite(rs?.d_m) ? Math.round(rs.d_m) : null,
-        storm,
-        // No shelter to point at while the astronaut is inside (before T+0 or after the route)
-        shelter: storm && rs?.coord && !insideAt(elapsed)
-          ? nearestShelter(state.safety?.shelters, rs.coord)?.coord ?? null : null,
+        coord: Array.isArray(coord) ? r6(coord) : null,
+        d_m: Number.isFinite(dM) ? Math.round(dM) : null,
+        storm: Boolean(p ? p.stormOn : storm),
+        shelter: p?.stormOn && p.refuge && !p.refuge.habitat && isOutside(p.mode) ? r6(p.refuge.coord) : null,
+        hazard: p?.devil ? { coord: r6(p.devil), radius_m: SCENARIO.DUST_RADIUS_M } : null,
+        mode: p?.mode ?? null,
       },
     }));
   }
@@ -448,9 +555,21 @@ export function initHUD(state, el) {
       }
     });
     speedSel.addEventListener('change', () => clock.setSpeed(Number(speedSel.value)));
+    // The storm / dust devil start "now" when switched on from the HUD
+    const nowMin = () => (evaStart && time ? (time - evaStart) / 60000 : 0);
     stormBtn.addEventListener('click', () => {
       storm = !storm;
+      if (storm) stormT0 = Math.max(0, nowMin());
       stormBtn.setAttribute('aria-pressed', String(storm));
+      rebuildPlan();
+      emitTime();
+      if (open) render();
+    });
+    dustBtn.addEventListener('click', () => {
+      dustOn = !dustOn;
+      if (dustOn) dustT0 = Math.max(SCENARIO.STEP_MIN, nowMin());
+      dustBtn.setAttribute('aria-pressed', String(dustOn));
+      rebuildPlan();
       emitTime();
       if (open) render();
     });
