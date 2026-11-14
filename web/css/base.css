@@ -53,6 +53,7 @@
 
   /* Stacking order */
   --z-map: 0;
+  --z-view3d: 450;    /* 3D view covers the map, under the panel */
   --z-panel: 500;     /* Leaflet controls sit between 400 and 1000 */
   --z-cards: 1100;
   --z-hud: 2000;
@@ -120,6 +121,7 @@ kbd {
   cursor: pointer;
 }
 .btn:hover { border-color: var(--color-accent); }
+.btn[hidden] { display: none; }
 .btn[aria-pressed="true"] { background: var(--color-accent); color: var(--color-text-inverse); }
 
 .app-main {
@@ -143,6 +145,10 @@ kbd {
   min-height: 0;
 }
 #map { min-height: 0; background: var(--color-bg); z-index: var(--z-map); }
+/* 3D view (Egemen) shares the map's grid cell and covers it when shown */
+#map, #view3d-root { grid-row: 1; grid-column: 1; }
+#view3d-root { position: relative; min-height: 0; background: var(--color-bg); z-index: var(--z-view3d); }
+#view3d-root[hidden] { display: none; }
 #profile {
   display: grid;
   grid-template-rows: auto 1fr;

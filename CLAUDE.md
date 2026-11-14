@@ -33,7 +33,7 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 |---|---|---|---|
 | Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
 | Demir | Arazi ve Rota | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
-| Egemen | Veri: Curiosity ve REMS + durak kartları | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css` |
+| Egemen | Veri: Curiosity ve REMS + durak kartları + UI/3D tasarım | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css`, `web/js/view3d/`, `web/css/view3d.css` |
 | Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/js/hud/`, `web/css/hud.css` |
 | Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `harita`, `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, `web/data/` içinde: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
 
@@ -142,6 +142,7 @@ Harita, kartlar ve HUD birbirinin dosyasını import etmez; sadece şu arayüz �
 | `#map`, `#profile` | Ege | Leaflet haritası, yükseklik profili |
 | `#cards` | Egemen | `initCards(state, el)` bu elemanı alır |
 | `#hud-root` | Serdar | `initHUD(state, el)` bu elemanı alır; başta `hidden` |
+| `#view3d-root` | Egemen | `initView3D(state, el)` bu elemanı alır; başta `hidden` |
 
 - Her modül kendi DOM'unu kendi kutusunun içinde, JS ile kurar. `cards.css` `index.html`'de zaten bağlıdır; HUD kendi CSS'ini (`hud.css`) kendisi yükler.
 - **CSS sınırı:** `hud.css`'teki her seçici `#hud-root` ile, `cards.css`'teki her seçici `#cards` ile başlar. `html`, `body`, `*`, çıplak etiket seçicileri ve `.leaflet-*` sınıfları sadece `base.css`'te olur.
@@ -150,7 +151,26 @@ Harita, kartlar ve HUD birbirinin dosyasını import etmez; sadece şu arayüz �
 - **HUD modu:** HUD açılınca `document.body.dataset.mode = 'hud'`, kapanınca `'map'` yapar. Bu değeri sadece HUD yazar; HUD modunda neyin gizleneceğini `base.css` belirler (`body[data-mode="hud"]`).
 - Başlıktaki HUD düğmesi `document.dispatchEvent(new CustomEvent('hud:toggle'))` yollar. H tuşunu ve `hud:toggle` olayını HUD dinler. Harita tek harfli klavye kısayolu kullanmaz.
 - `main.js` modülleri `import()` ile yükler. `web/js/cards/index.js` ya da `web/js/hud/index.js` yoksa ya da hata atarsa konsola yazar, sayfa açılmaya devam eder.
+- The header 3D button dispatches `document.dispatchEvent(new CustomEvent('view3d:toggle'))`. The 3D view listens to it, shows or hides `#view3d-root` itself, and sets `document.body.dataset.view = '3d'` / `'map'`; `main.js` loads it like the other modules (`web/js/view3d/index.js` → `export function initView3D(state, el)`). A missing or failing 3D module never breaks the page.
 - Bunlar yetmezse `index.html`'i düzenleme; Ege'den iste.
+
+## Design tasks (Egemen)
+
+Besides the stop cards, Egemen owns the look and feel upgrades and the 3D view. The goal is a memorable, creative interface for the judges, without breaking what already works.
+
+**What to do**
+- **Improve the UI** inside your own boxes (`#cards`, `#view3d-root`): motion, typography, icons, empty states, small charts. Ideas for the rest of the page (palette, header, panel, map styling) go to Ege as a written proposal; Ege applies them to `base.css` / `index.html`.
+- **3D view** in `web/js/view3d/` (e.g. the DEM as a 3D terrain with the route, stops, habitat and astronaut position draped on it, a fly-through along the route, or the Sun direction from `sun.json`). Read everything from `state`; do not fetch APIs from the browser.
+- **Look for libraries and open-source repos** that save time (for example three.js, deck.gl, CesiumJS, MapLibre GL, Chart.js plugins, Lottie, icon sets). Reusing good existing work is encouraged; creativity counts.
+
+**Rules**
+- No build step: load libraries as ES modules or scripts from a CDN (cdnjs, jsdelivr, unpkg) with an **exact pinned version** (e.g. `three@0.160.0`, never `three@latest`).
+- Only permissive licenses (MIT, Apache-2.0, BSD, ISC, CC-BY for assets). Record every library, repo and asset you use, with its license and link, in `docs/credits.md` and tell Ege; the README credits come from there.
+- If you copy code from a repo, keep its license header and link the source in a comment.
+- Stay inside your files. Need a new `<script>`/`<link>` in `index.html`, a new `base.css` variable or a map hook? Ask Ege; do not edit those files.
+- The 3D view gets its own data from `state` (`area`, `route`, `stops`, `summary.profile`, `sun`, ...) and listens to `stop:select` and `hud:time` like the other modules. Heavy assets (textures, meshes) stay under 5 MB per file; prefer generating terrain from `summary.json` profile or a small heightmap PNG produced by Demir.
+- Performance: the page must stay usable on a laptop; load 3D lazily (only when the 3D button is pressed) and fall back quietly if WebGL is missing.
+- Decision time below: if the 3D view is not working by then, ship the UI improvements only.
 
 ## Karar saatleri (yarım kalmasın)
 
@@ -168,6 +188,7 @@ Riskli her işin bir karar saati var; o saatte çalışmıyorsa B planına geçi
 | `gdal_viewshed` / rvt-py | Utku | Cmt 19:30 | numpy ile 8 yönde ufuk açısı ve basit görüş hattı; olmazsa sadece radyo gölgesi |
 | Uçtan uca demo | Ege | Cmt 23:30 | Ek modüller iptal, herkes entegrasyona |
 | HUD tamamı | Serdar | Paz 03:00 | 23:00'teki HUD MVP |
+| 3D view MVP | Egemen | Sat 23:00 | UI improvements only, 3D button hidden |
 
 30 dakikadan fazla aynı sorunda takılırsan gruba yaz. Claude olarak, kullanıcı karar saatini geçmiş bir işte takılıyorsa B planını hatırlat.
 

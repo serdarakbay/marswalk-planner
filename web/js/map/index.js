@@ -35,10 +35,49 @@ function tileLayer(layer) {
   return tl;
 }
 
-// Tile and image layers have setOpacity; GeoJSON lines use setStyle
+// Tile and image layers have setOpacity; GeoJSON layers use setStyle (polygon fill at half strength)
 function setLayerOpacity(layer, value) {
   if (layer.setOpacity) layer.setOpacity(value);
-  else layer.setStyle?.({ opacity: value });
+  else layer.setStyle?.({ opacity: value, fillOpacity: value * 0.5 });
+}
+
+// Geologic units (geology.geojson): one colour per unit from the base.css palette
+const GEOLOGY_COLORS = ['--color-sand', '--color-info', '--color-ok', '--color-warn', '--color-dust', '--color-danger'];
+
+function geologyLayer(geology, pane) {
+  const units = [...new Set((geology.features || []).map((f) => f.properties?.unit).filter(Boolean))];
+  const colorOf = Object.fromEntries(units.map((u, i) => [u, cssVar(GEOLOGY_COLORS[i % GEOLOGY_COLORS.length])]));
+  const layer = L.geoJSON(geology, {
+    coordsToLatLng,
+    pane,
+    style: (f) => {
+      const c = colorOf[f.properties?.unit] || cssVar('--color-text-muted');
+      return { color: c, weight: 1.5, opacity: 0.8, fillColor: c, fillOpacity: 0.4 };
+    },
+    onEachFeature: (f, l) => {
+      const p = f.properties || {};
+      const title = [p.name, p.unit && `(${p.unit})`].filter(Boolean).join(' ');
+      if (title) l.bindTooltip(p.note ? `${title}<br><small>${p.note}</small>` : title, { sticky: true });
+    },
+  });
+  const legend = units.map((u) => {
+    const f = geology.features.find((x) => x.properties?.unit === u);
+    return { color: colorOf[u], label: f?.properties?.name ? `${u} · ${f.properties.name}` : u };
+  });
+  return { layer, legend };
+}
+
+// Shelters (safety.json shelters[{coord, svf}]): svf = sky-view factor, lower = better cover
+function shelterLayer(shelters) {
+  const group = L.featureGroup();
+  for (const s of shelters) {
+    if (!Array.isArray(s?.coord)) continue;
+    const svf = Number.isFinite(s.svf) ? ` · sky-view ${s.svf.toFixed(2)}` : '';
+    L.circleMarker(toLatLng(s.coord), {
+      radius: 5, color: cssVar('--color-bg'), weight: 2, fillColor: cssVar('--color-ok'), fillOpacity: 1,
+    }).bindTooltip(`Shelter${svf}`).addTo(group);
+  }
+  return group;
 }
 
 // Planetocentric lat / east-positive lon, same convention as area.json
@@ -279,6 +318,21 @@ export function initMap(state, mapEl) {
     extent.extend(traverse.getBounds());
     vectors.push(traverse);
     overlays.push({ meta: { id: 'traverse', name: 'Curiosity traverse' }, layer: traverse, on: true });
+  }
+
+  // Geologic map (geology.geojson), off by default
+  if (state.geology?.features?.length) {
+    // Own pane under the route and stops so the polygons never block stop clicks
+    map.createPane('geology').style.zIndex = 350;
+    const { layer, legend } = geologyLayer(state.geology, 'geology');
+    overlays.push({ meta: { id: 'geology', name: 'Geologic units', legend }, layer });
+  }
+
+  // Shelters from safety.json, on by default
+  if (Array.isArray(state.safety?.shelters) && state.safety.shelters.length) {
+    const shelters = shelterLayer(state.safety.shelters);
+    vectors.push(shelters);
+    overlays.push({ meta: { id: 'shelters', name: 'Shelters' }, layer: shelters, on: true });
   }
 
   // Planned Marswalk route (Demir)

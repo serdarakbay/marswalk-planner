@@ -21,6 +21,7 @@
       <h1>Martian Map</h1>
       <p class="subtitle">Marswalk planner · Gale crater</p>
       <div class="actions">
+        <button id="view3d-toggle" class="btn" type="button" aria-pressed="false" hidden>3D</button>
         <button id="hud-toggle" class="btn" type="button" aria-pressed="false">HUD <kbd>H</kbd></button>
       </div>
     </header>
@@ -29,6 +30,7 @@
       <aside id="panel" aria-label="Map layers"></aside>          <!-- Ege -->
       <section class="map-wrap">
         <div id="map" aria-label="Map"></div>                     <!-- Ege -->
+        <div id="view3d-root" hidden></div>                       <!-- Egemen -->
         <div id="profile" aria-label="Elevation profile"></div>   <!-- Ege -->
       </section>
       <aside id="cards" aria-label="Stop details"></aside>        <!-- Egemen -->

@@ -38,13 +38,16 @@ async function loadState() {
   return Object.fromEntries(entries);
 }
 
-// If a module is missing or its init throws, log it and keep the others running
+// If a module is missing or its init throws, log it and keep the others running.
+// Returns true when the module started.
 async function startModule(name, path, initName, el) {
   try {
     const mod = await import(path);
     await mod[initName](state, el);
+    return true;
   } catch (err) {
     console.warn(`[${name}] failed to start: ${err.message}`);
+    return false;
   }
 }
 
@@ -54,14 +57,23 @@ document.getElementById('hud-toggle').addEventListener('click', () => {
   document.dispatchEvent(new CustomEvent('hud:toggle'));
 });
 
-// Keep the HUD button state in sync with body[data-mode]
+const view3dButton = document.getElementById('view3d-toggle');
+view3dButton.addEventListener('click', () => {
+  document.dispatchEvent(new CustomEvent('view3d:toggle'));
+});
+
+// Keep the header buttons in sync with body[data-mode] (HUD) and body[data-view] (3D)
 new MutationObserver(() => {
   document.getElementById('hud-toggle')
     .setAttribute('aria-pressed', String(document.body.dataset.mode === 'hud'));
-}).observe(document.body, { attributes: true, attributeFilter: ['data-mode'] });
+  view3dButton.setAttribute('aria-pressed', String(document.body.dataset.view === '3d'));
+}).observe(document.body, { attributes: true, attributeFilter: ['data-mode', 'data-view'] });
 
 await Promise.all([
   startModule('map', './map/index.js', 'initMap', document.getElementById('map')),
   startModule('cards', './cards/index.js', 'initCards', document.getElementById('cards')),
   startModule('hud', './hud/index.js', 'initHUD', document.getElementById('hud-root')),
+  // The 3D button only appears once Egemen's 3D view has started
+  startModule('view3d', './view3d/index.js', 'initView3D', document.getElementById('view3d-root'))
+    .then((ok) => { view3dButton.hidden = !ok; }),
 ]);
