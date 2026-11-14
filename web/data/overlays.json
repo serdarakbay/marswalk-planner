@@ -9,12 +9,20 @@
       "east": 137.4,
       "north": -4.73
     },
-    "legend": {
-      "min": 0,
-      "max": 35,
-      "unit": "deg",
-      "colormap": "RdYlGn_r"
-    }
+    "legend": [
+      {
+        "color": "#6ec064",
+        "label": "< 15°"
+      },
+      {
+        "color": "#fee999",
+        "label": "15–25°"
+      },
+      {
+        "color": "#e34933",
+        "label": "> 25°"
+      }
+    ]
   },
   {
     "id": "cost",
@@ -26,12 +34,19 @@
       "east": 137.4,
       "north": -4.73
     },
-    "legend": {
-      "min": 1,
-      "max": 5,
-      "unit": "relative",
-      "colormap": "magma_r",
-      "impassable_color": "#cc0000"
-    }
+    "legend": [
+      {
+        "color": "#fcfdbf",
+        "label": "Easy"
+      },
+      {
+        "color": "#000004",
+        "label": "Hard"
+      },
+      {
+        "color": "#cc0000",
+        "label": "Impassable (> 25°)"
+      }
+    ]
   }
 ]
