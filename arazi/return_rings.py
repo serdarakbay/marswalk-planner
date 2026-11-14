@@ -20,7 +20,7 @@ from skimage.graph import MCP_Geometric
 from arazi.geo import CACHE, MARS_GEO, ROOT, WEB, load_area, to_overlay_png
 from arazi.walk import o2_used_pct, speed_m_min
 
-BAND_MIN = 10                          # one colour band per 10 minutes
+BAND_MIN = 15                          # one colour band per 15 minutes
 BAND_COLORS = ["#2e9e5b", "#7cc35a", "#e8c547", "#ef8a3a", "#d64545", "#8e2c6e"]
 UNREACHABLE = "#555555"
 
