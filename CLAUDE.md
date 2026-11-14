@@ -133,7 +133,7 @@ Full schemas are in `docs/contracts.md`. Summary:
 
 The map, cards, HUD and 3D view never import each other's files; they talk only through this interface:
 
-- `web/js/main.js` (Ege) loads every `web/data/` file once into a single `state` object: `{area, layers, overlays, route, summary, safety, stops, geology, images, traverse, weather, sun, eva, donki, radiation, alerts}`. A missing or broken file stays `null`; the app never crashes.
+- `web/js/main.js` (Ege) loads every `web/data/` file once into a single `state` object: `{area, layers, overlays, route, summary, safety, stops, geology, images, traverse, weather, sun, eva, donki, radiation, alerts, mission}`. `mission` is `config/mission.json`, which GitHub Pages copies to `web/data/mission.json` at deploy time (for a local preview, copy it once; the copy is git-ignored). Read thresholds from `state.mission` instead of writing them in JS. A missing or broken file stays `null`; the app never crashes.
 - When a stop is clicked, the map (Ege) dispatches `document.dispatchEvent(new CustomEvent('stop:select', {detail: stop}))`.
 - Cards (Egemen): `web/js/cards/index.js` → `export function initCards(state, el)`; listens to `stop:select`.
 - HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; the H key opens and closes the HUD, and `stop:select` updates the next stop.
