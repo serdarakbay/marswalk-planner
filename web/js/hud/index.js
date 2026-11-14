@@ -203,15 +203,18 @@ export function initHUD(state, el) {
     bar.append(left, right);
 
     // --- alerts
+    // Walk-only metrics are null inside the habitat, so alerts.json rules about O2, dose or
+    // the EVA clock ("shorten the stop") do not fire before leaving or after returning.
+    const out = atHabitat !== true;
     const metrics = {
       sun_el: s?.sun_el ?? null,
       earth_el: s?.earth_el ?? null,
       light_time_min: s?.light_time_min ?? null,
-      o2_used_pct: o2?.used_pct ?? null,
-      o2_remaining_pct: o2?.remaining_pct ?? null,
-      dose_mSv: doseNow ?? null,
+      o2_used_pct: out ? o2?.used_pct ?? null : null,
+      o2_remaining_pct: out ? o2?.remaining_pct ?? null : null,
+      dose_mSv: out ? doseNow ?? null : null,
       elapsed_min: elapsed,
-      eva_remaining_min: status?.state === 'open' ? status.min : null,
+      eva_remaining_min: out && status?.state === 'open' ? status.min : null,
       max_slope_deg: state.summary?.max_slope_deg ?? null,
       slope_deg: rs?.slope_deg ?? null,
       comm_ok: typeof safe1?.comm_ok === 'boolean' ? safe1.comm_ok : null,
@@ -364,6 +367,12 @@ export function initHUD(state, el) {
   // 'hud:time' tells the map where the astronaut is (approved by Ege, 2026-11-14).
   // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
   // coord and d_m are null until route.geojson exists. active is false when the HUD is closed.
+  // Same rule as atHabitat in render(): inside at or before T+0 and after the route ends.
+  function insideAt(elapsed) {
+    if (!timeline || !Number.isFinite(elapsed)) return false;
+    return elapsed <= 0 || elapsed >= timeline.total_min;
+  }
+
   function emitTime() {
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
     let rs = null;
@@ -381,7 +390,8 @@ export function initHUD(state, el) {
         coord: rs?.coord ? rs.coord.map((v) => Math.round(v * 1e6) / 1e6) : null,
         d_m: Number.isFinite(rs?.d_m) ? Math.round(rs.d_m) : null,
         storm,
-        shelter: storm && rs?.coord
+        // No shelter to point at while the astronaut is inside (before T+0 or after the route)
+        shelter: storm && rs?.coord && !insideAt(elapsed)
           ? nearestShelter(state.safety?.shelters, rs.coord)?.coord ?? null : null,
       },
     }));
