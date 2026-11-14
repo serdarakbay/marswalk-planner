@@ -1,5 +1,6 @@
-/* HUD mode (Serdar). Default look: plain/modern. Optional visor look at the end of
-   this file, switched on with ?hud=visor in the page URL (#hud-root[data-look="visor"]).
+/* HUD mode (Serdar). Default look: visor (rules at the end of this file,
+   #hud-root[data-look="visor"], set by index.js). ?hud=plain in the page URL gives the
+   plain/modern look defined by the base rules below.
    Rules (CLAUDE.md, page layout section):
    - every selector starts with #hud-root
    - colours, fonts, spacing, radii and z-index come only from base.css variables
@@ -222,7 +223,7 @@
   #hud-root .hud-sim__label { margin-left: auto; }
 }
 
-/* ---- Optional visor look (?hud=visor): base.css --color-hud* palette, mono type, corner marks ---- */
+/* ---- Visor look (default; ?hud=plain turns it off): base.css --color-hud* palette, mono type, corner marks ---- */
 #hud-root[data-look="visor"] {
   --hud-fg: var(--color-hud);
   --hud-muted: var(--color-hud-dim);
@@ -254,3 +255,5 @@
 #hud-root[data-look="visor"] .hud-stop__name { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; }
 #hud-root[data-look="visor"] .hud-sim__play,
 #hud-root[data-look="visor"] .hud-sim__speed { background: var(--hud-panel-bg); font-family: var(--font-mono); }
+/* keep the pressed (Pause) state readable: the rule above would otherwise darken its background */
+#hud-root[data-look="visor"] .hud-sim__play[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-accent); }
