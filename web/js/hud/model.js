@@ -6,6 +6,9 @@ export const FALLBACK = {
   // Curiosity RAD surface dose equivalent rate at Gale (Hassler et al. 2014); same as
   // rad_base_mSv_per_day in CLAUDE.md. Replaced by radiation.json when it lands.
   rad_base_mSv_per_day: 0.64,
+  // Same as rad_event_window_h in config/mission.json; used until radiation.json carries
+  // its own event_window_h.
+  rad_event_window_h: 48,
 };
 
 const MARS_RADIUS_M = 3396190; // same sphere as the project CRS (CLAUDE.md)
@@ -134,7 +137,9 @@ export function evalAlerts(alerts, metrics) {
   if (metrics.eva_state === 'closed' && metrics.at_habitat !== true) {
     out.push({ id: 'hud-eva-closed', level: 'danger', text: 'Outside EVA window: return to habitat' });
   }
-  if (metrics.radiation_status && metrics.radiation_status !== 'nominal') {
+  // Built-in radiation alert only when alerts.json has no radiation_status rule (no duplicates)
+  const radRule = (alerts?.rules ?? []).some((r) => r.metric === 'radiation_status');
+  if (!radRule && metrics.radiation_status && metrics.radiation_status !== 'nominal') {
     out.push({
       id: 'hud-radiation',
       level: metrics.radiation_status === 'storm' ? 'danger' : 'warn',
@@ -206,8 +211,9 @@ const AT_STOP_M = 25;
 const OFF_ROUTE_M = 100;
 
 // Arrival (t_min) and departure (t_leave) of each stop on the route, sorted by arrival.
-// The route stays at a stop for the dwell time, so arrival is the first vertex near the
-// stop and departure the last vertex of that same visit.
+// The route stays at a stop for the dwell time. It may also pass close to a stop on the
+// way somewhere else, so of all the visits (runs of vertices near the stop) the longest
+// one in time is the real stop; arrival / departure are its first / last vertex.
 export function stopSchedule(tl, stops) {
   if (!tl || !Array.isArray(stops)) return [];
   const out = [];
@@ -220,10 +226,16 @@ export function stopSchedule(tl, stops) {
       continue;
     }
     const near = Math.max(AT_STOP_M, dMin + 1);
-    let first = dist.findIndex((d) => d <= near);
-    let last = first;
-    while (last + 1 < dist.length && dist[last + 1] <= near) last++;
-    out.push({ stop, t_min: tl.t[first], t_leave: tl.t[last] });
+    let best = null;
+    for (let i = 0; i < dist.length; i++) {
+      if (dist[i] > near) continue;
+      let j = i;
+      while (j + 1 < dist.length && dist[j + 1] <= near) j++;
+      const span = tl.t[j] - tl.t[i];
+      if (!best || span > best.span) best = { first: i, last: j, span };
+      i = j;
+    }
+    out.push({ stop, t_min: tl.t[best.first], t_leave: tl.t[best.last] });
   }
   return out.sort((a, b) => a.t_min - b.t_min);
 }
@@ -256,6 +268,23 @@ export function doseAt(dose, frac) {
 
 // ---------------------------------------------------------------------------
 // Solar storm replay (radiation.json "replay" block, Utku)
+
+// Live status at simulation time t. radiation.json is written for the moment the script
+// ran: "elevated" when a CME reached Mars within +/- window hours of then. Re-apply the same
+// rule at time t using mars_arrivals_in_window, so the alert ends when the window ends.
+export function radiationAt(radiation, t) {
+  const arrivals = radiation?.mars_arrivals_in_window;
+  if (!radiation || radiation.status !== 'elevated' || !Array.isArray(arrivals) || !arrivals.length || !t) {
+    return radiation ?? null;
+  }
+  const windowH = Number.isFinite(radiation.event_window_h)
+    ? radiation.event_window_h : FALLBACK.rad_event_window_h;
+  const active = arrivals.some((a) => {
+    const at = parseUtc(a?.utc);
+    return at && Math.abs(t - at) <= windowH * 3600000;
+  });
+  return active ? radiation : { ...radiation, status: 'nominal', message: 'Background GCR only.' };
+}
 
 // radiation.json with the replay scenario applied on top when `storm` is on.
 // The top-level fields stay the live values; replay only overrides status,

@@ -15,7 +15,7 @@
 // Returns a controller ({toggle, setTime, render, clock}).
 
 import {
-  activityFraction, compass, distanceM, doseAt, effectiveRadiation, evaDose, evalAlerts, evaStatus,
+  activityFraction, compass, distanceM, doseAt, effectiveRadiation, evaDose, evalAlerts, evaStatus, radiationAt,
   fmtDuration, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState, routeTimeline, safetyAt,
   stopSchedule, sunAt,
 } from './model.js';
@@ -163,7 +163,8 @@ export function initHUD(state, el) {
     const status = evaStatus(eva, time);
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
     const frac = activityFraction(elapsed, activeMin);
-    const rad = effectiveRadiation(state.radiation, storm);
+    // Live status follows the simulation clock; the replay (storm) overrides it when on.
+    const rad = effectiveRadiation(radiationAt(state.radiation, time), storm);
     const dose = evaDose(rad, eva, timeline?.total_min, state.summary);
     const doseNow = doseAt(dose, frac);
     const o2 = o2At(state.summary, frac);
@@ -173,7 +174,9 @@ export function initHUD(state, el) {
     const rs = atHabitat ? null : routeState(timeline, elapsed);
     const pos = rs?.coord ?? null;
     // Shelter / radio-shadow info only matters while outside.
-    const safe1 = atHabitat ? null : safetyAt(state.safety, rs?.d_m);
+    let safe1 = atHabitat ? null : safetyAt(state.safety, rs?.d_m);
+    // safety.json built for another route: its row is far from here, so ignore it (stale data)
+    if (safe1 && Number.isFinite(rs?.d_m) && Math.abs(safe1.d - rs.d_m) > 50) safe1 = null;
     const isStorm = rad?.status === 'storm';
     const shelter = isStorm && !atHabitat
       ? nearestShelter(state.safety?.shelters, pos ?? state.area?.habitat) : null;
