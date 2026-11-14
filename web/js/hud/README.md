@@ -42,7 +42,16 @@ Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) 
 | `scenario.js` | Storm and dust devil simulation |
 | `sim.js` | Simulation clock |
 | `dev.html`, `mock-state.js` | Standalone test page with MOCK data |
+| `test.mjs` | Self-tests (`node web/js/hud/test.mjs`) |
 | `../../css/hud.css` | Styles; every selector starts with `#hud-root` |
+
+## Tests
+
+```
+node web/js/hud/test.mjs
+```
+
+No dependencies. Part 1 checks the logic on small made-up inputs (stop order, storm and dust devil plans, O2 and dose, radio shadows, radiation, alerts, missing data). Part 2 checks the real files in `web/data/` (sun.json, EVA window, stop order on the real route, O2 against summary.json, safety.json); a missing file is skipped. Exits with code 1 if anything fails.
 
 ## Events
 
