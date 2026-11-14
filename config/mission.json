@@ -17,5 +17,13 @@
   "stop_dwell_min": 15,
   "rad_base_mGy_per_day": 0.21,
   "replay_event_dose_mGy": 8.1,
-  "rad_event_window_h": 48
+  "rad_event_window_h": 48,
+  "comm_antenna_height_m": 6,
+  "comm_suit_antenna_height_m": 2,
+  "shelter_search_radius_m": 200,
+  "shelter_count": 5,
+  "shelter_min_spacing_m": 150,
+  "svf_directions": 16,
+  "svf_radius_m": 100,
+  "svf_grid_m": 5
 }

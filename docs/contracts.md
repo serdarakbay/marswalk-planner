@@ -141,6 +141,7 @@ Pre-rendered PNG layers (slope, cost, ...).
 - `overlays[]` has the same schema as `overlays.json`; the layer panel shows both together.
 - `svf`: sky-view factor, 0–1. `route[].d` is in metres, on the same axis as `d` in the `summary.json` profile.
 - `offline_min`: total time without communication along the route.
+- `route[]` has exactly one entry per `summary.json` profile point, with the same `d` values in the same order. `shelter_min` is the walking time to the nearest shelter in minutes (`null` if none can be reached).
 
 ## stops.json (Utku)
 
@@ -311,7 +312,15 @@ All thresholds and constants. Python scripts read them from here, so there are n
   "stop_dwell_min": 15,
   "rad_base_mGy_per_day": 0.21,
   "replay_event_dose_mGy": 8.1,
-  "rad_event_window_h": 48
+  "rad_event_window_h": 48,
+  "comm_antenna_height_m": 6,
+  "comm_suit_antenna_height_m": 2,
+  "shelter_search_radius_m": 200,
+  "shelter_count": 5,
+  "shelter_min_spacing_m": 150,
+  "svf_directions": 16,
+  "svf_radius_m": 100,
+  "svf_grid_m": 5
 }
 ```
 
@@ -327,3 +336,12 @@ All thresholds and constants. Python scripts read them from here, so there are n
   - `rad_base_mGy_per_day`: mean surface absorbed dose rate measured by RAD, mGy/day.
   - `replay_event_dose_mGy`: absorbed dose RAD measured during the 20 May 2024 replay event, mGy.
   - `rad_event_window_h`: in live mode, a WSA-ENLIL Mars arrival within this many hours of now sets `status` to `elevated`, hours.
+- Radio link and shelters (`science/safety/build.py`):
+  - `comm_antenna_height_m`: habitat antenna height above the ground, m.
+  - `comm_suit_antenna_height_m`: suit antenna height above the ground, m.
+  - `shelter_search_radius_m`: shelters are searched within this distance of the route, m.
+  - `shelter_count`: number of shelters to pick.
+  - `shelter_min_spacing_m`: minimum distance between two shelters, m.
+  - `svf_directions`: number of directions for the sky-view factor.
+  - `svf_radius_m`: how far to search for the horizon in each direction, m.
+  - `svf_grid_m`: spacing of the candidate points, m.
