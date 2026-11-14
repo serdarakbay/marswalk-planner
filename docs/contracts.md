@@ -295,8 +295,21 @@ All thresholds and constants. Python scripts read them from here, so there are n
   "o2_reserve_pct": 25,
   "rad_base_mSv_per_day": 0.64,
   "dem_resolution_m": 1,
-  "dem_max_downsample_m": 2
+  "dem_max_downsample_m": 2,
+  "body_mass_kg": 75,
+  "suit_load_kg": 90,
+  "terrain_factor": 1.2,
+  "o2_kj_per_l": 20.1,
+  "suit_speed_factor": 0.6,
+  "stop_dwell_min": 15
 }
 ```
 
 - `eva_min_sun_el_deg` and `eva_min_temp_c` are needed for Serdar's EVA window.
+- Walking and O2 model (`science/models.py`); sources and assumptions are in `docs/story/assumptions.md`:
+  - `body_mass_kg`: astronaut body mass, kg.
+  - `suit_load_kg`: suit, life-support backpack and tools, kg.
+  - `terrain_factor`: Pandolf terrain coefficient η, no unit (1.0 = hard flat surface).
+  - `o2_kj_per_l`: energy released per litre of O2 consumed, kJ/L.
+  - `suit_speed_factor`: suited walking speed as a fraction of Tobler's hiking speed, no unit.
+  - `stop_dwell_min`: time spent at each science stop, minutes.
