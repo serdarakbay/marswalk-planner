@@ -1,5 +1,26 @@
 [
   {
+    "id": "hillshade",
+    "name": "Shaded relief",
+    "png": "data/overlays/hillshade.png",
+    "bounds": {
+      "west": 137.36,
+      "south": -4.77,
+      "east": 137.4,
+      "north": -4.73
+    },
+    "legend": [
+      {
+        "color": "#262626",
+        "label": "Facing away from light"
+      },
+      {
+        "color": "#e6e6e6",
+        "label": "Lit from NW (315°, 45° up)"
+      }
+    ]
+  },
+  {
     "id": "slope",
     "name": "Slope",
     "png": "data/overlays/slope.png",
@@ -21,6 +42,31 @@
       {
         "color": "#e34933",
         "label": "> 25°"
+      }
+    ]
+  },
+  {
+    "id": "roughness",
+    "name": "Surface roughness",
+    "png": "data/overlays/roughness.png",
+    "bounds": {
+      "west": 137.36,
+      "south": -4.77,
+      "east": 137.4,
+      "north": -4.73
+    },
+    "legend": [
+      {
+        "color": "#fff7bc",
+        "label": "Smooth (< 0.25 m)"
+      },
+      {
+        "color": "#fec34f",
+        "label": "Uneven (0.25–0.5 m)"
+      },
+      {
+        "color": "#662506",
+        "label": "Rocky (> 0.5 m)"
       }
     ]
   },

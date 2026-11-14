@@ -129,6 +129,56 @@ summary = {
                  "slope": round(float(slopes[i]), 1)} for i in prof_idx],
 }
 
+def traverse_lines(path):
+    """Curiosity traverse (Egemen's traverse.geojson) as a list of [lon, lat] lines."""
+    t = json.loads(path.read_text(encoding="utf-8"))
+    geoms = [f["geometry"] for f in t["features"]] if t.get("type") == "FeatureCollection" \
+        else [t.get("geometry", t)]
+    lines = []
+    for g in geoms:
+        if g["type"] == "LineString":
+            lines.append(g["coordinates"])
+        elif g["type"] == "MultiLineString":
+            lines.extend(g["coordinates"])
+    return lines
+
+
+def compare_with_traverse(route_x, route_y):
+    """How far (metres) our route stays from the path Curiosity's drivers chose."""
+    segs = []
+    for line in traverse_lines(WEB / "data" / "traverse.geojson"):
+        pts = np.array(line)[:, :2]
+        tx, ty = warp_coords(MARS_GEO, crs, list(pts[:, 0]), list(pts[:, 1]))
+        p = np.c_[tx, ty]
+        segs.extend(zip(p[:-1], p[1:]))
+    a = np.array([s[0] for s in segs])
+    ab = np.array([s[1] for s in segs]) - a
+    ab2 = np.maximum((ab * ab).sum(1), 1e-9)
+
+    # Resample our route every 1 m so the mean is weighted by distance, not by vertex
+    r = np.c_[route_x, route_y]
+    along = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(r, axis=0).T))])
+    dd = np.arange(0, along[-1], 1.0)
+    pts = np.c_[np.interp(dd, along, r[:, 0]), np.interp(dd, along, r[:, 1])]
+
+    def nearest(p):
+        t = np.clip(((p - a) * ab).sum(1) / ab2, 0, 1)
+        return np.hypot(*(a + ab * t[:, None] - p).T).min()
+
+    dist = np.array([nearest(p) for p in pts])
+    return {
+        "mean_m": round(float(dist.mean())),
+        "median_m": round(float(np.median(dist))),
+        "max_m": round(float(dist.max())),
+        "within_100m_pct": round(float((dist <= 100).mean() * 100)),
+    }
+
+
+try:
+    summary["curiosity_traverse"] = compare_with_traverse(xs, ys)
+except Exception as exc:   # traverse.geojson missing or broken: skip, keep the route
+    print(f"WARNING: no Curiosity traverse comparison ({exc})")
+
 # Keep the "terrain" block written by arazi.heightmap (Egemen's 3D view)
 old_summary = WEB / "data" / "summary.json"
 if old_summary.exists():

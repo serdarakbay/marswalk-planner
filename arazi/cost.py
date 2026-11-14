@@ -43,6 +43,9 @@ cost[np.isnan(z)] = np.nan
 profile.update(dtype="float32", nodata=np.nan, compress="deflate")
 with rasterio.open(OUT, "w", **profile) as dst:
     dst.write(cost.astype("float32"), 1)
+# Roughness on its own, for the roughness overlay (arazi.overlays)
+with rasterio.open(CACHE / "rough.tif", "w", **profile) as dst:
+    dst.write(rough.astype("float32"), 1)
 
 print("Roughness (m) mean/max:", round(float(np.nanmean(rough)), 2), round(float(np.nanmax(rough)), 2))
 print("Cost min/mean/max:",
