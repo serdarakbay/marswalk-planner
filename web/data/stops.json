@@ -1,0 +1,74 @@
+[
+ {
+  "id": "s1",
+  "name": "Layered sulfate slope",
+  "coord": [
+   137.39764,
+   -4.762403
+  ],
+  "science": "Thin repeating layers rich in sulfate salts record a drier climate as Mount Sharp built up.",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03730/mhli/3730MH0008170001303618S00_DXXX.jpg",
+    "sol": 3730,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03730/opgs/edr/ncam/NLB_728628746EDR_F0992414NCAM00272M_.JPG",
+    "sol": 3730,
+    "camera": "Navcam",
+    "credit": "NASA/JPL-Caltech"
+   }
+  ],
+  "mock": true
+ },
+ {
+  "id": "s2",
+  "name": "Resistant ridge",
+  "coord": [
+   137.394682,
+   -4.760643
+  ],
+  "science": "A ridge of mineral-cemented rock that stands out because it eroded more slowly than the layers around it.",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03672/mhli/3672MH0001710001302391S00_DXXX.jpg",
+    "sol": 3672,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03672/mcam/3672ML1032200031502597C00_DXXX.jpg",
+    "sol": 3672,
+    "camera": "Mastcam",
+    "credit": "NASA/JPL-Caltech/MSSS"
+   }
+  ],
+  "mock": true
+ },
+ {
+  "id": "s3",
+  "name": "Sulfate vein network",
+  "coord": [
+   137.399232,
+   -4.759353
+  ],
+  "science": "Bright fractures filled with calcium sulfate show that groundwater kept moving through the rock after it formed.",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03565/mcam/3565ML1025830040807027C00_DXXX.jpg",
+    "sol": 3565,
+    "camera": "Mastcam",
+    "credit": "NASA/JPL-Caltech/MSSS"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03565/opgs/edr/ncam/NLB_713981775EDR_F0963150NCAM00272M_.JPG",
+    "sol": 3565,
+    "camera": "Navcam",
+    "credit": "NASA/JPL-Caltech"
+   }
+  ],
+  "mock": true
+ }
+]

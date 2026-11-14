@@ -1,0 +1,62 @@
+{
+ "rules": [
+  {
+   "id": "o2_warn",
+   "metric": "o2_remaining_pct",
+   "op": "<",
+   "value": 40,
+   "level": "warn",
+   "text": "O2 below 40%. Plan the return leg."
+  },
+  {
+   "id": "o2_low",
+   "metric": "o2_remaining_pct",
+   "op": "<",
+   "value": 25,
+   "level": "danger",
+   "text": "O2 reserve reached. Return to habitat."
+  },
+  {
+   "id": "dose_warn",
+   "metric": "dose_mSv",
+   "op": ">=",
+   "value": 0.25,
+   "level": "warn",
+   "text": "EVA dose above plan. Shorten the stop."
+  },
+  {
+   "id": "slope_warn",
+   "metric": "slope_deg",
+   "op": ">",
+   "value": 15,
+   "level": "warn",
+   "text": "Steep ground. Slow down."
+  },
+  {
+   "id": "slope_max",
+   "metric": "slope_deg",
+   "op": ">",
+   "value": 25,
+   "level": "danger",
+   "text": "Slope over limit. Turn back."
+  },
+  {
+   "id": "comm_lost",
+   "metric": "comm_ok",
+   "op": "==",
+   "value": false,
+   "level": "warn",
+   "text": "Radio shadow. No link to habitat."
+  },
+  {
+   "id": "shelter_far",
+   "metric": "shelter_min",
+   "op": ">",
+   "value": 15,
+   "level": "info",
+   "text": "Nearest shelter is more than 15 min away."
+  }
+ ],
+ "mock": true,
+ "source": "MOCK"
+}

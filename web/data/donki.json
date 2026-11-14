@@ -1,0 +1,25 @@
+{
+ "mode": "replay",
+ "events": [
+  {
+   "type": "FLR",
+   "start": "2024-05-20T05:00:00Z",
+   "peak": "2024-05-20T05:22:00Z",
+   "mars_impact": true
+  },
+  {
+   "type": "CME",
+   "start": "2024-05-20T05:36:00Z",
+   "peak": null,
+   "mars_impact": true
+  },
+  {
+   "type": "SEP",
+   "start": "2024-05-20T06:00:00Z",
+   "peak": null,
+   "mars_impact": true
+  }
+ ],
+ "mock": true,
+ "source": "MOCK"
+}

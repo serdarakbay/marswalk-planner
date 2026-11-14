@@ -1,0 +1,8 @@
+{
+ "base_mSv_per_day": 0.64,
+ "event_multiplier": 1.0,
+ "status": "nominal",
+ "message": "Background GCR only.",
+ "mock": true,
+ "source": "MOCK"
+}

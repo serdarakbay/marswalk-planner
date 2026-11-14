@@ -1,0 +1,227 @@
+{
+ "type": "FeatureCollection",
+ "mock": true,
+ "source": "MOCK",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       137.36,
+       -4.7445
+      ],
+      [
+       137.365,
+       -4.743055
+      ],
+      [
+       137.37,
+       -4.743727
+      ],
+      [
+       137.375,
+       -4.745532
+      ],
+      [
+       137.38,
+       -4.745825
+      ],
+      [
+       137.385,
+       -4.744177
+      ],
+      [
+       137.39,
+       -4.743002
+      ],
+      [
+       137.395,
+       -4.744021
+      ],
+      [
+       137.4,
+       -4.745742
+      ],
+      [
+       137.4,
+       -4.73
+      ],
+      [
+       137.36,
+       -4.73
+      ],
+      [
+       137.36,
+       -4.7445
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "unit": "Mcb",
+    "name": "Clay-bearing mudstone (Murray formation)",
+    "note": "MOCK unit, not from the USGS map. Fine-grained lake mudstone rich in clay minerals; a record of long-lived water.",
+    "mock": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       137.36,
+       -4.757238
+      ],
+      [
+       137.365,
+       -4.757081
+      ],
+      [
+       137.37,
+       -4.757998
+      ],
+      [
+       137.375,
+       -4.759295
+      ],
+      [
+       137.38,
+       -4.759991
+      ],
+      [
+       137.385,
+       -4.759558
+      ],
+      [
+       137.39,
+       -4.758325
+      ],
+      [
+       137.395,
+       -4.757224
+      ],
+      [
+       137.4,
+       -4.757089
+      ],
+      [
+       137.4,
+       -4.745742
+      ],
+      [
+       137.395,
+       -4.744021
+      ],
+      [
+       137.39,
+       -4.743002
+      ],
+      [
+       137.385,
+       -4.744177
+      ],
+      [
+       137.38,
+       -4.745825
+      ],
+      [
+       137.375,
+       -4.745532
+      ],
+      [
+       137.37,
+       -4.743727
+      ],
+      [
+       137.365,
+       -4.743055
+      ],
+      [
+       137.36,
+       -4.7445
+      ],
+      [
+       137.36,
+       -4.757238
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "unit": "Mtr",
+    "name": "Clay-to-sulfate transition",
+    "note": "MOCK unit, not from the USGS map. Interbedded mudstone and sandstone where clay minerals give way to sulfate salts.",
+    "mock": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       137.36,
+       -4.77
+      ],
+      [
+       137.4,
+       -4.77
+      ],
+      [
+       137.4,
+       -4.757089
+      ],
+      [
+       137.395,
+       -4.757224
+      ],
+      [
+       137.39,
+       -4.758325
+      ],
+      [
+       137.385,
+       -4.759558
+      ],
+      [
+       137.38,
+       -4.759991
+      ],
+      [
+       137.375,
+       -4.759295
+      ],
+      [
+       137.37,
+       -4.757998
+      ],
+      [
+       137.365,
+       -4.757081
+      ],
+      [
+       137.36,
+       -4.757238
+      ],
+      [
+       137.36,
+       -4.77
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "unit": "Msu",
+    "name": "Layered sulfate-bearing unit",
+    "note": "MOCK unit, not from the USGS map. Sulfate-bearing layers from a drying climate; resistant ridges and veins are common.",
+    "mock": true
+   }
+  }
+ ]
+}
