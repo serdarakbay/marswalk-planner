@@ -62,27 +62,27 @@
     "legend": [
       {
         "color": "#2e9e5b",
-        "label": "0–15 min (O2 ≤ 2%)"
+        "label": "0–15 min (O2 ≤ 4%)"
       },
       {
         "color": "#7cc35a",
-        "label": "15–30 min (O2 ≤ 5%)"
+        "label": "15–30 min (O2 ≤ 7%)"
       },
       {
         "color": "#e8c547",
-        "label": "30–45 min (O2 ≤ 7%)"
+        "label": "30–45 min (O2 ≤ 10%)"
       },
       {
         "color": "#ef8a3a",
-        "label": "45–60 min (O2 ≤ 9%)"
+        "label": "45–60 min (O2 ≤ 14%)"
       },
       {
         "color": "#d64545",
-        "label": "60–75 min (O2 ≤ 12%)"
+        "label": "60–75 min (O2 ≤ 17%)"
       },
       {
         "color": "#8e2c6e",
-        "label": "> 75 min"
+        "label": "> 75 min (O2 ≤ 23%)"
       },
       {
         "color": "#555555",

@@ -18,7 +18,7 @@ from scipy.ndimage import distance_transform_edt
 from skimage.graph import MCP_Geometric
 
 from arazi.geo import CACHE, MARS_GEO, ROOT, WEB, load_area, to_overlay_png
-from arazi.walk import o2_used_pct, speed_m_min
+from arazi.walk import o2_walk_pct, speed_m_min
 
 BAND_MIN = 15                          # one colour band per 15 minutes
 BAND_COLORS = ["#2e9e5b", "#7cc35a", "#e8c547", "#ef8a3a", "#d64545", "#8e2c6e"]
@@ -31,9 +31,12 @@ with rasterio.open(CACHE / "cost.tif") as ds:
     blocked = ~np.isfinite(ds.read(1))
 res = abs(tr.a)
 
-# Minutes needed to walk one metre across each pixel
-min_per_m = 1 / speed_m_min(np.tan(np.radians(slope)))
+# Minutes and O2 (% of tank) needed to walk one metre across each pixel (uphill)
+uphill = np.nan_to_num(np.tan(np.radians(slope)))
+min_per_m = 1 / speed_m_min(uphill)
+o2_per_m = o2_walk_pct(min_per_m, uphill)
 min_per_m[blocked] = np.inf
+o2_per_m[blocked] = np.inf
 
 # Snap the habitat to the nearest passable pixel
 lon, lat = load_area()["habitat"]
@@ -46,6 +49,10 @@ start = (int(near_r[int(row), int(col)]), int(near_c[int(row), int(col)]))
 minutes, _ = MCP_Geometric(min_per_m, fully_connected=True).find_costs([start])
 minutes = minutes * res
 minutes[~np.isfinite(minutes)] = np.nan
+# Same search with O2 as the cost: O2 needed to walk back from each pixel
+o2_back, _ = MCP_Geometric(o2_per_m, fully_connected=True).find_costs([start])
+o2_back = o2_back * res
+o2_back[~np.isfinite(o2_back)] = np.nan
 
 profile.update(dtype="float32", nodata=np.nan, compress="deflate")
 with rasterio.open(CACHE / "return_time.tif", "w", **profile) as dst:
@@ -53,7 +60,7 @@ with rasterio.open(CACHE / "return_time.tif", "w", **profile) as dst:
 
 reach = minutes[np.isfinite(minutes)]
 print("Return time (min) median/max:", round(float(np.median(reach)), 1), round(float(reach.max()), 1))
-print("O2 for the longest return: %", round(float(o2_used_pct(reach.max())), 1))
+print("O2 for the costliest return: %", round(float(np.nanmax(o2_back)), 1))
 print("Unreachable area: %", round(float(np.isnan(minutes).mean() * 100), 1))
 
 # Banded colours: 0-10, 10-20, ... last band is open-ended
@@ -62,8 +69,10 @@ colormaps.register(ListedColormap(BAND_COLORS, name="return_bands"), force=True)
 legend = []
 for i, c in enumerate(BAND_COLORS):
     lo, hi = i * BAND_MIN, (i + 1) * BAND_MIN
-    o2 = float(o2_used_pct(hi))
-    label = f"{lo}–{hi} min (O2 ≤ {o2:.0f}%)" if i < n - 1 else f"> {lo} min"
+    in_band = (minutes >= lo) & (minutes < hi) if i < n - 1 else (minutes >= lo)
+    o2 = float(np.nanmax(o2_back[in_band])) if in_band.any() else 0.0
+    label = f"{lo}–{hi} min" if i < n - 1 else f"> {lo} min"
+    label += f" (O2 ≤ {np.ceil(o2):.0f}%)"
     legend.append({"color": c, "label": label})
 legend.append({"color": UNREACHABLE, "label": "Unreachable"})
 

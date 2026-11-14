@@ -40,6 +40,8 @@ _DEFAULT_MISSION = {
     "rad_base_mSv_per_day": 0.64,
     "dem_resolution_m": 1,
     "dem_max_downsample_m": 2,
+    "suit_speed_factor": 0.6,
+    "stop_dwell_min": 15,
 }
 
 OVERLAY_SIZE = 1200   # PNG width/height in pixels
