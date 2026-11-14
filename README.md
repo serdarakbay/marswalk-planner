@@ -14,7 +14,7 @@ Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, where Cur
 - **Elevation profile:** elevation and slope along the route, with radio-shadow stretches where the crew loses contact. Hovering the profile marks the same spot on the map.
 - **Stop cards:** what to look at at each stop, with nearby Curiosity photos and the arrival time on the route.
 - **Landing page:** the site root introduces the walk, the safety layers, the storm and the models, with a 3D block diagram of the study area; every number on it is read from the data files. The planner itself is `planner.html`.
-- **HUD mode:** a visor view with the next stop, remaining O2, dose, Sun and Earth position, and alerts. A simulation clock moves the astronaut along the route on the map and the profile. Press **H** or the HUD button. A **Storm replay** button (or `?radiation=replay` in the URL) replays the 20 May 2024 solar storm measured by Curiosity: dose rate x38.6, danger alerts, and the nearest shelter shown on the HUD and the map.
+- **HUD mode:** a visor view with the next stop, O2, dose, Sun and Earth position and alerts, a simulation clock, and two replayable emergencies: a solar storm and a dust devil ([details](web/js/hud/README.md)). Press **H**.
 
 ## Study area
 
