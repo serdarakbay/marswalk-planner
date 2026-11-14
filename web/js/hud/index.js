@@ -23,7 +23,7 @@ import {
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
-import { createRouter, legRemaining, loadTerrainGrid } from './terrain.js';
+import { createRouter, legRemaining, loadTerrainGrid, slopeAt, steepestOnPath } from './terrain.js';
 import { bestRefuge, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
@@ -72,6 +72,7 @@ function fmtNum(v, digits = 0, unit = '') {
 
 const LOG_ROWS = 6;   // mission log entries shown (newest first)
 const REFUGE_ROWS = 3; // shelter options shown (lowest storm dose first)
+const SLOPE_WARN_DEG = 15; // slope_warn_deg in config/mission.json: tag steeper ground
 const DEMO_START_DELAY_MS = 600; // demo links: wait for the other modules before opening the HUD
 
 // '2024-05-20' -> '20 May 2024' (UI text is English)
@@ -165,6 +166,7 @@ export function initHUD(state, el) {
   let plan = null;
   let simParams = null;   // inputs of the last plan, reused by the Shelter options panel
   let router = null;      // walkable paths to the refuges, once the heightmap is loaded
+  let terrainGrid = null; // the heightmap grid itself (slope off the route)
   function rebuildPlan() {
     plan = null;
     if (!timeline || !evaStart || !range) return;
@@ -215,6 +217,7 @@ export function initHUD(state, el) {
   loadTerrainGrid(state.summary?.terrain)
     .then((grid) => {
       if (!grid) return;
+      terrainGrid = grid;
       const targets = (state.safety?.shelters || []).map((s, i) => ({ id: `S${i + 1}`, coord: s?.coord }));
       const hab = state.area?.habitat ?? timeline?.coords?.[0];
       if (hab) targets.push({ id: 'habitat', coord: hab });
@@ -512,7 +515,26 @@ export function initHUD(state, el) {
     safe('stop', () => {
       const scheduled = nextStop(schedule, tau);
       const stop = pinnedStop ?? scheduled?.stop ?? (schedule.length ? null : fallbackStop);
+      // Slope: on the route from Demir's route.geojson; off it (walking to a shelter, stepping
+      // aside from a dust devil) from the heightmap, plus the steepest stretch of the path ahead
+      const slopeRows = () => {
+        if (Number.isFinite(rs?.slope_deg)) {
+          row(stopP.body, 'Slope here', fmtNum(rs.slope_deg, 0, '°'), rs.slope_deg >= SLOPE_WARN_DEG ? 'steep' : null);
+          return;
+        }
+        if (!terrainGrid || !pos) return;
+        const here = slopeAt(terrainGrid, pos);
+        if (Number.isFinite(here)) {
+          row(stopP.body, 'Slope here', fmtNum(here, 0, '°'), here >= SLOPE_WARN_DEG ? 'steep' : null);
+        }
+        const ahead = p?.leg ? steepestOnPath(terrainGrid, legRemaining(p.leg, p.legS)) : null;
+        if (ahead) {
+          row(stopP.body, 'Steepest ahead', `${fmtNum(ahead.deg, 0, '°')} in ${fmtDist(ahead.at_m)}`,
+            ahead.deg >= SLOPE_WARN_DEG ? 'steep' : null);
+        }
+      };
       if (!stop) {
+        slopeRows();
         let msg = 'No stop selected';
         if (schedule.length) {
           if (p?.mode === 'home') msg = 'EVA ended early: back in the habitat';
@@ -539,7 +561,7 @@ export function initHUD(state, el) {
       } else if (!entry && schedule.length && stop === pinnedStop) {
         row(stopP.body, 'Route', 'not on planned route');
       }
-      if (Number.isFinite(rs?.slope_deg)) row(stopP.body, 'Slope here', fmtNum(rs.slope_deg, 0, '°'));
+      slopeRows();
       if (stop.science) {
         stopP.body.append(h('p', 'hud-stop__note', stop.science));
       }

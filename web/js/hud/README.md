@@ -6,7 +6,7 @@ The astronaut's helmet-visor view. Opens with **H** or the HUD button in `planne
 
 - **Top bar:** local Mars time (LMST, Mars24), UTC, EVA window and time left, `REPLAY` label during the storm scenario.
 - **Life support:** O2 remaining and at return (est.), dose so far, planned dose (or the no-shelter dose during a storm), solar event multiplier, nearest shelter, delay.
-- **Next stop:** name, distance, ETA or time left at the stop, slope here, science note.
+- **Next stop:** name, distance, ETA or time left at the stop, slope here, science note. On the route the slope comes from `route.geojson`; off it (walking to a shelter, stepping aside) it is computed from the heightmap, with **Steepest ahead**: the steepest stretch of the path still to walk, in the walking direction (never above 25° on the real data). Slopes of 15° (`slope_warn_deg`) or more are tagged *steep*. The heightmap grid is ~9 m, so its slope is smoother than the 1 m route values (median difference ~1°).
 - **Sun / Earth link:** Sun elevation and azimuth, Earth elevation, direct line of sight, radio to habitat, one-way and round-trip light time.
 - **Alerts:** rules from `web/data/alerts.json` (Utku) plus built-in ones (Earth below the horizon, outside the EVA window, scenario alerts).
 - **Radio shadow ahead:** from `safety.json` → `route[].comm_ok`, the HUD warns 10 min before a stretch without a link ("Radio shadow in 4 min, for 3 min: check in now") and counts down while in it.
@@ -47,7 +47,7 @@ Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) 
 | `index.js` | `initHUD(state, el)`: panels, alerts, controls, `hud:time` events |
 | `model.js` | Pure helpers: Sun interpolation, EVA status, route timing, stops, O2, dose, radiation, alerts |
 | `scenario.js` | Storm and dust devil simulation |
-| `terrain.js` | Heightmap grid, paths to the refuges around steep ground |
+| `terrain.js` | Heightmap grid, paths to the refuges around steep ground, slope off the route |
 | `sim.js` | Simulation clock |
 | `dev.html`, `mock-state.js` | Standalone test page with MOCK data |
 | `test.mjs` | Self-tests (`node web/js/hud/test.mjs`) |
