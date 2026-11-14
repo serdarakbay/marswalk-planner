@@ -31,7 +31,7 @@ Before you start, find out which team member the user is (from the branch name o
 
 | Person | Role | Branch | Can write to |
 |---|---|---|---|
-| Ege | Services, map, integration | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
+| Ege | Services, map, integration | `harita` | `web/index.html` (landing page), `web/planner.html`, `web/css/landing.css`, `web/js/landing/`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
 | Demir | Terrain and route | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Data: Curiosity and REMS + stop cards + UI/3D design | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css`, `web/js/view3d/`, `web/css/view3d.css` |
 | Serdar | Horizons, EVA window, HUD, geologic map | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/js/hud/`, `web/css/hud.css` |
@@ -72,8 +72,11 @@ science/mocks/         Utku: mock generator and checker for web/data/
 science/eva/           Serdar: EVA window
 config/mission.json    Utku: every threshold and constant (single source)
 web/
-  index.html           Ege
-  js/main.js           Ege: app entry point, wires the modules together
+  index.html           Ege: landing page (redirects to planner.html when the URL has app parameters)
+  planner.html         Ege: the planner app
+  css/landing.css      Ege: landing page styles
+  js/landing/          Ege: landing page scripts (data, 3D block diagram, contours)
+  js/main.js           Ege: planner entry point, wires the modules together
   js/map/              Ege: Leaflet, layer panel, route, profile
   js/hud/              Serdar: HUD mode
   js/cards/            Egemen: stop cards
@@ -140,7 +143,7 @@ The map, cards, HUD and 3D view never import each other's files; they talk only 
 
 ### Page layout: whose box is where
 
-`index.html` and `base.css` belong to Ege only. Serdar and Egemen do **not** edit these two files; the page is split into boxes from the start so nobody collides:
+`planner.html` and `base.css` belong to Ege only. Serdar and Egemen do **not** edit these two files; the page is split into boxes from the start so nobody collides:
 
 | Box | Owner | Note |
 |---|---|---|
@@ -150,7 +153,7 @@ The map, cards, HUD and 3D view never import each other's files; they talk only 
 | `#hud-root` | Serdar | `initHUD(state, el)` receives this element; starts `hidden` |
 | `#view3d-root` | Egemen | `initView3D(state, el)` receives this element; starts `hidden` |
 
-- Every module builds its own DOM inside its own box, with JS. `cards.css` is already linked in `index.html`; the HUD loads its own CSS (`hud.css`) itself, and the 3D view does the same with `view3d.css`.
+- Every module builds its own DOM inside its own box, with JS. `cards.css` is already linked in `planner.html`; the HUD loads its own CSS (`hud.css`) itself, and the 3D view does the same with `view3d.css`.
 - **CSS boundary:** every selector in `hud.css` starts with `#hud-root`, every selector in `cards.css` with `#cards`, every selector in `view3d.css` with `#view3d-root`. `html`, `body`, `*`, bare tag selectors and `.leaflet-*` classes live only in `base.css`.
 - Use only `base.css` variables (`var(--...)`) for colour, font, spacing, radius and z-index; no hard-coded hex values or numbers. If you need a new variable, ask Ege.
 - Stacking order: `--z-map` < `--z-view3d` < `--z-panel` < `--z-cards` < `--z-hud`.
@@ -158,14 +161,14 @@ The map, cards, HUD and 3D view never import each other's files; they talk only 
 - The header HUD button dispatches `document.dispatchEvent(new CustomEvent('hud:toggle'))`. The HUD listens to the H key and to `hud:toggle`. The map uses no single-letter keyboard shortcuts.
 - The header 3D button dispatches `document.dispatchEvent(new CustomEvent('view3d:toggle'))`. The 3D view listens to it, shows or hides `#view3d-root` itself, and sets `document.body.dataset.view = '3d'` / `'map'`. The button only appears once the 3D module has started.
 - `main.js` loads the modules with `import()`. If `web/js/cards/index.js`, `web/js/hud/index.js` or `web/js/view3d/index.js` is missing or throws, it logs to the console and the page keeps working.
-- If this is not enough, do not edit `index.html`; ask Ege.
+- If this is not enough, do not edit `planner.html`; ask Ege.
 
 ## Design tasks (Egemen)
 
 Besides the stop cards, Egemen owns the look and feel upgrades and the 3D view. The goal is a memorable, creative interface for the judges, without breaking what already works.
 
 **What to do**
-- **Improve the UI** inside your own boxes (`#cards`, `#view3d-root`): motion, typography, icons, empty states, small charts. Ideas for the rest of the page (palette, header, panel, map styling) go to Ege as a written proposal; Ege applies them to `base.css` / `index.html`.
+- **Improve the UI** inside your own boxes (`#cards`, `#view3d-root`): motion, typography, icons, empty states, small charts. Ideas for the rest of the page (palette, header, panel, map styling) go to Ege as a written proposal; Ege applies them to `base.css` / `planner.html`.
 - **3D view** in `web/js/view3d/` (e.g. the DEM as a 3D terrain with the route, stops, habitat and astronaut position draped on it, a fly-through along the route, or the Sun direction from `sun.json`). Read everything from `state`; do not fetch APIs from the browser.
 - **Look for libraries and open-source repos** that save time (for example three.js, deck.gl, CesiumJS, MapLibre GL, Chart.js plugins, Lottie, icon sets). Reusing good existing work is encouraged; creativity counts.
 
@@ -173,7 +176,7 @@ Besides the stop cards, Egemen owns the look and feel upgrades and the 3D view. 
 - No build step: load libraries as ES modules or scripts from a CDN (cdnjs, jsdelivr, unpkg) with an **exact pinned version** (e.g. `three@0.160.0`, never `three@latest`).
 - Only permissive licenses (MIT, Apache-2.0, BSD, ISC, CC-BY for assets). Record every library, repo and asset you use, with its license and link, in `docs/credits.md` and tell Ege; the README credits come from there.
 - If you copy code from a repo, keep its license header and link the source in a comment.
-- Stay inside your files. Need a new `<script>`/`<link>` in `index.html`, a new `base.css` variable or a map hook? Ask Ege; do not edit those files.
+- Stay inside your files. Need a new `<script>`/`<link>` in `planner.html`, a new `base.css` variable or a map hook? Ask Ege; do not edit those files.
 - The 3D view gets its own data from `state` (`area`, `route`, `stops`, `summary.profile`, `sun`, ...) and listens to `stop:select` and `hud:time` like the other modules. Heavy assets (textures, meshes) stay under 5 MB per file; prefer generating terrain from `summary.json` profile or a small heightmap PNG produced by Demir.
 - Performance: the page must stay usable on a laptop; load 3D lazily (only when the 3D button is pressed) and fall back quietly if WebGL is missing.
 - Decision time below: if the 3D view is not working by then, ship the UI improvements only.
@@ -293,6 +296,7 @@ python -m science.build_all
 python -m http.server 8000 -d web      # → http://localhost:8000
 ```
 
+- The site root (`index.html`) is the landing page; the planner is `planner.html`. Old links with app parameters (`?radiation=`, `?hud=`, ...) are forwarded to `planner.html` with the same parameters.
 - Do not open the site with `file://`: ES modules and `fetch('data/...')` do not work without a local server.
 - The shared, current version is GitHub Pages (`main`). The link we share is always the Pages link.
 - If an integration check is needed before a merge, Ege runs `python -m http.server 8000 -d web --bind 0.0.0.0` on Ege's machine and the others open `http://<Ege's IP>:8000`. This is only for a quick look; the hackathon Wi-Fi may block device-to-device traffic.

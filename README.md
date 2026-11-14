@@ -2,7 +2,8 @@
 
 **NASA Space Apps Challenge 2026 · Interplanetary Survival Guide: Martian Map**
 
-**Live site:** https://serdarakbay.github.io/marswalk-planner/
+**Live site:** https://serdarakbay.github.io/marswalk-planner/  
+**Planner:** https://serdarakbay.github.io/marswalk-planner/planner.html · **Storm replay:** https://serdarakbay.github.io/marswalk-planner/planner.html?radiation=replay
 
 ![Martian Map: HiRISE base map of the Gale crater study area with the planned Marswalk route, stops, shelters, Curiosity's traverse and the elevation profile](web/assets/screenshot.png)
 
@@ -50,10 +51,10 @@ Some files are still provisional while the team finishes the pipeline. Files mar
 ## Run locally
 
 ```bash
-python -m http.server 8000 -d web      # open http://localhost:8000
+python -m http.server 8000 -d web      # landing: http://localhost:8000 · planner: http://localhost:8000/planner.html
 ```
 
-Opening `web/index.html` directly from disk does not work: ES modules and `fetch('data/...')` need a local server.
+Opening the pages directly from disk does not work: ES modules and `fetch('data/...')` need a local server.
 
 To rebuild the data (Python 3.11):
 

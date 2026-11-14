@@ -9,3 +9,5 @@ __pycache__/
 .ipynb_checkpoints/
 data/cache/
 .env
+# Copied from config/mission.json at deploy time (see .github/workflows/pages.yml)
+web/data/mission.json
