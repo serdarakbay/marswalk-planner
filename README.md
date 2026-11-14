@@ -9,13 +9,13 @@
 
 Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, where Curiosity crossed from the clay-bearing unit into the sulfate-bearing unit of Mount Sharp between 2019 and 2023. The walk follows that clay-to-sulfate transition, a record of the climate drying out. It brings together everything a crew needs on one page:
 
-- **Layered map:** high-resolution orbital imagery (HiRISE, CTX, Viking), day and night thermal infrared, elevation shading, slope, traverse cost, return-time rings, geologic units, shelters, radio shadow and a radio relay.
+- **Layered map:** high-resolution orbital imagery (HiRISE, CTX, Viking), day and night thermal infrared, elevation shading, slope, traverse cost, return-time rings, geologic units, shelters, radio shadow and a radio relay. Click anywhere for the elevation and slope there.
 - **Safe route:** a least-cost walk from the habitat through the science stops and back, limited by slope, with oxygen use and radiation dose for the whole walk.
 - **Elevation profile:** elevation and slope along the route, with radio-shadow stretches where the crew loses contact. Hovering the profile marks the same spot on the map.
 - **Radio relay:** a mast on the ridge that cuts the time without a link to the habitat; the map and the landing page show the time before and after.
 - **Stop cards:** what to look at at each stop, with nearby Curiosity photos and the arrival time on the route.
 - **3D view:** the HiRISE image draped over the real terrain, with the route, stops, habitat, Sun shadows and the HUD astronaut. Press the **3D** button.
-- **HUD mode:** a visor view with the next stop, O2, dose, Sun and Earth position and alerts, a simulation clock, and two replayable emergencies: a solar storm and a dust devil ([details](web/js/hud/README.md)). Press **H**.
+- **HUD mode:** a visor view with the next stop, O2, dose, Sun and Earth position and alerts, a simulation clock, and two replayable emergencies: a solar storm (shelters ranked by dose, a path around steep ground to the chosen one) and dust devils (hold position or step aside) ([details](web/js/hud/README.md)). Press **H**.
 - **Backup map tiles:** if Mars Trek cannot be reached, the map, the minimap and the landing 3D block fall back to cached tiles of the study area in `web/tiles/`.
 - **Landing page:** the site root introduces the walk, the safety layers, the storm and the models, with a 3D block diagram of the study area; every number on it is read from the data files. The planner itself is `planner.html`.
 

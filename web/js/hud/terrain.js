@@ -268,6 +268,18 @@ export function createRouter(grid, targets) {
     return { coords: simple, length_m: pathLength(simple) };
   }
   return {
+    // Compute the refuge cost fields one at a time in the background (one per timer tick), so
+    // the first storm does not freeze the page while they are all built at once
+    warm() {
+      const ids = [...byId.keys()].filter((id) => !fields.has(id));
+      const nextOne = () => {
+        const id = ids.shift();
+        if (id === undefined) return;
+        field(id);
+        setTimeout(nextOne, 0);
+      };
+      setTimeout(nextOne, 0);
+    },
     // Path to one of the refuges (cost field cached per refuge)
     pathTo(from, id) {
       const t = byId.get(id);
@@ -309,4 +321,57 @@ export function legRemaining(leg, s) {
   const out = [legPoint(leg, s)];
   for (let i = 1; i < leg.coords.length; i++) if (leg.cum[i] > s) out.push(leg.coords[i]);
   return out;
+}
+
+// --- slope from the grid ---------------------------------------------------------------------
+
+// Elevation at a point (bilinear between cell centres); null outside the grid or on NoData
+export function zAt(grid, [lon, lat]) {
+  const b = grid.bounds;
+  const fx = ((lon - b.west) / (b.east - b.west)) * grid.w - 0.5;
+  const fy = ((b.north - lat) / (b.north - b.south)) * grid.h - 0.5;
+  if (fx < 0 || fy < 0 || fx > grid.w - 1 || fy > grid.h - 1) return null;
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const x1 = Math.min(x0 + 1, grid.w - 1);
+  const y1 = Math.min(y0 + 1, grid.h - 1);
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const z = (x, y) => grid.z[y * grid.w + x];
+  const v = (z(x0, y0) * (1 - tx) + z(x1, y0) * tx) * (1 - ty) + (z(x0, y1) * (1 - tx) + z(x1, y1) * tx) * ty;
+  return Number.isNaN(v) ? null : v;
+}
+
+// Terrain slope at a point (steepest direction, degrees), from the elevation one cell either
+// side east-west and north-south: the same kind of slope as Demir's slope map
+export function slopeAt(grid, coord) {
+  const [lon, lat] = coord;
+  const dLon = (grid.bounds.east - grid.bounds.west) / grid.w;
+  const dLat = (grid.bounds.north - grid.bounds.south) / grid.h;
+  const e = zAt(grid, [lon + dLon, lat]);
+  const w = zAt(grid, [lon - dLon, lat]);
+  const n = zAt(grid, [lon, lat + dLat]);
+  const s = zAt(grid, [lon, lat - dLat]);
+  if (e == null || w == null || n == null || s == null) return null;
+  const gx = (e - w) / (2 * grid.dx);
+  const gy = (n - s) / (2 * grid.dy);
+  return Math.atan(Math.hypot(gx, gy)) / RAD;
+}
+
+// Steepest stretch along a path, in the walking direction (what the astronaut actually climbs
+// or descends; the path finder keeps it under PATH.SLOPE_MAX_DEG): {deg, at_m} or null
+export function steepestOnPath(grid, coords, stepM = 10) {
+  if (!Array.isArray(coords) || coords.length < 2) return null;
+  const leg = makeLeg(coords);
+  let best = null;
+  let prev = zAt(grid, coords[0]);
+  for (let s = stepM; s <= leg.total + 1e-9; s += stepM) {
+    const z = zAt(grid, legPoint(leg, s));
+    if (z != null && prev != null) {
+      const deg = Math.atan(Math.abs(z - prev) / stepM) / RAD;
+      if (!best || deg > best.deg) best = { deg, at_m: s - stepM / 2 };
+    }
+    prev = z;
+  }
+  return best;
 }

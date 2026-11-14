@@ -8,6 +8,7 @@
 /* global L */
 import { MARS_CRS, coordsToLatLng, toBounds, toLatLng } from './geo.js';
 import { initProfile } from './profile.js';
+import { loadHeightmap } from '../landing/heightmap.js';
 
 const MAX_ZOOM = 19;
 
@@ -99,6 +100,44 @@ function coordsControl(map) {
     return box;
   };
   return ctl.addTo(map);
+}
+
+// Click on the map: elevation and slope there, from Demir's heightmap (summary.json "terrain").
+// The heightmap is loaded on the first click. Slope: steepest direction, from the elevation one
+// pixel either side (~4.6 m), like the slope layer.
+const SLOPE_WARN_DEG = 15;   // slope_warn_deg in config/mission.json
+const SLOPE_MAX_DEG = 25;    // slope_max_deg
+function terrainClick(map, terrain) {
+  if (!terrain?.png) return;
+  let hm = null;
+  map.on('click', async (e) => {
+    try {
+      hm = hm ?? await loadHeightmap(terrain, { size: 512 });
+    } catch (err) {
+      console.error('[map] heightmap failed', err);
+      return;
+    }
+    const lon = e.latlng.lng;
+    const lat = e.latlng.lat;
+    const z = hm.at(lon, lat);
+    if (z == null) return;
+    const dLon = (hm.bounds.east - hm.bounds.west) / hm.width;
+    const dLat = (hm.bounds.north - hm.bounds.south) / hm.height;
+    const mLat = (dLat * Math.PI / 180) * 3396190;
+    const mLon = (dLon * Math.PI / 180) * 3396190 * Math.cos(lat * Math.PI / 180);
+    const ze = hm.at(lon + dLon, lat);
+    const zw = hm.at(lon - dLon, lat);
+    const zn = hm.at(lon, lat + dLat);
+    const zs = hm.at(lon, lat - dLat);
+    let slope = null;
+    if ([ze, zw, zn, zs].every((v) => v != null)) {
+      slope = Math.atan(Math.hypot((ze - zw) / (2 * mLon), (zn - zs) / (2 * mLat))) * 180 / Math.PI;
+    }
+    const note = slope == null ? '' : slope > SLOPE_MAX_DEG ? ' (too steep to walk)' : slope >= SLOPE_WARN_DEG ? ' (steep)' : '';
+    const box = document.createElement('div');
+    box.textContent = `Elevation ${Math.round(z).toLocaleString('en-US')} m · Slope ${slope == null ? '—' : `${Math.round(slope)}°`}${note}`;
+    L.popup({ closeButton: false, autoPan: false }).setLatLng(e.latlng).setContent(box).openOn(map);
+  });
 }
 
 // Lat/lon grid that picks a round step for the current zoom
@@ -328,6 +367,7 @@ export function initMap(state, mapEl) {
   L.control.zoom({ position: 'topright' }).addTo(map);
   L.control.scale({ imperial: false }).addTo(map);
   coordsControl(map);
+  terrainClick(map, state.summary?.terrain);
 
   // Base layers and tile overlays (layers.json)
   const layers = state.layers || [];
@@ -466,6 +506,7 @@ export function initMap(state, mapEl) {
   }).bindTooltip('Nearest shelter', { permanent: true, direction: 'right', offset: [14, 0], className: 'shelter-alert-label' });
   const shelterLine = L.polyline([], { color: danger, weight: 2, dashArray: '6 6', interactive: false });
   let stormShown = false;
+  let lastFlyMin = null;   // simulation minute of the last zoom to a path (no zoom twice in one event)
   // Dust devil scenario (HUD hud:time.hazard = {coord, radius_m}): a moving circle, sized in metres
   const warnColor = cssVar('--color-warn');
   const dustDevil = L.circle([0, 0], {
@@ -493,8 +534,16 @@ export function initMap(state, mapEl) {
       shelterLine.setLatLngs(path.map(toLatLng));
       if (!map.hasLayer(shelterLine)) shelterLine.addTo(map);
       if (!map.hasLayer(shelterRing)) shelterRing.addTo(map);
-      // When the storm starts, zoom to the astronaut and the shelter once
-      if (!stormShown) map.flyToBounds(shelterLine.getBounds(), { padding: [80, 80], maxZoom: 17, duration: 1 });
+      // When a path first shows, zoom to the astronaut and the path once, with the dust devil in
+      // view too (it is why the astronaut steps aside); not again within the same event
+      // (e.g. stepping aside, then walking back after the wait).
+      const recent = Number.isFinite(lastFlyMin) && Number.isFinite(elapsed) && Math.abs(elapsed - lastFlyMin) < 15;
+      if (!stormShown && !recent) {
+        const bounds = shelterLine.getBounds();
+        if (Array.isArray(hazard?.coord)) bounds.extend(toLatLng(hazard.coord));
+        map.flyToBounds(bounds, { padding: [80, 80], maxZoom: 17, duration: 1 });
+        lastFlyMin = elapsed;
+      }
     } else {
       shelterRing.remove();
       shelterLine.remove();

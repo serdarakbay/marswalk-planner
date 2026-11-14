@@ -23,8 +23,8 @@ import {
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
-import { createRouter, legRemaining, loadTerrainGrid } from './terrain.js';
-import { bestRefuge, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
+import { createRouter, legRemaining, loadTerrainGrid, slopeAt, steepestOnPath } from './terrain.js';
+import { bestRefuge, devilPass, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
@@ -72,6 +72,8 @@ function fmtNum(v, digits = 0, unit = '') {
 
 const LOG_ROWS = 6;   // mission log entries shown (newest first)
 const REFUGE_ROWS = 3; // shelter options shown (lowest storm dose first)
+const SLOPE_WARN_DEG = 15; // slope_warn_deg in config/mission.json: tag steeper ground
+const DEMO_START_DELAY_MS = 600; // demo links: wait for the other modules before opening the HUD
 
 // '2024-05-20' -> '20 May 2024' (UI text is English)
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -164,6 +166,7 @@ export function initHUD(state, el) {
   let plan = null;
   let simParams = null;   // inputs of the last plan, reused by the Shelter options panel
   let router = null;      // walkable paths to the refuges, once the heightmap is loaded
+  let terrainGrid = null; // the heightmap grid itself (slope off the route)
   function rebuildPlan() {
     plan = null;
     if (!timeline || !evaStart || !range) return;
@@ -214,10 +217,12 @@ export function initHUD(state, el) {
   loadTerrainGrid(state.summary?.terrain)
     .then((grid) => {
       if (!grid) return;
+      terrainGrid = grid;
       const targets = (state.safety?.shelters || []).map((s, i) => ({ id: `S${i + 1}`, coord: s?.coord }));
       const hab = state.area?.habitat ?? timeline?.coords?.[0];
       if (hab) targets.push({ id: 'habitat', coord: hab });
       router = createRouter(grid, targets);
+      router.warm();
       rebuilt();
     })
     .catch((err) => console.error('[hud] terrain grid failed; refuge paths are straight lines', err));
@@ -381,14 +386,17 @@ export function initHUD(state, el) {
         scen.push({ level: 'info', text: `Storm over. Back to the route: ${where(p.resume.coord)}` });
       }
       const legEnd = p.leg ? p.leg.coords[p.leg.coords.length - 1] : null;
-      if (p.mode === 'evade' && p.devil && legEnd) {
+      if (p.mode === 'evade' && p.devil && legEnd && devilPass(p.coord, p.devil, (SCENARIO.DUST_FROM_DEG + 180) % 360).along <= 0) {
+        // Still walking aside, but it is already moving away: no longer "heading this way"
+        scen.push({ level: 'warn', text: `Dust devil passing, ${where(p.devil)}: keep clear of its track` });
+      } else if (p.mode === 'evade' && p.devil && legEnd) {
         scen.push({ level: 'danger', text: `STEP ASIDE: dust devil heading this way, ${where(p.devil)}. Walk ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}, off its track` });
       } else if (p.mode === 'aside' && p.devil) {
         scen.push({ level: 'warn', text: `Off its track: wait for the dust devil to pass, ${where(p.devil)}` });
       } else if (p.mode === 'rejoin' && legEnd) {
         scen.push({ level: 'info', text: `Dust devil passed. Back to the route: ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}` });
       } else if (p.mode === 'hold' && p.devil) {
-        scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing, ${where(p.devil)}` });
+        scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing the route ahead, ${where(p.devil)}` });
       } else if (p.devil && p.approaching && p.devilDist < SCENARIO.DUST_APPROACH_M) {
         scen.push(p.mode === 'route'
           ? { level: 'warn', text: `Dust devil ${where(p.devil)}, crossing the route ahead` }
@@ -510,7 +518,26 @@ export function initHUD(state, el) {
     safe('stop', () => {
       const scheduled = nextStop(schedule, tau);
       const stop = pinnedStop ?? scheduled?.stop ?? (schedule.length ? null : fallbackStop);
+      // Slope: on the route from Demir's route.geojson; off it (walking to a shelter, stepping
+      // aside from a dust devil) from the heightmap, plus the steepest stretch of the path ahead
+      const slopeRows = () => {
+        if (Number.isFinite(rs?.slope_deg)) {
+          row(stopP.body, 'Slope here', fmtNum(rs.slope_deg, 0, '°'), rs.slope_deg >= SLOPE_WARN_DEG ? 'steep' : null);
+          return;
+        }
+        if (!terrainGrid || !pos) return;
+        const here = slopeAt(terrainGrid, pos);
+        if (Number.isFinite(here)) {
+          row(stopP.body, 'Slope here', fmtNum(here, 0, '°'), here >= SLOPE_WARN_DEG ? 'steep' : null);
+        }
+        const ahead = p?.leg ? steepestOnPath(terrainGrid, legRemaining(p.leg, p.legS)) : null;
+        if (ahead) {
+          row(stopP.body, 'Steepest ahead', `${fmtNum(ahead.deg, 0, '°')} in ${fmtDist(ahead.at_m)}`,
+            ahead.deg >= SLOPE_WARN_DEG ? 'steep' : null);
+        }
+      };
       if (!stop) {
+        slopeRows();
         let msg = 'No stop selected';
         if (schedule.length) {
           if (p?.mode === 'home') msg = 'EVA ended early: back in the habitat';
@@ -537,7 +564,7 @@ export function initHUD(state, el) {
       } else if (!entry && schedule.length && stop === pinnedStop) {
         row(stopP.body, 'Route', 'not on planned route');
       }
-      if (Number.isFinite(rs?.slope_deg)) row(stopP.body, 'Slope here', fmtNum(rs.slope_deg, 0, '°'));
+      slopeRows();
       if (stop.science) {
         stopP.body.append(h('p', 'hud-stop__note', stop.science));
       }
@@ -793,6 +820,19 @@ export function initHUD(state, el) {
     pinnedStop = e.detail;
     if (open) render();
   });
+
+  // Demo links (?radiation=replay, ?hazard=dustdevil): open the HUD and play from 2 min before
+  // the first event, so the link shows the scenario at once instead of the plain planner.
+  // Deferred a little so the map (started in parallel by main.js) is listening to 'hud:time'.
+  const firstEvent = Math.min(storm && hasReplay ? stormT0 : Infinity, dustOn ? dustT0 : Infinity);
+  const demoAt = Number.isFinite(firstEvent) ? firstEvent - 2 : null;
+  if (demoAt != null && clock && evaStart) {
+    setTimeout(() => {
+      toggle(true);
+      clock.seek(new Date(evaStart.getTime() + demoAt * 60000));
+      clock.play();
+    }, DEMO_START_DELAY_MS);
+  }
 
   return {
     toggle,

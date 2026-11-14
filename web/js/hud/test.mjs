@@ -13,7 +13,7 @@ import {
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
 import { bestRefuge, devilPass, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
-import { createRouter, legRemaining, makeGrid, pathLength } from './terrain.js';
+import { createRouter, legRemaining, makeGrid, pathLength, slopeAt, steepestOnPath, zAt } from './terrain.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(here, '../../data');
@@ -200,6 +200,19 @@ test('refuge path: flat ground is about a straight line; no way through -> null'
   assert.equal(createRouter(g, [{ id: 'S1', coord: cell(30, 5) }]).pathTo(cell(10, 5), 'S1'), null);
 });
 
+test('slope from the grid: a 10 % ramp is ~5.7°, steepest stretch found on a path', () => {
+  // Elevation rises 0.1 m per metre eastwards
+  const ramp = new Float32Array(GW * GW);
+  const g0 = makeGrid(ramp, GW, GW, gridBounds);
+  for (let y = 0; y < GW; y++) for (let x = 0; x < GW; x++) ramp[y * GW + x] = 0.1 * x * g0.dx;
+  near(slopeAt(g0, cell(20, 20)), Math.atan(0.1) * 180 / Math.PI, 0.01, 'ramp slope');
+  near(zAt(g0, cell(10, 3)), 0.1 * 10 * g0.dx, 1e-3, 'elevation at a cell centre');
+  // Walking north on the ramp is flat; walking east climbs 10 %
+  near(steepestOnPath(g0, [cell(5, 5), cell(5, 30)]).deg, 0, 0.01, 'along the contour');
+  near(steepestOnPath(g0, [cell(5, 5), cell(30, 5)]).deg, Math.atan(0.1) * 180 / Math.PI, 0.05, 'up the ramp');
+  assert.equal(slopeAt(g0, [1, 1]), null, 'outside the grid');
+});
+
 test('storm with terrain: the astronaut walks the path there and back', () => {
   // A route on the west side of the wall; the only shelter is east of it
   const route = {
@@ -360,6 +373,23 @@ test('real route: plan without scenarios matches summary.json O2', () => {
     o2PerMin: summary.o2_used_pct / rtl.total_min, doseBasePerMin: 0.64 / 1440, storm: null, dust: null,
   });
   near(plan.finalO2, summary.o2_used_pct, 0.2, 'O2 used');
+});
+
+test('real route: ?hazard=dustdevil demo shows a hold, then a step-aside, never closer than 120 m', () => {
+  if (!route || !summary) return 'skip';
+  const rtl = routeTimeline(route, summary);
+  const plan = simulate({
+    tl: rtl, shelters: [], habitat: rtl.coords[0], startMin: -5, endMin: rtl.total_min + 60,
+    o2PerMin: summary.o2_used_pct / rtl.total_min, doseBasePerMin: 0.64 / 1440, storm: null,
+    dust: { t0: SCENARIO.DUST_URL_START_MIN },
+  });
+  const modes = plan.steps.map((s) => s.mode);
+  const hold = modes.indexOf('hold');
+  const evade = modes.indexOf('evade');
+  assert.ok(hold >= 0 && evade > hold, 'first dust devil: hold; second: step aside');
+  const closest = Math.min(...plan.steps.filter((s) => s.devilDist != null).map((s) => s.devilDist));
+  assert.ok(closest >= SCENARIO.DUST_HOLD_M, `closest ${Math.round(closest)} m`);
+  assert.equal(plan.steps.at(-1).mode, 'done');
 });
 
 test('real safety.json: radio shadows add up to a few minutes, shelters within reach', () => {
