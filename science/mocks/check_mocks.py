@@ -26,6 +26,19 @@ def num(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
 
+NEAR_M = 1.0  # one DEM pixel: route vertices are pixel centres, so exact equality is too strict
+
+
+def dm(a, b):
+    m = math.pi * 3396190 / 180
+    return math.hypot((b[0] - a[0]) * m * math.cos(math.radians((a[1] + b[1]) / 2)), (b[1] - a[1]) * m)
+
+
+def nearest(p, pts):
+    """(index, distance in m) of the point in pts closest to p."""
+    return min(((i, dm(p, q)) for i, q in enumerate(pts)), key=lambda x: x[1])
+
+
 def point(p, where):
     ok = (isinstance(p, list) and len(p) == 2 and all(num(v) for v in p)
           and BBOX["west"] <= p[0] <= BBOX["east"] and BBOX["south"] <= p[1] <= BBOX["north"])
@@ -46,7 +59,11 @@ def cross(cond, msg):
 
 
 def marked(obj, where):
-    check(obj.get("mock") is True and obj.get("source") == "MOCK", f"{where}: mock marker missing")
+    """A file is either a marked mock or a real file; a half-marked file is an error."""
+    is_mock = obj.get("mock") is True or obj.get("source") == "MOCK"
+    if is_mock:
+        check(obj.get("mock") is True and obj.get("source") == "MOCK", f"{where}: mock marker incomplete")
+    print(f"  {where}: {'mock' if is_mock else 'real'}")
 
 
 def bbox_obj(b, where):
@@ -98,7 +115,8 @@ for k in ("slope_deg", "t_min"):
     check(all(num(v) for v in pr[k]), f"route: {k} has non-numbers")
 check(all(b >= a for a, b in zip(pr["t_min"], pr["t_min"][1:])), "route: t_min not cumulative")
 check(pr["t_min"][0] == 0, "route: t_min does not start at 0")
-cross(coords[0] == AREA["habitat"] and coords[-1] == AREA["habitat"], "route: does not start and end at the habitat")
+cross(dm(coords[0], AREA["habitat"]) <= NEAR_M and dm(coords[-1], AREA["habitat"]) <= NEAR_M,
+      "route: does not start and end at the habitat")
 
 # summary.json
 s = load("summary.json")
@@ -139,19 +157,16 @@ for i, st in enumerate(stops):
     keys(st, ["id", "name", "coord", "science", "photos"], f"stops[{i}]")
     check(st.get("mock") is True, f"stops[{i}]: mock marker missing")
     point(st["coord"], f"stops[{i}].coord")
-    cross(st["coord"] in coords, f"stops[{i}]: not on a route vertex")
+    cross(nearest(st["coord"], coords)[1] <= NEAR_M, f"stops[{i}]: not on the route (> {NEAR_M} m from a vertex)")
     for j, ph in enumerate(st["photos"]):
         keys(ph, ["url", "sol", "camera", "credit"], f"stops[{i}].photos[{j}]")
         check(ph["credit"].startswith("NASA/JPL-Caltech"), f"stops[{i}].photos[{j}]: credit")
 check(len({st["name"] for st in stops}) == len(stops), "stops: duplicate names")
-def dm(a, b):
-    m = math.pi * 3396190 / 180
-    return math.hypot((b[0] - a[0]) * m * math.cos(math.radians((a[1] + b[1]) / 2)), (b[1] - a[1]) * m)
 for i, a in enumerate(stops):
     for b in stops[i + 1:]:
         check(dm(a["coord"], b["coord"]) >= 150, f"stops: {a['id']} and {b['id']} closer than 150 m")
-if all(st["coord"] in coords for st in stops):
-    first_idx = [coords.index(st["coord"]) for st in stops]
+if all(nearest(st["coord"], coords)[1] <= NEAR_M for st in stops):
+    first_idx = [nearest(st["coord"], coords)[0] for st in stops]
     cross(first_idx == sorted(first_idx), "stops: not in route order")
 
 # geology.geojson
