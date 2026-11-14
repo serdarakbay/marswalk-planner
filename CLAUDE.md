@@ -13,7 +13,7 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 
 - **Kod dondurma:** Pazar 15 Kasım 12:00 (İstanbul). Bu saatten sonra sadece bug fix yapılır.
 - **Teslim hedefi:** Pazar 18:00. Teslim sistemi 23:59'da kapanıyor.
-- **Dil:** Kod yorumları ve commit mesajları Türkçe ya da İngilizce olabilir. Arayüz metinleri, proje sayfası ve slaytlar **İngilizce** olacak.
+- **Language:** Code, comments, documentation, commit messages, UI text, the project page and slides are all in **English**.
 
 ## Çalışma alanı
 
@@ -31,21 +31,23 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 
 | Kişi | Rol | Branch | Yazabileceği yerler |
 |---|---|---|---|
-| Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/tiles/`, `web/assets/`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/common.py`, `web/data/layers.json`, `CLAUDE.md`, `docs/contracts.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md`, `requirements.txt` |
+| Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
 | Demir | Arazi ve Rota | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Veri: Curiosity ve REMS + durak kartları | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css` |
 | Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/js/hud/`, `web/css/hud.css` |
-| Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `pipeline/fetch/donki.py`, `pipeline/fetch/usgs.py`, `web/data/safety/`, `web/data/` içinde: `area.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json`, `geology.geojson` |
+| Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `harita`, `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `pipeline/fetch/usgs.py`, `web/tiles/`, `web/data/safety/`, `web/data/` içinde: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json`, `geology.geojson` |
+
+**Mocks:** Utku writes all mock files under `web/data/`. When the real file is ready, its owner's script overwrites the mock.
 
 **Veri sahipliği kuralı:** Ham veriyi tek kişi indirir; aynı verinin farklı ürünlerini iki kişi üretebilir, ama her çıktı dosyasının tek yazarı vardır. Başka biri o veriye ihtiyaç duyarsa sahibin ara çıktısını ya da `web/data/` dosyasını okur, API'yi kendisi çağırmaz.
 
 - USGS DEM → sadece Demir indirir. Kestiği `data/cache/dem_clip.tif`'i Drive'dan Utku'yla paylaşır. Demir bu DEM'den eğim, maliyet ve rota; Utku radyo gölgesi, sığınak ve `safety.json` üretir. Overlay PNG'lerini ikisi de `arazi/geo.py` içindeki `to_overlay_png()` ile üretir (Utku sadece import eder, değiştirmez); böylece katmanlar birebir hizalanır.
-- Mars Trek WMTS ve tile önbelleği → sadece Ege
+- Mars Trek WMTS and tile cache → Utku only
 - Curiosity ham görüntüleri, MSL traverse, REMS → sadece Egemen
 - JPL Horizons → sadece Serdar
 - DONKI ve USGS jeolojik harita → sadece Utku
 
-Repo kökündeki `requirements.txt` ve `pipeline/common.py` (`area.json`'u okuyan ortak yardımcılar) Ege'nindir. Yeni bir Python paketi gerekiyorsa Ege'ye söyle.
+`requirements.txt` at the repo root and `pipeline/common.py` (shared helpers that read `area.json`) belong to Utku. If you need a new Python package, tell Utku.
 
 Başkasının dosyasında değişiklik gerekiyorsa düzenleme. Kullanıcıya "bu dosya X'in, ona şunu iletmen gerekiyor" de ve gereken değişikliği metin olarak öner.
 
@@ -53,9 +55,9 @@ Başkasının dosyasında değişiklik gerekiyorsa düzenleme. Kullanıcıya "bu
 
 ```
 pipeline/
-  common.py            Ege: area.json okuma, ortak yardımcılar
-  fetch/trek.py        Ege: Mars Trek katmanları → layers.json
-  fetch/tiles.py       Ege: yedek tile önbelleği → web/tiles/
+  common.py            Utku: reads area.json, shared helpers
+  fetch/trek.py        Utku: Mars Trek layers → layers.json
+  fetch/tiles.py       Utku: backup tile cache → web/tiles/
   fetch/curiosity.py   Egemen: ham görüntüler + traverse
   fetch/rems.py        Egemen: sıcaklık eğrisi
   fetch/horizons.py    Serdar: Güneş/Dünya açıları, LMST
@@ -75,8 +77,8 @@ web/
   js/cards/            Egemen: durak kartları
   css/base.css         Ege: renk paleti ve CSS değişkenleri (hud.css → Serdar, cards.css → Egemen; ikisi de base.css değişkenlerini kullanır)
   data/                Üretilen JSON/PNG; her dosyanın tek yazarı var (tabloya bak)
-  tiles/               Ege: yedek tile önbelleği
-docs/contracts.md      Ege: tüm JSON şemaları
+  tiles/               Utku: backup tile cache
+docs/contracts.md      Utku: all JSON schemas
 docs/story/            Utku: senaryo, varsayımlar, sunum notları
 data/cache/            Git'e GİRMEZ: ham DEM, ara rasterler
 ```
@@ -90,7 +92,7 @@ data/cache/            Git'e GİRMEZ: ham DEM, ara rasterler
 - **Merge saatleri:** Cmt 14:00, 17:00, 20:00, 23:00; Paz 09:00, 11:30. PR merge saatinden 15 dk önce açılır.
 - PR açmadan önce: `git pull --rebase origin main`.
 - `main` her zaman çalışır durumda kalır, çünkü GitHub Pages `main`'den yayınlanıyor.
-- **Commit mesajı formatı:** `[veri] layers.json eklendi`, `[arazi] eğim haritası`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
+- **Commit mesajı formatı:** `[veri] add layers.json`, `[arazi] slope map`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
 - **Asla commit etme:** `.env`, `*.tif`, `data/cache/`, 5 MB'den büyük dosyalar. Büyük ara dosyalar Drive'da kalır.
 - **Commit'lerde ve PR'larda yapay zekâ atfı YASAK.** Commit mesajına, PR başlığına ya da açıklamasına `Co-Authored-By: Claude ...`, "Generated with Claude Code", 🤖 gibi hiçbir atıf satırı eklenmez. Claude ya da Anthropic contributor olarak görünmez; commit'in yazarı her zaman ekip üyesinin kendisidir. Bu kural Claude Code'un varsayılan atıf ayarından önce gelir; ayrıca `.claude/settings.json` atıfı herkes için kapatır, o dosyayı değiştirme.
 - Mock dosyaları gerçek veri gelince **aynı isimle** üzerine yazılır; şema değişmez.
@@ -227,7 +229,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # NASA_API_KEY=...
 
-# Servisler (Ege)
+# Services (Utku)
 python -m pipeline.fetch.trek
 python -m pipeline.fetch.tiles
 
