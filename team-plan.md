@@ -1,0 +1,208 @@
+# CLAUDE.md: Martian Map (NASA Space Apps 2026)
+
+Bu dosya, repoda çalışan herkes ve onların Claude oturumları için tek doğru kaynaktır. Burada yazmayan bir kural için önce Ege'ye sor.
+
+## Proje
+
+Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curiosity'nin incelediği boxwork bölgesinde bir astronot yürüyüşü (Marswalk) için şunları birleştiren web uygulaması yapıyoruz:
+
+- katmanlı harita (optik, termal, spektral, jeoloji)
+- güvenli rota (eğim, pürüzlülük, O2 ve radyasyon bütçesi)
+- durak kartları (Curiosity fotoğrafları + bilim notu)
+- HUD modu (vizör görünümü: sıradaki durak, kalan O2 ve doz, uyarılar)
+
+- **Kod dondurma:** Pazar 15 Kasım 12:00 (İstanbul). Bu saatten sonra sadece bug fix yapılır.
+- **Teslim hedefi:** Pazar 18:00. Teslim sistemi 23:59'da kapanıyor.
+- **Dil:** Kod yorumları ve commit mesajları Türkçe ya da İngilizce olabilir. Arayüz metinleri, proje sayfası ve slaytlar **İngilizce** olacak.
+
+## Çalışma alanı
+
+```json
+{"bbox": {"west": 137.36, "south": -4.77, "east": 137.40, "north": -4.73}}
+```
+
+- Yaklaşık 2,4 × 2,4 km (Mars'ta 1° ≈ 59,2 km).
+- Boylam doğu pozitif, enlem planetosentrik (Mars Trek ile aynı).
+- Habitat noktasını `web/data/area.json`'da Utku belirler. Kodda sabit koordinat yazma, her zaman `area.json`'dan oku.
+
+## Ekip ve sahiplik
+
+Çalışmaya başlamadan önce kullanıcının hangi ekip üyesi olduğunu belirle (branch adından ya da doğrudan sorarak). **Sadece o kişinin sahibi olduğu dosyaları düzenle.**
+
+| Kişi | Rol | Branch | Yazabileceği yerler |
+|---|---|---|---|
+| Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/tiles/`, `web/assets/`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/common.py`, `web/data/layers.json`, `CLAUDE.md`, `docs/contracts.md`, `.gitignore`, `.github/`, `README.md`, `requirements.txt` |
+| Demir | Arazi ve Rota | `arazi` | `terrain/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
+| Egemen | Veri: Curiosity ve REMS + durak kartları | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css` |
+| Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/js/hud/`, `web/css/hud.css` |
+| Utku | Bilim, Radyasyon, Hikâye | `bilim` | `science/` (`science/eva/` hariç), `config/`, `docs/story/`, `pipeline/fetch/donki.py`, `web/data/` içinde: `area.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
+
+**Veri sahipliği kuralı:** Her dış veri setini sadece sahibi indirir. Veri işi dört kişiye dağıldı ama hiçbir veri seti bölünmedi. Başka biri o veriye ihtiyaç duyarsa, sahibin ürettiği `web/data/` dosyasını okur, API'yi kendisi çağırmaz.
+
+- USGS DEM → sadece Demir
+- Mars Trek WMTS ve tile önbelleği → sadece Ege
+- Curiosity ham görüntüleri, MSL traverse, REMS → sadece Egemen
+- JPL Horizons → sadece Serdar
+- DONKI → sadece Utku
+
+Repo kökündeki `requirements.txt` ve `pipeline/common.py` (`area.json`'u okuyan ortak yardımcılar) Ege'nindir. Yeni bir Python paketi gerekiyorsa Ege'ye söyle.
+
+Başkasının dosyasında değişiklik gerekiyorsa düzenleme. Kullanıcıya "bu dosya X'in, ona şunu iletmen gerekiyor" de ve gereken değişikliği metin olarak öner.
+
+## Klasör yapısı
+
+```
+pipeline/
+  common.py            Ege: area.json okuma, ortak yardımcılar
+  fetch/trek.py        Ege: Mars Trek katmanları → layers.json
+  fetch/tiles.py       Ege: yedek tile önbelleği → web/tiles/
+  fetch/curiosity.py   Egemen: ham görüntüler + traverse
+  fetch/rems.py        Egemen: sıcaklık eğrisi
+  fetch/horizons.py    Serdar: Güneş/Dünya açıları, LMST
+  fetch/donki.py       Utku: güneş olayları (live + replay)
+terrain/               Demir: DEM işleme, eğim, maliyet, rota, ek modüller
+science/               Utku: models.py (O2, doz), radyasyon, duraklar, uyarılar
+science/eva/           Serdar: EVA penceresi
+config/mission.json    Utku: tüm eşik ve sabitler (tek kaynak)
+web/
+  index.html           Ege
+  js/main.js           Ege: uygulama girişi, modülleri bağlar
+  js/map/              Ege: Leaflet, katman paneli, rota, profil
+  js/hud/              Serdar: HUD modu
+  js/cards/            Egemen: durak kartları
+  css/base.css         Ege   (hud.css → Serdar, cards.css → Egemen)
+  data/                Üretilen JSON/PNG; her dosyanın tek yazarı var (tabloya bak)
+  tiles/               Ege: yedek tile önbelleği
+docs/contracts.md      Ege: tüm JSON şemaları
+docs/story/            Utku: senaryo, varsayımlar, sunum notları
+data/cache/            Git'e GİRMEZ: ham DEM, ara rasterler
+```
+
+## Git kuralları
+
+- Herkes kendi branch'inde çalışır. `main`'e merge'ü sadece Ege yapar.
+- **Merge saatleri:** Cmt 14:00, 17:00, 20:00, 23:00; Paz 09:00, 11:30. PR merge saatinden 15 dk önce açılır.
+- PR açmadan önce: `git pull --rebase origin main`.
+- `main` her zaman çalışır durumda kalır, çünkü GitHub Pages `main`'den yayınlanıyor.
+- **Commit mesajı formatı:** `[veri] layers.json eklendi`, `[arazi] eğim haritası`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
+- **Asla commit etme:** `.env`, `*.tif`, `data/cache/`, 5 MB'den büyük dosyalar. Büyük ara dosyalar Drive'da kalır.
+- Mock dosyaları gerçek veri gelince **aynı isimle** üzerine yazılır; şema değişmez.
+
+## Veri sözleşmeleri
+
+Tam şemalar `docs/contracts.md`'de. Özet:
+
+| Dosya | Sahibi | Ana alanlar |
+|---|---|---|
+| `area.json` | Utku | `bbox{west,south,east,north}`, `habitat[lon,lat]`, `crs` |
+| `layers.json` | Ege | `[{id,name,type,url,fallbackUrl,format,maxNativeZoom,attribution}]` |
+| `overlays.json` | Demir | `[{id,name,png,bounds{west,south,east,north},legend}]` |
+| `route.geojson` | Demir | LineString; properties: `slope_deg[]`, `t_min[]` |
+| `summary.json` | Demir | `distance_m`, `duration_min`, `o2_used_pct`, `dose_mSv`, `max_slope_deg`, `profile[{d,z,slope}]` |
+| `stops.json` | Utku | `[{id,name,coord[lon,lat],science,photos[{url,sol,camera,credit}]}]` |
+| `images.json` | Egemen | `[{url,sol,camera,utc,site,drive,credit}]` |
+| `traverse.geojson` | Egemen | Curiosity'nin bbox içindeki rotası (LineString) |
+| `weather.json` | Egemen | `rows[{lmst,temp_c}]` |
+| `sun.json` | Serdar | `rows[{utc,lmst,sun_az,sun_el,earth_el,light_time_min}]` |
+| `eva_window.json` | Serdar | `start_lmst`, `end_lmst`, `reason` |
+| `donki.json` | Utku | `mode` (`live`/`replay`), `events[{type,start,peak,mars_impact}]` |
+| `radiation.json` | Utku | `base_mSv_per_day`, `event_multiplier`, `status`, `message` |
+| `alerts.json` | Utku | `rules[{id,metric,op,value,level,text}]` |
+
+## Koordinat ve birim kuralları
+
+- JSON'da noktalar her zaman **[lon, lat]** sırasında (GeoJSON standardı).
+- Bbox her zaman isimli alanlarla yazılır: `{west, south, east, north}`. Dizi halinde bbox kullanma.
+- Leaflet [lat, lon] bekler. Dönüşüm sadece `web/js/map/geo.js` içindeki `toLatLng()` helper'ında yapılır.
+- Birim alan adında yazar: `_m`, `_min`, `_deg`, `_mSv`, `_pct`, `_c`. Gy (emilen doz) ile Sv (doz eşdeğeri) asla karıştırılmaz.
+- Mars CRS (rasterio/pyproj):
+  - Coğrafi: `+proj=longlat +R=3396190 +no_defs` (PROJ destekliyorsa `IAU_2015:49900`)
+  - Metrik hesap: `+proj=eqc +lat_ts=0 +lon_0=0 +R=3396190 +units=m +no_defs`
+- **Eğim, mesafe, maliyet her zaman metre cinsinden projeksiyonlu gridde hesaplanır.** Sadece görselleştirme PNG'si coğrafi grid'e warp edilir. PNG sınırları `overlays.json`'daki `bounds` ile birebir aynı olmalı.
+
+## Görev sabitleri
+
+Tüm eşikler `config/mission.json`'dan okunur. Kodda sihirli sayı yazma. Başlangıç değerleri (Utku değiştirebilir):
+
+```json
+{
+  "gravity_m_s2": 3.71,
+  "slope_warn_deg": 15,
+  "slope_max_deg": 25,
+  "eva_nominal_hours": 8,
+  "o2_reserve_pct": 25,
+  "rad_base_mSv_per_day": 0.64,
+  "dem_resolution_m": 1,
+  "dem_max_downsample_m": 2
+}
+```
+
+- O2 modeli `science/models.py` içinde. Demir import eder, kendi modelini yazmaz.
+- Varsayımların hepsi `docs/story/assumptions.md`'ye yazılır; sunumda açıkça gösterilecek.
+
+## Teknik yığın
+
+- **Python 3.11:** `rasterio`, `numpy`, `scikit-image` (`MCP_Geometric`, `route_through_array`), `pyproj`, `requests`, `python-dotenv`. GDAL CLI (`gdalwarp`, `gdal_viewshed`).
+- **Frontend:** Build adımı olmayan düz HTML + ES modules, Leaflet, Chart.js (CDN). GitHub Pages `web/` klasöründen yayınlanır.
+- **Mars Trek tile'ları:** Harita `crs: L.CRS.EPSG4326` ile kurulur. URL sırası `{z}/{y}/{x}` (TileMatrix/TileRow/TileCol, x ve y ters):
+  ```
+  https://trek.nasa.gov/tiles/Mars/EQ/<Layer>/1.0.0/default/default028mm/{z}/{y}/{x}.jpg
+  ```
+  Uzantı katmana göre jpg ya da png. Bunun için `layers.json`'daki `format` alanını kullan.
+
+## Yapılacaklar ve yapılmayacaklar
+
+- **Tarayıcıdan dış API çağırma.** Horizons, Curiosity ham görüntü API'si ve DONKI Python script'leriyle önceden çekilip `web/data/`'ya JSON olarak yazılır (CORS ve key güvenliği). İstisna sadece Mars Trek tile'ları ve fotoğraf URL'leri (img olarak).
+- **API key asla JS'e ya da repoya girmez.** Key `.env`'de durur, `.env.example` repoda olur. GitHub Pages statik olduğu için JS'teki her key herkese açıktır.
+- **Her script tekrar çalıştırılabilir olmalı:** `python -m pipeline.fetch.donki` gibi, girdi `area.json` ve `config/mission.json`, çıktı `web/data/`.
+- **Canlı veri boş gelebilir.** DONKI için her zaman `replay` modu (20 Mayıs 2024 olayı, Curiosity RAD 8.100 µGy) çalışır durumda olmalı.
+- **DEM'de NoData boşlukları** maliyet haritasında geçilmez (`inf`) sayılır, 0 değil.
+- **Fotoğraflar indirilmez,** URL ile gösterilir. Her fotoğrafta kredi görünür: "NASA/JPL-Caltech" (Mastcam için "NASA/JPL-Caltech/MSSS").
+- **Frontend her `web/data/` dosyası eksik ya da bozuk olsa da açılmalı.** Hatayı konsola yaz, arayüzü çökertme.
+- **Kod dondurmadan sonra** yeni özellik, yeni bağımlılık ya da şema değişikliği yok.
+
+## Komutlar
+
+```bash
+# Python ortamı
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # NASA_API_KEY=...
+
+# Servisler (Ege)
+python -m pipeline.fetch.trek
+python -m pipeline.fetch.tiles
+
+# Veri (Egemen)
+python -m pipeline.fetch.curiosity
+python -m pipeline.fetch.rems
+
+# Horizons ve EVA (Serdar)
+python -m pipeline.fetch.horizons
+python -m science.eva.build
+
+# Arazi (Demir)
+python -m terrain.fetch_dem
+python -m terrain.build_overlays
+python -m terrain.route
+
+# Bilim (Utku)
+python -m pipeline.fetch.donki
+python -m science.build_all
+
+# Yerel önizleme: herkes kendi bilgisayarında, kendi branch'ini görür
+python -m http.server 8000 -d web      # → http://localhost:8000
+```
+
+- `file://` ile açma: ES modules ve `fetch('data/...')` çalışmaz, yerel server şart.
+- Ortak ve güncel sürüm GitHub Pages'tir (`main`). Paylaşılan link her zaman Pages linkidir.
+- Merge öncesi entegrasyon kontrolü gerekirse Ege kendi makinesinde `python -m http.server 8000 -d web --bind 0.0.0.0` açar, diğerleri `http://<Ege'nin IP'si>:8000` ile bakar. Bu sadece geçici bakış içindir; hackathon Wi-Fi'ı cihazlar arası erişimi engelleyebilir.
+
+## Bağlantılar
+
+- Challenge sayfası ve kaynaklar: Mars Trek (trek.nasa.gov/mars), USGS Planetary Geologic Mapping, Curiosity Raw Images
+- Mars Trek API: https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars
+- JPL Horizons API: https://ssd-api.jpl.nasa.gov/doc/horizons.html
+- DONKI: https://api.nasa.gov (DONKI bölümü)
+- PDS Imaging: https://pds-imaging.jpl.nasa.gov
+- Ekip planı (görevler ve saatler): https://claude.ai/artifact/1wpy7V7LKhvZvTu8fTajC1
