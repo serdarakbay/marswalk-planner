@@ -1,74 +1,116 @@
 [
  {
   "id": "s1",
-  "name": "Layered sulfate slope",
+  "name": "Clay-bearing mudstone",
   "coord": [
-   137.39764,
-   -4.762403
+   137.39846,
+   -4.73407
   ],
-  "science": "Thin repeating layers rich in sulfate salts record a drier climate as Mount Sharp built up.",
+  "science": "Mudstone of the clay-bearing unit. Clay minerals form when rock sits in water for a long time. How long did the lake last here, and was its water calm and habitable? A geologist can scan the whole outcrop, pick the freshest layers and sample several of them in one EVA; the rover waits for a new plan from Earth, usually once per sol, before each choice. Curiosity photographed this spot on sol 2995 (2021-01-08).",
   "photos": [
    {
-    "url": "https://mars.nasa.gov/msl-raw-images/msss/03730/mhli/3730MH0008170001303618S00_DXXX.jpg",
-    "sol": 3730,
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02995/mhli/2995MH0001220001100038C00_DXXX.jpg",
+    "sol": 2995,
     "camera": "MAHLI",
-    "credit": "NASA/JPL-Caltech/MSSS"
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2021-01-08T12:46:17Z"
    },
    {
-    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03730/opgs/edr/ncam/NLB_728628746EDR_F0992414NCAM00272M_.JPG",
-    "sol": 3730,
-    "camera": "Navcam",
-    "credit": "NASA/JPL-Caltech"
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02995/mcam/2995ML0156250011005375C00_DXXX.jpg",
+    "sol": 2995,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2021-01-08T14:31:01Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02995/opgs/edr/ncam/NLB_663386179EDR_F0842352NCAM00286M_.JPG",
+    "sol": 2995,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2021-01-08T14:40:20Z"
    }
   ],
-  "mock": true
+  "unit": "clay",
+  "map_unit": "Htu",
+  "unit_basis": "Curiosity sols 2995-2995 at this spot (transition from sol 3100, sulfate from sol 3600; approximate)"
  },
  {
   "id": "s2",
-  "name": "Resistant ridge",
+  "name": "Clay-to-sulfate transition",
   "coord": [
-   137.394682,
-   -4.760643
+   137.39766,
+   -4.74459
   ],
-  "science": "A ridge of mineral-cemented rock that stands out because it eroded more slowly than the layers around it.",
+  "science": "Layers where clay-rich rock gives way to sulfate-rich rock. Did the climate dry out gradually, or in wet and dry cycles? A person can follow one layer along the slope, see where the rock type changes and collect samples on both sides of the change. Curiosity photographed this spot on sol 3216 (2021-08-23).",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03216/mhli/3216MH0001530001103238S00_DXXX.jpg",
+    "sol": 3216,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2021-08-23T12:56:27Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03216/mcam/3216ML1006790050806577C00_DXXX.jpg",
+    "sol": 3216,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2021-08-23T14:05:00Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03216/opgs/edr/ncam/NLB_682997431EDR_F0902990NCAM00312M_.JPG",
+    "sol": 3216,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2021-08-23T14:17:38Z"
+   }
+  ],
+  "unit": "transition",
+  "map_unit": "Htu",
+  "unit_basis": "Curiosity sols 3216-3216 at this spot (transition from sol 3100, sulfate from sol 3600; approximate)"
+ },
+ {
+  "id": "s3",
+  "name": "Sulfate-bearing layers",
+  "coord": [
+   137.39647,
+   -4.76135
+  ],
+  "science": "Layers rich in sulfate salts, which are left behind when water evaporates. Did the lake dry up for good here, or did water come back later? A geologist can break rock open to expose fresh salt and choose the best samples on the spot, faster than the rover's step-by-step commanding. Curiosity photographed this spot on sol 3672 (2022-12-05).",
   "photos": [
    {
     "url": "https://mars.nasa.gov/msl-raw-images/msss/03672/mhli/3672MH0001710001302391S00_DXXX.jpg",
     "sol": 3672,
     "camera": "MAHLI",
-    "credit": "NASA/JPL-Caltech/MSSS"
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2022-12-05T02:52:52Z"
    },
    {
     "url": "https://mars.nasa.gov/msl-raw-images/msss/03672/mcam/3672ML1032200031502597C00_DXXX.jpg",
     "sol": 3672,
-    "camera": "Mastcam",
-    "credit": "NASA/JPL-Caltech/MSSS"
-   }
-  ],
-  "mock": true
- },
- {
-  "id": "s3",
-  "name": "Sulfate vein network",
-  "coord": [
-   137.399232,
-   -4.759353
-  ],
-  "science": "Bright fractures filled with calcium sulfate show that groundwater kept moving through the rock after it formed.",
-  "photos": [
-   {
-    "url": "https://mars.nasa.gov/msl-raw-images/msss/03565/mcam/3565ML1025830040807027C00_DXXX.jpg",
-    "sol": 3565,
-    "camera": "Mastcam",
-    "credit": "NASA/JPL-Caltech/MSSS"
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2022-12-05T03:41:29Z"
    },
    {
-    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03565/opgs/edr/ncam/NLB_713981775EDR_F0963150NCAM00272M_.JPG",
-    "sol": 3565,
-    "camera": "Navcam",
-    "credit": "NASA/JPL-Caltech"
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03672/opgs/edr/ncam/NLB_723493005EDR_F0982704NCAM00565M_.JPG",
+    "sol": 3672,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2022-12-05T07:10:03Z"
    }
   ],
-  "mock": true
+  "unit": "sulfate",
+  "map_unit": "Htu",
+  "unit_basis": "Curiosity sols 3672-3672 at this spot (transition from sol 3100, sulfate from sol 3600; approximate)"
  }
 ]

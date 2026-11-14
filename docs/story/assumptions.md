@@ -34,7 +34,8 @@ With these values, flat walking at nominal speed costs about **371 W** (Derived)
 - **1 L of O2 ≈ 20.1 kJ** (Source, standard value). The energy released per litre of oxygen consumed, at a typical mixed diet (respiratory quotient around 0.8). This is the usual indirect-calorimetry figure (about 4.8 kcal per litre); the underlying method is Weir, J. B. de V. (1949), *Journal of Physiology*, 109, 1–9.
 - **Tank size from calibration** (Assumption, then Derived). We do not use a real suit O2 capacity. Instead, we set the tank so that walking on flat ground at nominal speed for `eva_nominal_hours` (8 h) uses exactly `100 - o2_reserve_pct` (75 %) of it. This gives about 709 L of O2 (Derived). It also keeps the model consistent with the placeholder in Demir's route code: `o2_used_pct(duration_min)` returns the same value as before.
 - **Reserve 25 %** (Assumption). Team value. The O2 alert rules use it as the point to return to the habitat.
-- **What O2 use does not include** (Assumption). We count only metabolic use. Suit leakage, cooling and purge, and the extra cost of tasks at a stop (for example, using tools) are not modelled. The route code passes the whole EVA duration, stops included, so stop time is counted at the flat walking rate.
+- **What O2 use does not include** (Assumption). We count only metabolic use. Suit leakage, cooling and purge, and the extra cost of tasks at a stop (for example, using tools) are not modelled.
+- **Route O2 is added up piece by piece** (Derived). Each walking segment uses its own grade, `o2_used_pct(t, grade_pct)`; time at a stop counts as standing still, `o2_used_pct(t, 0, speed_m_s=0)`. Standing costs less than walking, so the current route uses 11.6 % of the tank instead of 12.2 % when everything was counted as flat walking.
 - O2 is always reported as a percentage of the **full** tank.
 
 Because the tank is calibrated with the same `o2_kj_per_l`, that value cancels out of the percentage. It only affects the litre figures.
@@ -63,6 +64,35 @@ Because the tank is calibrated with the same `o2_kj_per_l`, that value cancels o
 ## Route and stops
 
 - **Stop time 15 min** (Assumption). Time spent at each science stop. Taken from Demir's route code.
+- **Route cost** (Assumption). Each 1 m DEM pixel costs `1 + (slope / 15°)^2 + roughness / 0.5 m`, where roughness is the standard deviation of elevation in a 5 × 5 m window. Pixels steeper than 25° and NoData pixels cannot be crossed. The route is the lowest-cost path on the 1 m DEM, found with scikit-image's `MCP_Geometric` (8 directions).
+- **Return rings** (Assumption). For every pixel, the time and O2 of the shortest safe walk back to the habitat. To be cautious, every step is counted as uphill, so the real way back can be shorter. The rings are drawn in 15-minute bands.
+
+## Science stops
+
+- **Stops on Curiosity's track** (Source). Each stop is a rover position where Curiosity took photos (`images.json`), so the stop lies on the real traverse and its photos show that place.
+- **Unit from the sol** (Assumption). The USGS map in `geology.geojson` (1:20,000,000) puts the whole walk in one unit (Htu), so it cannot separate the clay-bearing unit, the transition and the sulfate-bearing unit. We assign units by the sol of the photos instead. Clay-bearing: before sol 3100; inside our area Curiosity has no sols between 3005 and 3202, so any boundary in that gap gives the same result. Transition: sol 3100 to 3599. Sulfate-bearing: from sol 3600, about when NASA reported in October 2022 that the rover had reached the sulfate-bearing region. Both boundaries are approximate.
+- **Elevation check** (Derived). Mount Sharp's layers get younger upward, so the units should also rise in this order. The stop elevations do: clay -4081 m, transition -4021 m, sulfate -3859 m.
+- **Stop choice** (Assumption). Stops are at least 200 m apart. Among all valid triples we take the shortest loop from the habitat that, walked on Demir's cost grid with the same walking model, fits the EVA window and stays above the O2 reserve.
+
+## Radio link and shelters
+
+- **Radio line of sight** (Assumption). The astronaut has a radio link only with a direct line of sight from an antenna 6 m above the habitat (`comm_antenna_height_m`) to a suit antenna 2 m above the ground (`comm_suit_antenna_height_m`). Both heights are our choice. There is no relay, and radio waves are not modelled as bending or reflecting around terrain, so any hill in between cuts the link.
+- **Why a 6 m mast** (Derived, then our choice). The habitat sits lower than the ground around it, so a short mast sees little of the route. We ran the same route with different mast heights:
+
+  | Mast height | Route points with a link | Route time without a link |
+  |---|---|---|
+  | 3 m | 53 % | 59.7 min |
+  | 6 m | 62 % | 26.3 min |
+  | 10 m | 65 % | 25.3 min |
+  | 20 m | 73 % | 8.0 min |
+
+  Going from 3 m to 6 m cuts the time without a link from about 60 to about 26 minutes; going on to 10 m saves only 1 more minute. We chose 6 m, the shortest mast after which the benefit levels off. Only a much taller mast (20 m) helps again.
+- **Relay for the remaining shadow** (Assumption). A small relay on a nearby hilltop could cover the rest of the route. It is not modelled.
+- **Mars curvature** (Derived). Heights along each line of sight are lowered by `d^2 / 2R` with R = 3,396,190 m (about 0.85 m at 2.4 km). Atmospheric refraction is ignored because the Martian atmosphere is thin.
+- **Offline time** (Derived). Route time without a link is added up from the route's `t_min`: each walking segment is weighted by its two ends, and stop time by the stop's own link state.
+- **Sky-view factor** (Source for the method). SVF is the fraction of the sky hemisphere that is visible: `SVF = 1 - mean(sin(horizon angle))` over 16 directions, searching up to 100 m away (Zakšek, Oštir & Kokalj, 2011, *Remote Sensing* 3(2), 398–415). Directions, radius and the 5 m grid are our choice.
+- **Shelters** (Assumption). Candidates are passable points within 200 m of the route. We pick the 5 points with the lowest SVF (the most enclosed) that are at least 150 m apart. "Time to shelter" is the walking time on the same cost grid as the return rings, again counting every step as uphill.
+- **Dose falls with the visible sky** (Assumption). At a shelter we take the dose rate as `base rate × SVF`: radiation is assumed to arrive evenly from the visible sky, and the terrain is assumed to block it completely. In reality more of the surface dose comes from overhead than from near the horizon, and some secondary particles come up from the ground. Blocking the low sky therefore helps less than this suggests, so the shelter benefit is probably **optimistic**.
 
 ## Mission thresholds
 
