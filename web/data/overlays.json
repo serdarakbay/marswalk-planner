@@ -1,0 +1,37 @@
+[
+  {
+    "id": "slope",
+    "name": "Slope",
+    "png": "data/overlays/slope.png",
+    "bounds": {
+      "west": 137.36,
+      "south": -4.77,
+      "east": 137.4,
+      "north": -4.73
+    },
+    "legend": {
+      "min": 0,
+      "max": 35,
+      "unit": "deg",
+      "colormap": "RdYlGn_r"
+    }
+  },
+  {
+    "id": "cost",
+    "name": "Traverse cost",
+    "png": "data/overlays/cost.png",
+    "bounds": {
+      "west": 137.36,
+      "south": -4.77,
+      "east": 137.4,
+      "north": -4.73
+    },
+    "legend": {
+      "min": 1,
+      "max": 5,
+      "unit": "relative",
+      "colormap": "magma_r",
+      "impassable_color": "#cc0000"
+    }
+  }
+]
