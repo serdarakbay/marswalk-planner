@@ -30,8 +30,9 @@
     import { initCards } from './index.js';
 
     const load = (p) => fetch(p).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    const [images, weather, realStops] = await Promise.all([
+    const [images, weather, realStops, route] = await Promise.all([
       load('../../data/images.json'), load('../../data/weather.json'), load('../../data/stops.json'),
+      load('../../data/route.geojson'),
     ]);
     const eva = (await load('../../data/eva_window.json')) || { start_lmst: '09:30', end_lmst: '15:30', reason: 'mock' };
 
@@ -40,14 +41,21 @@
     const sites = Object.keys(bySite);
     const pick = (i) => (bySite[sites[i]] || []).map(({ url, sol, camera, credit }) => ({ url, sol, camera, credit }));
 
+    const routeCoords = route?.geometry?.coordinates || route?.features?.[0]?.geometry?.coordinates || [];
+    const onRoute = (f) => routeCoords[Math.floor(routeCoords.length * f)] || null;
+    const nearImage = (images || [])[Math.floor((images || []).length / 3)];
     const mockStops = [
       { id: 1, name: 'Mock stop A', coord: [137.381, -4.733], science: 'Clay-bearing unit. Placeholder text until stops.json arrives.', photos: pick(0) },
       { id: 2, name: 'Mock stop B', coord: [137.405, -4.745], science: 'Sulfate transition. Placeholder text.', photos: [...pick(Math.floor(sites.length / 2)), ...pick(Math.floor(sites.length / 2) + 1)] },
       { id: 3, name: 'Stop with no photos', coord: null, science: null, photos: [] },
+      { id: 4, name: 'On the route, nearby photos', coord: onRoute(0.6) || nearImage?.coord || null,
+        science: 'No photos of its own: the card finds Curiosity photos within 300 m.', photos: [] },
+      { id: 5, name: 'Next to a Curiosity site', coord: nearImage?.coord ? [nearImage.coord[0] + 0.0005, nearImage.coord[1]] : null,
+        science: 'Nearby-photo fallback test.', photos: [] },
     ];
     const stops = Array.isArray(realStops) && realStops.length ? realStops : mockStops;
 
-    initCards({ weather, eva, images }, document.getElementById('cards'));
+    initCards({ weather, eva, images, route }, document.getElementById('cards'));
 
     const list = document.getElementById('stops');
     for (const stop of stops) {
