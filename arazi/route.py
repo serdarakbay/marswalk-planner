@@ -129,6 +129,13 @@ summary = {
                  "slope": round(float(slopes[i]), 1)} for i in prof_idx],
 }
 
+# Keep the "terrain" block written by arazi.heightmap (Egemen's 3D view)
+old_summary = WEB / "data" / "summary.json"
+if old_summary.exists():
+    terrain = json.loads(old_summary.read_text(encoding="utf-8")).get("terrain")
+    if terrain:
+        summary["terrain"] = terrain
+
 for name, obj in [("route.geojson", route), ("summary.json", summary)]:
     out = WEB / "data" / name
     out.write_text(json.dumps(obj, separators=(",", ":")) + "\n", encoding="utf-8")
