@@ -24,7 +24,7 @@ import {
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
 import { createRouter, legRemaining, loadTerrainGrid, slopeAt, steepestOnPath } from './terrain.js';
-import { bestRefuge, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
+import { bestRefuge, devilPass, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
@@ -386,7 +386,10 @@ export function initHUD(state, el) {
         scen.push({ level: 'info', text: `Storm over. Back to the route: ${where(p.resume.coord)}` });
       }
       const legEnd = p.leg ? p.leg.coords[p.leg.coords.length - 1] : null;
-      if (p.mode === 'evade' && p.devil && legEnd) {
+      if (p.mode === 'evade' && p.devil && legEnd && devilPass(p.coord, p.devil, (SCENARIO.DUST_FROM_DEG + 180) % 360).along <= 0) {
+        // Still walking aside, but it is already moving away: no longer "heading this way"
+        scen.push({ level: 'warn', text: `Dust devil passing, ${where(p.devil)}: keep clear of its track` });
+      } else if (p.mode === 'evade' && p.devil && legEnd) {
         scen.push({ level: 'danger', text: `STEP ASIDE: dust devil heading this way, ${where(p.devil)}. Walk ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}, off its track` });
       } else if (p.mode === 'aside' && p.devil) {
         scen.push({ level: 'warn', text: `Off its track: wait for the dust devil to pass, ${where(p.devil)}` });
