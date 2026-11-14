@@ -11,6 +11,7 @@ The astronaut's helmet-visor view. Opens with **H** or the HUD button in `planne
 - **Alerts:** rules from `web/data/alerts.json` (Utku) plus built-in ones (Earth below the horizon, outside the EVA window, scenario alerts).
 - **Radio shadow ahead:** from `safety.json` → `route[].comm_ok`, the HUD warns 10 min before a stretch without a link ("Radio shadow in 4 min, for 3 min: check in now") and counts down while in it.
 - **Point of no return:** "Turn back by T+…" = O2 above the 25 % reserve minus the O2 to walk home from here (straight line × 1.3, 50 m/min). Warns under 30 min, "Turn back now" at zero.
+- **Shelter options (storm):** every refuge (terrain shelters and the habitat) ranked by the storm dose still to come if the astronaut goes there now: walk time at the full storm rate, then the wait at the shelter's sky-view factor (habitat: `habitat_dose_factor`). The lowest dose the O2 allows is marked **best** and chosen by default; tap another one to change course. Shelters where waiting would take O2 below the reserve are greyed out.
 - **Mission log:** the latest key events up to the current time, newest first (EVA start, stops, radio shadows of a minute or more, storm, shelter, dust devil, return). Built from the simulated plan, so it follows the time slider.
 - **Simulation clock:** play / pause, speed (real time to x1200), time slider with coloured event bands.
 
@@ -28,7 +29,7 @@ They can be combined, e.g. `planner.html?hazard=dustdevil&radiation=replay`.
 
 The walk is simulated in 15-second steps. Each step records the astronaut's mode, position, progress along the planned route, O2 and dose. With no scenario on, the astronaut simply follows the route.
 
-- **Solar storm:** replay of the 20 May 2024 storm measured by Curiosity RAD (`radiation.json` → `replay`: x38.6, 120 min). The astronaut walks to the nearest refuge (terrain shelter from `safety.json`, or the habitat), waits until the storm ends, walks back and resumes the route. Dose in a shelter is multiplied by its sky-view factor (`svf`), in the habitat by `replay.habitat_dose_factor`. If waiting at a shelter would take O2 below the 25 % reserve, the astronaut returns to the habitat instead.
+- **Solar storm:** replay of the 20 May 2024 storm measured by Curiosity RAD (`radiation.json` → `replay`: x38.6, 120 min). The astronaut walks to the recommended refuge (lowest storm dose, see Shelter options) or the one the crew picks, waits until the storm ends, walks back and resumes the route (or stays in the habitat: the EVA ends early). Dose in a shelter is multiplied by its sky-view factor (`svf`), in the habitat by `replay.habitat_dose_factor`. If waiting at a shelter would take O2 below the 25 % reserve, the astronaut returns to the habitat instead. With Utku's current values (shelter sky-view 0.70–0.81, habitat ×0.3) the habitat usually gives the lowest dose even 25–30 min away; picking a nearby shelter keeps the EVA going at a higher dose.
 - **Dust devil:** appears upwind (NE) and crosses the route at 3 m/s. The HUD warns within 400 m; the astronaut holds position while it approaches within 120 m and resumes once it is 160 m away and moving off. The delay carries over to stop times, O2 and dose.
 
 Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) are constants at the top of `scenario.js`.

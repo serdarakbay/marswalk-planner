@@ -23,7 +23,7 @@ import {
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
-import { isOutside, missionLog, SCENARIO, simulate } from './scenario.js';
+import { bestRefuge, isOutside, missionLog, refugeOptions, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
@@ -70,6 +70,7 @@ function fmtNum(v, digits = 0, unit = '') {
 }
 
 const LOG_ROWS = 6;   // mission log entries shown (newest first)
+const REFUGE_ROWS = 3; // shelter options shown (lowest storm dose first)
 
 // '2024-05-20' -> '20 May 2024' (UI text is English)
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -138,6 +139,8 @@ export function initHUD(state, el) {
   } catch { /* no location (tests) */ }
   // When each scenario starts, in minutes after the EVA start (URL links use fixed demo times)
   let stormT0 = SCENARIO.STORM_URL_START_MIN;
+  // Storm refuge picked by the crew in the Shelter options panel ({id, t}); null = recommended
+  let refugeChoice = null;
   let dustT0 = SCENARIO.DUST_URL_START_MIN;
   const fallbackStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
@@ -158,6 +161,7 @@ export function initHUD(state, el) {
 
   // Step-by-step plan of the walk with the scenarios that are switched on (see scenario.js)
   let plan = null;
+  let simParams = null;   // inputs of the last plan, reused by the Shelter options panel
   function rebuildPlan() {
     plan = null;
     if (!timeline || !evaStart || !range) return;
@@ -165,7 +169,8 @@ export function initHUD(state, el) {
       const rp = state.radiation?.replay || {};
       const base = Number.isFinite(state.radiation?.base_mSv_per_day)
         ? state.radiation.base_mSv_per_day : FALLBACK.rad_base_mSv_per_day;
-      plan = simulate({
+      simParams = {
+        refugeChoice,
         tl: timeline,
         shelters: state.safety?.shelters,
         habitat: state.area?.habitat ?? timeline.coords[0],
@@ -182,7 +187,8 @@ export function initHUD(state, el) {
           habitatFactor: Number.isFinite(rp.habitat_dose_factor) ? rp.habitat_dose_factor : 1,
         } : null,
         dust: dustOn ? { t0: dustT0 } : null,
-      });
+      };
+      plan = simulate(simParams);
     } catch (err) {
       console.error('[hud] scenario plan failed', err);
       plan = null;
@@ -344,7 +350,7 @@ export function initHUD(state, el) {
         const mins = distanceM(p.coord, refuge.coord) / SCENARIO.WALK_M_PER_MIN;
         scen.push({ level: 'danger', text: refuge.habitat
           ? `Return to the habitat${refuge.o2Short ? ' (not enough O2 to wait out the storm)' : ''}: ${mins.toFixed(1)} min, ${where(refuge.coord)}`
-          : `Take shelter: ${mins.toFixed(1)} min, ${where(refuge.coord)}` });
+          : `Take shelter${refuge.id ? ` ${refuge.id}` : ''}: ${mins.toFixed(1)} min, ${where(refuge.coord)}` });
       } else if (p.mode === 'sheltered') {
         scen.push({ level: 'warn', text: `Sheltered (sky-view ${fmtNum(refuge?.svf, 2)}): storm ends in ${fmtDuration(stormLeft)}` });
       } else if (p.mode === 'home' && stormOn) {
@@ -409,7 +415,7 @@ export function initHUD(state, el) {
       }
       if (p?.mode === 'to_refuge' && refuge) {
         const d = distanceM(p.coord, refuge.coord);
-        row(life.body, refuge.habitat ? 'Habitat' : 'Shelter',
+        row(life.body, refuge.habitat ? 'Habitat' : `Shelter${refuge.id ? ` ${refuge.id}` : ''}`,
           `${(d / SCENARIO.WALK_M_PER_MIN).toFixed(1)} min · ${fmtDist(d)} ${compass(bearingDeg(p.coord, refuge.coord))}`);
       } else if (p?.mode === 'sheltered') {
         row(life.body, 'Shelter', `In shelter · svf ${fmtNum(refuge?.svf, 2)}`);
@@ -427,6 +433,50 @@ export function initHUD(state, el) {
       }
       if (Number.isFinite(eva?.duration_min)) row(life.body, 'EVA length', fmtDuration(eva.duration_min));
     }, life.body);
+
+    // --- shelter options: every refuge compared by storm dose from here; the crew can switch
+    let refP = null;
+    if (p && plan?.storm && p.stormOn && (p.mode === 'to_refuge' || p.mode === 'sheltered') && simParams) {
+      refP = panel('Shelter options');
+      refP.box.classList.add('hud-panel--danger');
+      safe('refuges', () => {
+        const opts = refugeOptions({ ...simParams, storm: plan.storm, coord: p.coord, o2: p.o2, left: stormLeft });
+        const best = bestRefuge(opts);
+        const cur = refuge?.id;
+        // Lowest dose first; always keep the current refuge in the list
+        const shown = opts.slice(0, REFUGE_ROWS);
+        const curOpt = opts.find((o) => o.id === cur);
+        if (curOpt && !shown.includes(curOpt)) shown[shown.length - 1] = curOpt;
+        const list = h('ul', 'hud-refuges');
+        list.setAttribute('aria-label', 'Shelter options, lowest storm dose first');
+        for (const o of shown) {
+          const li = h('li');
+          const b = h('button', 'hud-refuge');
+          b.type = 'button';
+          if (o.id === cur) b.classList.add('hud-refuge--current');
+          b.setAttribute('aria-pressed', String(o.id === cur));
+          b.disabled = o.o2Short;
+          const name = h('span', 'hud-refuge__name', `${o.id === cur ? '▶ ' : ''}${o.habitat ? 'Habitat' : o.id}`);
+          if (best && o.id === best.id) name.append(h('span', 'hud-tag hud-tag--ok', 'best'));
+          if (o.o2Short) name.append(h('span', 'hud-tag', 'O₂ short'));
+          const where = o.d < 5 ? 'here' : `${fmtShort(o.walkMin)} · ${fmtDist(o.d)} ${compass(bearingDeg(p.coord, o.coord))}`;
+          const shield = o.habitat ? `×${fmtNum(o.factor, 1)} · ends EVA` : `sky-view ${fmtNum(o.svf, 2)}`;
+          b.append(name,
+            h('span', 'hud-refuge__dose', `${o.dose.toFixed(2)} mSv`),
+            h('span', 'hud-refuge__where', `${where} · ${shield}`));
+          b.title = `${o.habitat ? 'Habitat' : `Shelter ${o.id}`}: storm dose until it ends if you go there now`;
+          b.addEventListener('click', () => {
+            if (o.id === cur) return;
+            refugeChoice = { id: o.id, t: Math.max(plan.storm.t0, elapsed) };
+            rebuilt();
+          });
+          li.append(b);
+          list.append(li);
+        }
+        refP.body.append(list);
+        refP.body.append(h('p', 'hud-muted', 'Storm dose until it ends. Tap to change refuge.'));
+      }, refP.body);
+    }
 
     // --- next stop
     const stopP = panel('Next stop');
@@ -498,6 +548,8 @@ export function initHUD(state, el) {
     const grid = h('div', 'hud-grid');
     const colL = h('div', 'hud-col hud-col--left');
     const colR = h('div', 'hud-col hud-col--right');
+    // During a storm the refuge choice is the action item: it goes above life support
+    if (refP) colL.append(refP.box);
     colL.append(life.box);
     colR.append(stopP.box);
     // --- mission log: latest events up to now
@@ -573,6 +625,15 @@ export function initHUD(state, el) {
 
   let lastMinute = null;
   let clock = null;
+
+  // A scenario or the storm refuge changed: re-plan the walk and redraw what depends on it
+  function rebuilt() {
+    rebuildPlan();
+    rebuildLog();
+    renderEvents();
+    emitTime();
+    if (open) render();
+  }
 
   // 'hud:time' tells the map where the astronaut is (approved by Ege, 2026-11-14).
   // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
@@ -660,22 +721,15 @@ export function initHUD(state, el) {
     stormBtn.addEventListener('click', () => {
       storm = !storm;
       if (storm) stormT0 = Math.max(0, nowMin());
+      refugeChoice = null;
       stormBtn.setAttribute('aria-pressed', String(storm));
-      rebuildPlan();
-      rebuildLog();
-      renderEvents();
-      emitTime();
-      if (open) render();
+      rebuilt();
     });
     dustBtn.addEventListener('click', () => {
       dustOn = !dustOn;
       if (dustOn) dustT0 = Math.max(SCENARIO.STEP_MIN, nowMin());
       dustBtn.setAttribute('aria-pressed', String(dustOn));
-      rebuildPlan();
-      rebuildLog();
-      renderEvents();
-      emitTime();
-      if (open) render();
+      rebuilt();
     });
     slider.addEventListener('input', () => {
       clock.seek(clock.start.getTime() + Number(slider.value) * 60000);

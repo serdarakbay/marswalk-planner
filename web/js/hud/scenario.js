@@ -43,6 +43,45 @@ export function offset(from, bearing, meters, radiusM = 3396190) {
   return [from[0] + dLon, from[1] + dLat];
 }
 
+/**
+ * Storm refuges compared from where the astronaut is now: every terrain shelter plus the habitat,
+ * sorted by the storm dose still to come (walk there at the full storm rate, then wait at the
+ * shelter's sky-view factor, or the habitat's dose factor, until the storm ends).
+ * o2Short: waiting there would take O2 below the reserve (walk there, wait, walk home).
+ * Returns [{id, label, coord, svf, factor, habitat, d, walkMin, dose, o2Short}].
+ */
+export function refugeOptions(q) {
+  const { coord, shelters = [], habitat, storm } = q;
+  if (!Array.isArray(coord) || !storm) return [];
+  const left = Math.max(0, q.left);
+  const rate = (q.doseBasePerMin || 0) * storm.mult;
+  const o2PerMin = q.o2PerMin || 0;
+  const stand = Number.isFinite(q.o2StandPerMin) ? q.o2StandPerMin : o2PerMin;
+  const o2 = q.o2 || 0;
+  const list = [];
+  shelters.forEach((s, i) => {
+    if (!Array.isArray(s?.coord)) return;
+    list.push({ id: `S${i + 1}`, label: `Shelter S${i + 1}`, coord: s.coord, svf: s.svf,
+      factor: Number.isFinite(s.svf) ? s.svf : 1, habitat: false });
+  });
+  if (Array.isArray(habitat)) {
+    list.push({ id: 'habitat', label: 'Habitat', coord: habitat, svf: null, factor: storm.habitatFactor, habitat: true });
+  }
+  for (const o of list) {
+    o.d = distanceM(coord, o.coord);
+    o.walkMin = o.d / SCENARIO.WALK_M_PER_MIN;
+    const walk = Math.min(o.walkMin, left);
+    o.dose = rate * walk + rate * o.factor * (left - walk);
+    const home = o.habitat || !Array.isArray(habitat) ? 0 : distanceM(o.coord, habitat) / SCENARIO.WALK_M_PER_MIN;
+    const need = o2PerMin * (o.walkMin + home) + (o.habitat ? 0 : stand * Math.max(0, left - o.walkMin));
+    o.o2Short = !o.habitat && o2 + need > 100 - SCENARIO.O2_RESERVE_PCT;
+  }
+  return list.sort((a, b) => a.dose - b.dose);
+}
+
+// Recommended refuge: the lowest storm dose among the ones the O2 allows
+export const bestRefuge = (opts) => opts.find((o) => !o.o2Short) ?? opts.find((o) => o.habitat) ?? null;
+
 function toward(a, b, meters) {
   const d = distanceM(a, b);
   if (d <= meters || d === 0) return { coord: b, arrived: true };
@@ -62,6 +101,8 @@ function toward(a, b, meters) {
  * @param {number} p.doseBasePerMin  mSv per minute outside, quiet Sun
  * @param {object|null} p.storm    {t0, duration, mult, habitatFactor}
  * @param {object|null} p.dust     {t0}
+ * @param {object|null} p.refugeChoice  {id, t}: from minute t, go to this refuge instead of the
+ *                                 recommended one (ids from refugeOptions: 'S1'.., 'habitat')
  */
 export function simulate(p) {
   const { tl, habitat, startMin, endMin, o2PerMin, doseBasePerMin, storm, dust } = p;
@@ -82,6 +123,19 @@ export function simulate(p) {
   let devil = null;          // {start, bearing, t0}
   let prevDevilDist = null;
   let clearedAt = null;
+  const choice = p.refugeChoice && p.refugeChoice.id ? p.refugeChoice : null;
+  let choiceDone = false;
+  const optionsAt = (t) => refugeOptions({
+    coord, shelters, habitat, storm, o2, left: storm.t0 + storm.duration - t,
+    o2PerMin, o2StandPerMin, doseBasePerMin,
+  });
+  // A short-of-O2 shelter is replaced by the habitat (Utku's rule)
+  const pick = (opts, o) => {
+    if (!o) return null;
+    if (!o.o2Short) return o;
+    const hab = opts.find((x) => x.habitat);
+    return hab ? { ...hab, o2Short: true } : o;
+  };
 
   for (let t = startMin; t <= endMin + 1e-9; t += dt) {
     const stormOn = Boolean(storm) && t >= storm.t0 && t < storm.t0 + storm.duration;
@@ -89,27 +143,27 @@ export function simulate(p) {
     // EVA starts at T+0, unless a storm is on: then it waits in the habitat
     if (mode === 'pre' && t > 0 && !stormOn) mode = 'route';
 
-    // Storm hits while outside: pick the closest refuge (terrain shelter or habitat)
+    // Storm hits while outside: go to the recommended refuge (lowest storm dose the O2 allows),
+    // or to the one the crew picked
     if (storm && !stormHandled && t >= storm.t0 && isOutside(mode)) {
       stormHandled = true;
-      const options = shelters.map((s) => ({ coord: s.coord, factor: Number.isFinite(s.svf) ? s.svf : 1, svf: s.svf, habitat: false }));
-      if (habitat) options.push({ coord: habitat, factor: storm.habitatFactor, habitat: true });
-      refuge = options.reduce((best, o) => {
-        const d = distanceM(coord, o.coord);
-        return !best || d < best.d ? { ...o, d } : best;
-      }, null);
-      // Waiting out the storm at a terrain shelter must fit in the O2 above the reserve
-      // (walk there, wait, walk back home); otherwise go back to the habitat (Utku's rule).
-      if (refuge && !refuge.habitat && habitat) {
-        const left = storm.t0 + storm.duration - t;
-        const home = distanceM(refuge.coord, habitat);
-        const need = o2PerMin * (refuge.d + home) / SCENARIO.WALK_M_PER_MIN + o2StandPerMin * left;
-        if (o2 + need > 100 - SCENARIO.O2_RESERVE_PCT) {
-          refuge = { coord: habitat, factor: storm.habitatFactor, habitat: true, d: distanceM(coord, habitat), o2Short: true };
-        }
+      const opts = optionsAt(t);
+      const chosen = choice && choice.t <= t ? opts.find((o) => o.id === choice.id) : null;
+      if (chosen) choiceDone = true;
+      refuge = pick(opts, chosen ?? bestRefuge(opts));
+      if (refuge) {
+        resume = { coord, tau };
+        mode = 'to_refuge';
       }
-      resume = { coord, tau };
-      mode = 'to_refuge';
+    }
+    // The crew switched refuge during the storm: head there from here
+    if (choice && !choiceDone && stormHandled && t >= choice.t && (mode === 'to_refuge' || mode === 'sheltered')) {
+      choiceDone = true;
+      if (refuge?.id !== choice.id) {
+        const opts = optionsAt(t);
+        const next = pick(opts, opts.find((o) => o.id === choice.id));
+        if (next) { refuge = next; mode = 'to_refuge'; }
+      }
     }
 
     // Dust devil appears upwind of where the astronaut will be in a few minutes (or of where
@@ -246,13 +300,13 @@ export function missionLog(plan, schedule = [], shadows = []) {
       add(s.t, 'danger', 'Solar storm alert (replay of 20 May 2024)');
     }
     if (prev.mode === 'pre' && s.mode === 'route') add(s.t, 'info', 'EVA start: left the habitat');
-    if (s.mode === 'to_refuge' && prev.mode !== 'to_refuge' && s.refuge) {
+    if (s.mode === 'to_refuge' && s.refuge && (prev.mode !== 'to_refuge' || prev.refuge !== s.refuge)) {
       add(s.t, 'danger', s.refuge.habitat
         ? `Heading back to the habitat${s.refuge.o2Short ? ' (O2 too low to wait out the storm)' : ''}`
-        : `Heading to shelter, ${Math.round(s.refuge.d)} m away`);
+        : `Heading to shelter${s.refuge.id ? ` ${s.refuge.id}` : ''}, ${Math.round(s.refuge.d)} m away`);
     }
     if (s.mode === 'sheltered' && prev.mode !== 'sheltered') {
-      add(s.t, 'warn', `In shelter (sky-view ${Number.isFinite(s.refuge?.svf) ? s.refuge.svf.toFixed(2) : '—'})`);
+      add(s.t, 'warn', `In shelter${s.refuge?.id ? ` ${s.refuge.id}` : ''} (sky-view ${Number.isFinite(s.refuge?.svf) ? s.refuge.svf.toFixed(2) : '—'})`);
     }
     if (s.mode === 'return' && prev.mode !== 'return') add(s.t, 'info', 'Storm over: walking back to the route');
     if (prev.mode === 'return' && s.mode === 'route') add(s.t, 'info', 'Back on the route');

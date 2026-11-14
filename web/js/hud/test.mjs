@@ -12,7 +12,7 @@ import {
   distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
-import { missionLog, simulate } from './scenario.js';
+import { bestRefuge, missionLog, refugeOptions, simulate } from './scenario.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(here, '../../data');
@@ -49,6 +49,8 @@ const base = {
   tl, shelters: [{ coord: [0.002, 0.0005], svf: 0.5 }], habitat: [0, 0],
   startMin: -5, endMin: 300, o2PerMin: 0.2, o2StandPerMin: 0.1, doseBasePerMin: 0.64 / 1440,
 };
+// The crew picks the terrain shelter (the recommended refuge on this tiny map is the habitat)
+const toS1 = { id: 'S1', t: -Infinity };
 
 console.log('\nPart 1: logic (synthetic inputs)');
 
@@ -92,7 +94,7 @@ test('no scenario: progress = elapsed time, O2 = route rate x duration', () => {
 
 test('storm: walk to the shelter, wait, walk back, finish; dose below no-shelter', () => {
   const storm = { t0: 5, duration: 30, mult: 38.6, habitatFactor: 0.3 };
-  const plan = simulate({ ...base, storm, dust: null });
+  const plan = simulate({ ...base, storm, dust: null, refugeChoice: toS1 });
   const modes = new Set(Array.from({ length: 120 }, (_, i) => plan.at(i).mode));
   for (const m of ['route', 'to_refuge', 'sheltered', 'return', 'done']) assert.ok(modes.has(m), `mode ${m} seen`);
   const e = 40;
@@ -102,7 +104,7 @@ test('storm: walk to the shelter, wait, walk back, finish; dose below no-shelter
 
 test('storm: standing O2 rate while sheltered', () => {
   const storm = { t0: 5, duration: 30, mult: 1, habitatFactor: 1 };
-  const plan = simulate({ ...base, storm, dust: null });
+  const plan = simulate({ ...base, storm, dust: null, refugeChoice: toS1 });
   const a = plan.at(15);
   const b = plan.at(25);
   assert.equal(a.mode, 'sheltered');
@@ -113,10 +115,43 @@ test('storm: standing O2 rate while sheltered', () => {
 test('storm: not enough O2 to wait -> back to the habitat', () => {
   // 800 min at 0.1 %/min standing = 80 % of the tank: more than the 75 % above the reserve
   const storm = { t0: 5, duration: 800, mult: 38.6, habitatFactor: 0.3 };
-  const plan = simulate({ ...base, endMin: 900, storm, dust: null });
+  const plan = simulate({ ...base, endMin: 900, storm, dust: null, refugeChoice: toS1 });
   const s = plan.at(6);
   assert.equal(s.mode, 'to_refuge');
   assert.ok(s.refuge.habitat && s.refuge.o2Short, 'refuge is the habitat because of O2');
+});
+
+test('shelter options: sorted by storm dose; recommended = lowest dose the O2 allows', () => {
+  const storm = { t0: 0, duration: 120, mult: 38.6, habitatFactor: 0.3 };
+  const q = { coord: [0.002, 0], shelters: base.shelters, habitat: [0, 0], storm, left: 120,
+    o2: 0, o2PerMin: 0.2, o2StandPerMin: 0.1, doseBasePerMin: 0.64 / 1440 };
+  const opts = refugeOptions(q);
+  assert.deepEqual(opts.map((o) => o.id).sort(), ['S1', 'habitat']);
+  assert.ok(opts.every((o, i) => i === 0 || o.dose >= opts[i - 1].dose), 'sorted by dose');
+  const rate = (0.64 / 1440) * 38.6;
+  const s1 = opts.find((o) => o.id === 'S1');
+  near(s1.dose, rate * s1.walkMin + rate * 0.5 * (120 - s1.walkMin), 1e-9, 'S1 dose = walk + wait x svf');
+  assert.equal(bestRefuge(opts).id, 'habitat', 'habitat x0.3 beats a shelter with svf 0.5');
+  // A shelter that blocks almost everything wins; one the O2 cannot afford is never recommended
+  const good = refugeOptions({ ...q, shelters: [{ coord: [0.002, 0.0005], svf: 0.05 }] });
+  assert.equal(bestRefuge(good).id, 'S1');
+  const short = refugeOptions({ ...q, o2: 70, shelters: [{ coord: [0.002, 0.0005], svf: 0.05 }] });
+  assert.ok(short.find((o) => o.id === 'S1').o2Short, 'S1 short of O2');
+  assert.equal(bestRefuge(short).id, 'habitat');
+});
+
+test('storm: goes to the recommended refuge unless the crew picks another', () => {
+  const storm = { t0: 5, duration: 30, mult: 38.6, habitatFactor: 0.3 };
+  const auto = simulate({ ...base, storm, dust: null });
+  assert.equal(auto.at(6).refuge.id, 'habitat', 'auto = lowest dose');
+  const picked = simulate({ ...base, storm, dust: null, refugeChoice: toS1 });
+  assert.equal(picked.at(6).refuge.id, 'S1', 'crew choice');
+  // Switching mid-storm: heading home, then at T+6 the crew picks S1 instead
+  const sw = simulate({ ...base, storm, dust: null, refugeChoice: { id: 'S1', t: 6 } });
+  assert.equal(sw.at(5.5).refuge.id, 'habitat', 'recommended until the switch');
+  assert.equal(sw.at(6.5).refuge.id, 'S1', 'heads to S1 after the switch');
+  const modes = new Set(Array.from({ length: 480 }, (_, i) => sw.at(i * 0.25).mode));
+  for (const m of ['sheltered', 'return', 'done']) assert.ok(modes.has(m), `mode ${m} seen`);
 });
 
 test('dust devil: hold position, then resume with a delay', () => {
@@ -129,7 +164,7 @@ test('dust devil: hold position, then resume with a delay', () => {
 
 test('mission log: start, scenario events and end, in time order', () => {
   const storm = { t0: 5, duration: 30, mult: 38.6, habitatFactor: 0.3 };
-  const plan = simulate({ ...base, storm, dust: null });
+  const plan = simulate({ ...base, storm, dust: null, refugeChoice: toS1 });
   const log = missionLog(plan, stopSchedule(tl, [stopA, stopB]), []);
   const text = log.map((x) => x.text).join(' | ');
   for (const w of ['EVA start', 'Solar storm alert', 'Heading to shelter', 'In shelter', 'EVA complete']) {
