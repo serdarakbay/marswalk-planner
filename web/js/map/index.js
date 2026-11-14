@@ -40,6 +40,106 @@ function setLayerOpacity(layer, value) {
   else layer.setStyle?.({ opacity: value });
 }
 
+// Planetocentric lat / east-positive lon, same convention as area.json
+function fmtLatLon(ll) {
+  const lat = `${Math.abs(ll.lat).toFixed(4)}°${ll.lat < 0 ? 'S' : 'N'}`;
+  const lon = `${(((ll.lng % 360) + 360) % 360).toFixed(4)}°E`;
+  return `${lat}  ${lon}`;
+}
+
+// Cursor position in the bottom-left corner
+function coordsControl(map) {
+  const ctl = L.control({ position: 'bottomleft' });
+  ctl.onAdd = () => {
+    const box = L.DomUtil.create('div', 'leaflet-control map-coords');
+    box.setAttribute('aria-hidden', 'true'); // decorative; screen readers skip it
+    box.textContent = 'Move over the map';
+    map.on('mousemove', (e) => { box.textContent = fmtLatLon(e.latlng); });
+    map.on('mouseout', () => { box.textContent = fmtLatLon(map.getCenter()); });
+    return box;
+  };
+  return ctl.addTo(map);
+}
+
+// Lat/lon grid that picks a round step for the current zoom
+const GRID_STEPS = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005];
+
+function gridLayer(map) {
+  const group = L.featureGroup();
+  const style = { color: cssVar('--color-text-muted'), weight: 1, opacity: 0.35, interactive: false };
+
+  function draw() {
+    group.clearLayers();
+    const b = map.getBounds();
+    const span = Math.max(b.getEast() - b.getWest(), b.getNorth() - b.getSouth());
+    const step = GRID_STEPS.find((s) => span / s >= 4) ?? GRID_STEPS[GRID_STEPS.length - 1];
+    const digits = Math.max(0, -Math.floor(Math.log10(step)));
+    const label = (text, latlng, cls) => L.marker(latlng, {
+      interactive: false, keyboard: false,
+      // Leaflet positions the icon with a CSS transform, so the offset goes on the inner span
+      icon: L.divIcon({ className: `map-grid-label ${cls}`, html: `<span>${text}</span>`, iconSize: [0, 0] }),
+    });
+    for (let lon = Math.ceil(b.getWest() / step) * step; lon <= b.getEast(); lon += step) {
+      group.addLayer(L.polyline([[b.getSouth(), lon], [b.getNorth(), lon]], style));
+      group.addLayer(label(`${lon.toFixed(digits)}°E`, [b.getNorth(), lon], 'is-lon'));
+    }
+    for (let lat = Math.ceil(b.getSouth() / step) * step; lat <= b.getNorth(); lat += step) {
+      group.addLayer(L.polyline([[lat, b.getWest()], [lat, b.getEast()]], style));
+      const ns = lat < 0 ? 'S' : 'N';
+      group.addLayer(label(`${Math.abs(lat).toFixed(digits)}°${ns}`, [lat, b.getWest()], 'is-lat'));
+    }
+  }
+
+  map.on('moveend zoomend resize', () => { if (map.hasLayer(group)) draw(); });
+  group.on('add', draw);
+  return group;
+}
+
+// Overview map (bottom-right): a global base layer around Gale crater, with the main
+// view drawn on it. Clicking it pans the main map there. Hidden on narrow screens (base.css).
+const MINIMAP_ZOOM = 5; // whole Gale crater (~150 km) fits in the box
+
+function miniMap(map, layers) {
+  const global = layers.find((l) => l.type === 'base' && l.bounds
+    && l.bounds.east - l.bounds.west >= 359);
+  if (!global) return null;
+
+  const ctl = L.control({ position: 'bottomright' });
+  ctl.onAdd = () => {
+    const box = L.DomUtil.create('div', 'leaflet-control map-minimap');
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', 'Overview map: location within Gale crater');
+    box.title = 'Click to move the map here';
+    L.DomEvent.disableClickPropagation(box);
+    L.DomEvent.disableScrollPropagation(box);
+    return box;
+  };
+  ctl.addTo(map);
+
+  const mini = L.map(ctl.getContainer(), {
+    crs: MARS_CRS,
+    attributionControl: false, zoomControl: false, dragging: false, scrollWheelZoom: false,
+    doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0,
+  });
+  L.tileLayer(global.url, { maxNativeZoom: global.maxNativeZoom, maxZoom: MAX_ZOOM, noWrap: true }).addTo(mini);
+  const accent = cssVar('--color-accent');
+  const view = L.rectangle(map.getBounds(), { color: accent, weight: 1, fillOpacity: 0.15, interactive: false }).addTo(mini);
+  const dot = L.circleMarker(map.getCenter(), {
+    radius: 3, color: accent, weight: 1, fillColor: accent, fillOpacity: 1, interactive: false,
+  }).addTo(mini);
+
+  function sync() {
+    view.setBounds(map.getBounds());
+    dot.setLatLng(map.getCenter());
+    mini.setView(map.getCenter(), Math.min(MINIMAP_ZOOM, map.getZoom()), { animate: false });
+  }
+  map.on('moveend zoomend resize', sync);
+  mini.on('click', (e) => map.panTo(e.latlng));
+  // The box gets its size from CSS after insertion; measure once laid out
+  requestAnimationFrame(() => { mini.invalidateSize(); sync(); });
+  return mini;
+}
+
 function imageLayer(ov) {
   return L.imageOverlay(ov.png, toBounds(ov.bounds), { opacity: 0.7, interactive: false });
 }
@@ -127,6 +227,7 @@ export function initMap(state, mapEl) {
   });
   map.attributionControl.setPrefix(false);
   L.control.scale({ imperial: false }).addTo(map);
+  coordsControl(map);
 
   // Base layers and tile overlays (layers.json)
   const layers = state.layers || [];
@@ -200,6 +301,18 @@ export function initMap(state, mapEl) {
   if (bounds) map.fitBounds(bounds, { padding: [16, 16] });
   else map.setView([0, 0], 3);
   vectors.forEach((v) => v.addTo(map));
+
+  // Overview map (needs the main view set first)
+  try {
+    miniMap(map, layers);
+  } catch (err) {
+    console.warn('[map] overview map failed', err);
+  }
+
+  // Lat/lon grid, switchable from the layer panel
+  const grid = gridLayer(map);
+  overlays.push({ meta: { id: 'grid', name: 'Lat/lon grid' }, layer: grid, on: true });
+  grid.addTo(map);
 
   const panel = document.getElementById('panel');
   if (panel) buildPanel(panel, map, bases, overlays);
