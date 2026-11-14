@@ -22,7 +22,7 @@ The full schema of every file under `web/data/`. Owner: Utku. If you need a sche
 | `summary` | `web/data/summary.json` | Demir |
 | `safety` | `web/data/safety/safety.json` | Utku |
 | `stops` | `web/data/stops.json` | Utku |
-| `geology` | `web/data/geology.geojson` | Utku |
+| `geology` | `web/data/geology.geojson` | Serdar |
 | `images` | `web/data/images.json` | Egemen |
 | `traverse` | `web/data/traverse.geojson` | Egemen |
 | `weather` | `web/data/weather.json` | Egemen |
@@ -158,7 +158,7 @@ Pre-rendered PNG layers (slope, cost, ...).
 
 - Stops are listed in route order. The `detail` of the `stop:select` event is one of these objects.
 
-## geology.geojson (Utku)
+## geology.geojson (Serdar)
 
 ```json
 {

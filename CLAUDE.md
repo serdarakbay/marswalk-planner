@@ -34,8 +34,8 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 | Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
 | Demir | Arazi ve Rota | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Veri: Curiosity ve REMS + durak kartları | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css` |
-| Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/js/hud/`, `web/css/hud.css` |
-| Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `harita`, `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `pipeline/fetch/usgs.py`, `web/tiles/`, `web/data/safety/`, `web/data/` içinde: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json`, `geology.geojson` |
+| Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/js/hud/`, `web/css/hud.css` |
+| Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `harita`, `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, `web/data/` içinde: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
 
 **Mocks:** Utku writes all mock files under `web/data/`. When the real file is ready, its owner's script overwrites the mock.
 
@@ -45,7 +45,8 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 - Mars Trek WMTS and tile cache → Utku only
 - Curiosity ham görüntüleri, MSL traverse, REMS → sadece Egemen
 - JPL Horizons → sadece Serdar
-- DONKI ve USGS jeolojik harita → sadece Utku
+- DONKI → Utku only
+- USGS geologic map → Serdar only
 
 `requirements.txt` at the repo root and `pipeline/common.py` (shared helpers that read `area.json`) belong to Utku. If you need a new Python package, tell Utku.
 
@@ -62,7 +63,7 @@ pipeline/
   fetch/rems.py        Egemen: sıcaklık eğrisi
   fetch/horizons.py    Serdar: Güneş/Dünya açıları, LMST
   fetch/donki.py       Utku: güneş olayları (live + replay)
-  fetch/usgs.py        Utku: USGS jeolojik birimleri → geology.geojson
+  fetch/usgs.py        Serdar: USGS geologic units → geology.geojson
 arazi/                 Demir: DEM işleme, eğim, maliyet, rota, geri dönüş halkaları
 arazi/geo.py           Demir: to_overlay_png() — Utku da import eder
 science/               Utku: models.py (O2, doz), radyasyon, duraklar, uyarılar
@@ -110,7 +111,7 @@ Tam şemalar `docs/contracts.md`'de. Özet:
 | `summary.json` | Demir | `distance_m`, `duration_min`, `o2_used_pct`, `dose_mSv`, `max_slope_deg`, `profile[{d,z,slope}]` |
 | `safety.json` | Utku | `overlays[]` (`overlays.json` ile aynı şema; katman paneli ikisini birlikte okur), `shelters[{coord,svf}]`, `route[{d,comm_ok,shelter_min}]`, `offline_min` |
 | `stops.json` | Utku | `[{id,name,coord[lon,lat],science,photos[{url,sol,camera,credit}]}]` |
-| `geology.geojson` | Utku | Polygon'lar; properties: `unit`, `name`, `note` |
+| `geology.geojson` | Serdar | Polygon'lar; properties: `unit`, `name`, `note` |
 | `images.json` | Egemen | `[{url,sol,camera,utc,site,drive,credit}]` |
 | `traverse.geojson` | Egemen | Curiosity'nin bbox içindeki rotası (LineString) |
 | `weather.json` | Egemen | `rows[{lmst,temp_c}]` |
@@ -161,7 +162,7 @@ Riskli her işin bir karar saati var; o saatte çalışmıyorsa B planına geçi
 | MSL traverse | Egemen | Cmt 13:30 | Mars Trek'ten elle 10–15 nokta |
 | Curiosity görüntü API'si | Egemen | Cmt 14:30 | Raw Images sitesinden elle 8–10 URL |
 | Horizons Mars yüzeyi | Serdar | Cmt 14:30 | Mars24 algoritmasıyla analitik Güneş açısı |
-| USGS GeoJSON | Utku | Cmt 16:00 | Bırakılır, Trek jeoloji katmanı kalır |
+| USGS GeoJSON | Serdar | Cmt 16:00 | Bırakılır, Trek jeoloji katmanı kalır |
 | REMS | Egemen | Cmt 16:30 | Tipik günlük eğri, "yaklaşık" etiketli |
 | Rota | Demir | Cmt 19:30 | 2 m DEM; olmazsa düz çizgi + eğim uyarısı |
 | `gdal_viewshed` / rvt-py | Utku | Cmt 19:30 | numpy ile 8 yönde ufuk açısı ve basit görüş hattı; olmazsa sadece radyo gölgesi |
@@ -241,6 +242,7 @@ python -m pipeline.fetch.rems
 # Horizons ve EVA (Serdar)
 python -m pipeline.fetch.horizons
 python -m science.eva.build
+python -m pipeline.fetch.usgs
 
 # Arazi (Demir)
 python -m arazi.fetch_dem
@@ -249,7 +251,6 @@ python -m arazi.route
 
 # Bilim (Utku)
 python -m pipeline.fetch.donki
-python -m pipeline.fetch.usgs
 python -m science.safety.build    # dem_clip.tif + route.geojson gerekir
 python -m science.build_all
 
