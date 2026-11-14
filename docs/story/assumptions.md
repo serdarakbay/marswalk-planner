@@ -76,23 +76,30 @@ Because the tank is calibrated with the same `o2_kj_per_l`, that value cancels o
 
 ## Radio link and shelters
 
-- **Radio line of sight** (Assumption). The astronaut has a radio link only with a direct line of sight from an antenna 6 m above the habitat (`comm_antenna_height_m`) to a suit antenna 2 m above the ground (`comm_suit_antenna_height_m`). Both heights are our choice. There is no relay, and radio waves are not modelled as bending or reflecting around terrain, so any hill in between cuts the link.
-- **Why a 6 m mast** (Derived, then our choice). The habitat sits lower than the ground around it, so a short mast sees little of the route. We ran the same route with different mast heights:
+- **Radio line of sight** (Assumption). The astronaut has a radio link only with a direct line of sight to the habitat antenna, 6 m above the habitat (`comm_antenna_height_m`), or to the relay (below), from a suit antenna 2 m above the ground (`comm_suit_antenna_height_m`). These heights are our choice. Radio waves are not modelled as bending or reflecting around terrain, so any hill in between cuts the link.
+- **One relay** (Assumption). The crew sets up one relay station with an antenna 3 m above the ground (`relay_antenna_height_m`). It must have a line of sight to the habitat antenna, stand on passable ground and be within 300 m of the route (`relay_search_radius_m`). We search a 40 m grid (`relay_grid_m`), then a 10 m grid around the best point, and keep the site that leaves the least route time without a link. Its power supply, setup time and the habitat-to-relay radio budget are not modelled. For the current route the relay is about 400 m north of the habitat.
+- **Mast height and the relay** (Derived, then our choice). The habitat sits lower than the ground around it, and the route runs about 1.9 km north of it, so the habitat antenna alone sees little of the route. Same route, different mast heights:
 
-  | Mast height | Route points with a link | Route time without a link |
-  |---|---|---|
-  | 3 m | 53 % | 59.7 min |
-  | 6 m | 62 % | 26.3 min |
-  | 10 m | 65 % | 25.3 min |
-  | 20 m | 73 % | 8.0 min |
+  | Mast height | Route points with a link (habitat only) | Time without a link, habitat only | Time without a link, habitat + relay |
+  |---|---|---|---|
+  | 3 m | 14 % | 143.6 min | 14.0 min |
+  | 6 m | 17 % | 123.8 min | 12.1 min |
+  | 10 m | 19 % | 122.6 min | 11.1 min |
+  | 20 m | 21 % | 119.3 min | 9.4 min |
 
-  Going from 3 m to 6 m cuts the time without a link from about 60 to about 26 minutes; going on to 10 m saves only 1 more minute. We chose 6 m, the shortest mast after which the benefit levels off. Only a much taller mast (20 m) helps again.
-- **Relay for the remaining shadow** (Assumption). A small relay on a nearby hilltop could cover the rest of the route. It is not modelled.
+  On this route the mast height hardly matters: even a 20 m mast leaves about two hours of the 158 min walk without a link. The relay is what restores the link, cutting the time without one to about 12 minutes. We keep the 6 m mast: with the relay it saves 2 minutes over 3 m, and a 20 m mast would save less than 3 more. The table is printed by `python -m science.safety.build --mast-sensitivity 3,6,10,20`.
 - **Mars curvature** (Derived). Heights along each line of sight are lowered by `d^2 / 2R` with R = 3,396,190 m (about 0.85 m at 2.4 km). Atmospheric refraction is ignored because the Martian atmosphere is thin.
 - **Offline time** (Derived). Route time without a link is added up from the route's `t_min`: each walking segment is weighted by its two ends, and stop time by the stop's own link state.
 - **Sky-view factor** (Source for the method). SVF is the fraction of the sky hemisphere that is visible: `SVF = 1 - mean(sin(horizon angle))` over 16 directions, searching up to 100 m away (Zakšek, Oštir & Kokalj, 2011, *Remote Sensing* 3(2), 398–415). Directions, radius and the 5 m grid are our choice.
-- **Shelters** (Assumption). Candidates are passable points within 200 m of the route. We pick the 5 points with the lowest SVF (the most enclosed) that are at least 150 m apart. "Time to shelter" is the walking time on the same cost grid as the return rings, again counting every step as uphill.
+- **Shelters** (Assumption). Candidates are passable points within 200 m of the route. Only the most enclosed 10 % of them qualify (`shelter_svf_percentile`; SVF at most about 0.82 here), and in each 50 m cell only the most enclosed one is kept. From these we choose 5 shelters at least 150 m apart that make the longest walk from any point of the route to its nearest shelter as short as possible; ties are broken by the shorter mean walk, then by the lower SVF. This spreads the shelters along the route: the longest walk to a shelter is about 8 min (mean about 4 min), instead of about 29 min when we simply took the 5 most enclosed points, which all lay in the southern half. The price is that the chosen shelters are a little more open (SVF 0.70–0.81 instead of 0.54–0.65). The candidate search uses walking times on a 5 m grid; the final "time to shelter" is the walking time on the 1 m cost grid, as for the return rings, counting every step as uphill.
 - **Dose falls with the visible sky** (Assumption). At a shelter we take the dose rate as `base rate × SVF`: radiation is assumed to arrive evenly from the visible sky, and the terrain is assumed to block it completely. In reality more of the surface dose comes from overhead than from near the horizon, and some secondary particles come up from the ground. Blocking the low sky therefore helps less than this suggests, so the shelter benefit is probably **optimistic**.
+- **The habitat as a shelter** (Assumption). The habitat counts as a shelter too, with a dose factor of 0.3 (`habitat_dose_factor`): its walls and a storm shelter inside it are assumed to cut the dose rate to 30 % of the outside rate. This value is our choice and is not taken from a shielding calculation.
+
+## Storm replay
+
+- **Storm length 120 min** (Assumption). In the replay the storm lasts 120 minutes (`storm_duration_min`, also `replay.duration_min` in `radiation.json`). The astronaut walks to the nearest shelter (or the habitat) and waits there until it ends. The 120 minutes stand for the most intense phase of the event and were chosen for the demo; real solar particle events can last much longer, from many hours to days.
+- **The ×38.6 multiplier and the 2 hours are separate choices.** The multiplier comes from spreading the event's measured dose (8.1 mGy) over one whole day. The 2-hour storm only uses that day's dose rate for 2 hours, so a replay storm delivers about 1/12 of the measured event dose, not all of it. We keep the multiplier as it is.
+- **If waiting does not fit the O2** (Assumption). If the O2 left is not enough to wait out the storm at the shelter and then walk back, the astronaut returns to the habitat instead of waiting.
 
 ## HUD alerts
 

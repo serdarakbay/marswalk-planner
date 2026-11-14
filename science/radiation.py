@@ -52,6 +52,7 @@ def replay_block(mission: dict, events: list[dict] | None) -> dict:
         "event_multiplier": mult,
         "message": f"Replay of the {REPLAY_DATE:%d %B %Y} solar storm: dose rate x{mult}. Stay close to shelter.",
         "event_dose_mGy": event_mGy,
+        "duration_min": mission["storm_duration_min"],
         "background_mGy_per_day": bg_mGy_day,
         "mars_arrivals_wsa_enlil": mars_arrivals(events) if events is not None else None,
         "basis": ("event absorbed dose / mean daily absorbed dose (both mGy, Curiosity RAD); "
