@@ -159,9 +159,10 @@ function makeHeap(cap) {
   };
 }
 
-// Dijkstra from the target cell over the whole grid: cost to the target and the next cell
-// toward it, for every cell (costs are symmetric, so this is also the way there).
-export function costField(grid, target) {
+// Dijkstra from the target cell over the grid: cost to the target and the next cell toward
+// it, for every cell (costs are symmetric, so this is also the way there). maxCost stops the
+// search early for short paths (cells beyond it stay unreachable).
+export function costField(grid, target, maxCost = Infinity) {
   const n = grid.w * grid.h;
   const cost = new Float64Array(n).fill(Infinity);
   const next = new Int32Array(n).fill(-1);
@@ -174,6 +175,7 @@ export function costField(grid, target) {
     const i = heap.pop();
     const c = heap.top;
     if (c > cost[i]) continue;
+    if (c > maxCost) break;
     const x = i % grid.w;
     const y = (i - x) / grid.w;
     for (const [ox, oy] of NEIGH) {
@@ -234,38 +236,49 @@ export function createRouter(grid, targets) {
     }
     return fields.get(id);
   }
+  // Follow the field's "next cell" pointers from `from` to the target `to`
+  function walk(from, to, f) {
+    if (!f || !Array.isArray(from) || !Array.isArray(to)) return null;
+    // Start on the nearest reachable cell around the astronaut
+    let start = grid.cellOf(from);
+    if (start < 0) return null;
+    if (!Number.isFinite(f.cost[start])) {
+      const x0 = start % grid.w;
+      const y0 = (start - x0) / grid.w;
+      let best = -1;
+      for (let oy = -PATH.SNAP_CELLS; oy <= PATH.SNAP_CELLS; oy++) {
+        for (let ox = -PATH.SNAP_CELLS; ox <= PATH.SNAP_CELLS; ox++) {
+          const x = x0 + ox;
+          const y = y0 + oy;
+          if (x < 0 || y < 0 || x >= grid.w || y >= grid.h) continue;
+          const j = y * grid.w + x;
+          if (Number.isFinite(f.cost[j]) && (best < 0 || f.cost[j] < f.cost[best])) best = j;
+        }
+      }
+      if (best < 0) return null;
+      start = best;
+    }
+    const coords = [from];
+    const goal = grid.cellOf(to);
+    for (let i = start, guard = 0; i !== goal && i >= 0 && guard < grid.w * grid.h; i = f.next[i], guard++) {
+      coords.push(grid.coordOf(i));
+    }
+    coords.push(to);
+    const simple = simplify(coords);
+    return { coords: simple, length_m: pathLength(simple) };
+  }
   return {
+    // Path to one of the refuges (cost field cached per refuge)
     pathTo(from, id) {
       const t = byId.get(id);
-      const f = field(id);
-      if (!t || !f || !Array.isArray(from)) return null;
-      // Start on the nearest reachable cell around the astronaut
-      let start = grid.cellOf(from);
-      if (start < 0) return null;
-      if (!Number.isFinite(f.cost[start])) {
-        const x0 = start % grid.w;
-        const y0 = (start - x0) / grid.w;
-        let best = -1;
-        for (let oy = -PATH.SNAP_CELLS; oy <= PATH.SNAP_CELLS; oy++) {
-          for (let ox = -PATH.SNAP_CELLS; ox <= PATH.SNAP_CELLS; ox++) {
-            const x = x0 + ox;
-            const y = y0 + oy;
-            if (x < 0 || y < 0 || x >= grid.w || y >= grid.h) continue;
-            const j = y * grid.w + x;
-            if (Number.isFinite(f.cost[j]) && (best < 0 || f.cost[j] < f.cost[best])) best = j;
-          }
-        }
-        if (best < 0) return null;
-        start = best;
-      }
-      const coords = [from];
-      const goal = grid.cellOf(t.coord);
-      for (let i = start, guard = 0; i !== goal && i >= 0 && guard < grid.w * grid.h; i = f.next[i], guard++) {
-        coords.push(grid.coordOf(i));
-      }
-      coords.push(t.coord);
-      const simple = simplify(coords);
-      return { coords: simple, length_m: pathLength(simple) };
+      return t ? walk(from, t.coord, field(id)) : null;
+    },
+    // Short path to any point (e.g. stepping aside from a dust devil); searched only up to
+    // maxM of cost, so it stays fast. null when the point cannot be reached that way.
+    pathBetween(from, to, maxM = 600) {
+      const goal = grid.cellOf(to);
+      if (goal < 0 || !Number.isFinite(grid.z[goal])) return null;
+      return walk(from, to, costField(grid, goal, maxM));
     },
   };
 }

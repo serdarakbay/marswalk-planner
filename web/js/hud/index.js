@@ -380,7 +380,14 @@ export function initHUD(state, el) {
       } else if (p.mode === 'return' && p.resume) {
         scen.push({ level: 'info', text: `Storm over. Back to the route: ${where(p.resume.coord)}` });
       }
-      if (p.mode === 'hold' && p.devil) {
+      const legEnd = p.leg ? p.leg.coords[p.leg.coords.length - 1] : null;
+      if (p.mode === 'evade' && p.devil && legEnd) {
+        scen.push({ level: 'danger', text: `STEP ASIDE: dust devil heading this way, ${where(p.devil)}. Walk ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}, off its track` });
+      } else if (p.mode === 'aside' && p.devil) {
+        scen.push({ level: 'warn', text: `Off its track: wait for the dust devil to pass, ${where(p.devil)}` });
+      } else if (p.mode === 'rejoin' && legEnd) {
+        scen.push({ level: 'info', text: `Dust devil passed. Back to the route: ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}` });
+      } else if (p.mode === 'hold' && p.devil) {
         scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing, ${where(p.devil)}` });
       } else if (p.devil && p.approaching && p.devilDist < SCENARIO.DUST_APPROACH_M) {
         scen.push(p.mode === 'route'
@@ -616,7 +623,7 @@ export function initHUD(state, el) {
   eventsEl.setAttribute('aria-hidden', 'true');
   track.append(eventsEl, slider);
   sim.append(playBtn, speedSel, track, simLabel);
-  const EVENT_LABELS = { storm: 'Solar storm', sheltered: 'In shelter', hold: 'Holding for dust devil', dust: 'Dust devil' };
+  const EVENT_LABELS = { storm: 'Solar storm', sheltered: 'In shelter', hold: 'Dust devil: holding or stepping aside', dust: 'Dust devil' };
   function renderEvents() {
     eventsEl.replaceChildren();
     if (!plan?.events?.length) return;
@@ -689,7 +696,8 @@ export function initHUD(state, el) {
         // Path still ahead to the refuge (or back to the route after the storm), around steep ground
         refuge_path: p?.leg ? legRemaining(p.leg, p.legS).map(r6) : null,
         refuge_label: p?.refuge ? (p.refuge.habitat ? 'Habitat' : `Shelter ${p.refuge.id ?? ''}`.trim())
-          : p?.mode === 'return' ? 'Back to the route' : null,
+          : p?.mode === 'return' || p?.mode === 'rejoin' ? 'Back to the route'
+            : p?.mode === 'evade' ? 'Step aside' : null,
         mode: p?.mode ?? null,
       },
     }));

@@ -31,7 +31,10 @@ They can be combined, e.g. `planner.html?hazard=dustdevil&radiation=replay`.
 The walk is simulated in 15-second steps. Each step records the astronaut's mode, position, progress along the planned route, O2 and dose. With no scenario on, the astronaut simply follows the route.
 
 - **Solar storm:** replay of the 20 May 2024 storm measured by Curiosity RAD (`radiation.json` → `replay`: x38.6, 120 min). The astronaut walks to the recommended refuge (lowest storm dose, see Shelter options) or the one the crew picks, waits until the storm ends, walks back and resumes the route (or stays in the habitat: the EVA ends early). Dose in a shelter is multiplied by its sky-view factor (`svf`), in the habitat by `replay.habitat_dose_factor`. If waiting at a shelter would take O2 below the 25 % reserve, the astronaut returns to the habitat instead. With Utku's current values (shelter sky-view 0.70–0.81, habitat ×0.3) the habitat usually gives the lowest dose even 25–30 min away; picking a nearby shelter keeps the EVA going at a higher dose.
-- **Dust devil:** appears upwind (NE) and crosses the route at 3 m/s. The HUD warns within 400 m; the astronaut holds position while it approaches within 120 m and resumes once it is 160 m away and moving off. The delay carries over to stop times, O2 and dose.
+- **Dust devil:** appears upwind (NE) and moves at 3 m/s. A shelter does not help here (Martian wind is weak, about 1 % of Earth's air density; the risks are dust on the visor and seals, static charge and lost visibility), so the astronaut keeps out of its way instead:
+  - If its track passes closer than 120 m, the astronaut **steps aside**: walks perpendicular to the track, on walkable ground (same path finder as the storm, at most 400 m), until 150 m off it, waits there until it is 160 m away and moving off, then walks back to the route.
+  - Otherwise, or when there is no walkable spot aside, the astronaut **holds position** while it approaches within 120 m and resumes once it is 160 m away and moving off.
+  - The delay carries over to stop times, O2 and dose. On the real route the astronaut never gets closer than ~130 m.
 
 Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) are constants at the top of `scenario.js`.
 
@@ -59,4 +62,4 @@ No dependencies. Part 1 checks the logic on small made-up inputs (stop order, st
 ## Events
 
 - Listens to `hud:toggle`, the **H** key and `stop:select`.
-- Emits `hud:time` with `{active, playing, utc, elapsed_min, coord, d_m, storm, shelter, hazard, mode, refuge_path, refuge_label}` (see `CLAUDE.md`). `refuge_path` is the `[[lon, lat], ...]` still to walk to the refuge, or back to the route after the storm; `refuge_label` names it ("Shelter S4", "Habitat", "Back to the route").
+- Emits `hud:time` with `{active, playing, utc, elapsed_min, coord, d_m, storm, shelter, hazard, mode, refuge_path, refuge_label}` (see `CLAUDE.md`). `refuge_path` is the `[[lon, lat], ...]` still to walk to the refuge, aside from a dust devil, or back to the route; `refuge_label` names it ("Shelter S4", "Habitat", "Step aside", "Back to the route").

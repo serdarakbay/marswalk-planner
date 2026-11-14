@@ -12,7 +12,7 @@ import {
   distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
-import { bestRefuge, missionLog, refugeGuided, refugeOptions, simulate } from './scenario.js';
+import { bestRefuge, devilPass, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
 import { createRouter, legRemaining, makeGrid, pathLength } from './terrain.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -228,12 +228,36 @@ test('storm with terrain: the astronaut walks the path there and back', () => {
   assert.ok(plan.steps.some((s) => s.mode === 'done'), 'finishes the route');
 });
 
-test('dust devil: hold position, then resume with a delay', () => {
+test('dust devil heading at the astronaut: step aside, wait, walk back, finish later', () => {
   const plan = simulate({ ...base, storm: null, dust: { t0: 3 } });
-  const modes = Array.from({ length: 160 }, (_, i) => plan.at(i * 0.25).mode);
-  assert.ok(modes.includes('hold'), 'holds');
-  assert.equal(plan.at(60).mode, 'done');
+  const modes = new Set(plan.steps.map((s) => s.mode));
+  for (const m of ['evade', 'aside', 'rejoin', 'done']) assert.ok(modes.has(m), `mode ${m} seen`);
+  const closest = Math.min(...plan.steps.filter((s) => s.devilDist != null).map((s) => s.devilDist));
+  assert.ok(closest >= 100, `keeps clear of the vortex (closest ${Math.round(closest)} m)`);
+  const aside = plan.steps.find((s) => s.mode === 'aside');
+  const pass = devilPass(aside.coord, plan.steps.find((s) => s.t === aside.t).devil, 225);
+  assert.ok(pass.miss >= SCENARIO.DUST_EVADE_M - 1, `aside spot is ${Math.round(pass.miss)} m off the track`);
   assert.ok(plan.at(60).delay > 0, 'finishes later than planned');
+  const text = missionLog(plan, [], []).map((x) => x.text).join(' | ');
+  for (const w of ['Dust devil sighted', 'Stepping aside', 'Dust devil passed', 'Back on the route']) assert.ok(text.includes(w), `log has "${w}"`);
+});
+
+test('dust devil: no walkable spot aside -> hold position, then resume', () => {
+  const blocked = { pathTo: () => null, pathBetween: () => null };
+  const plan = simulate({ ...base, storm: null, dust: { t0: 3 }, router: blocked });
+  const modes = new Set(plan.steps.map((s) => s.mode));
+  assert.ok(modes.has('hold') && !modes.has('evade'), 'holds instead of stepping aside');
+  assert.equal(plan.at(60).mode, 'done');
+});
+
+test('devilPass: ahead / behind, miss distance and side', () => {
+  // Devil at the origin moving north (bearing 0); a point 100 m north, 30 m east
+  const pt = [30 / (3396190 * Math.PI / 180), 100 / (3396190 * Math.PI / 180)];
+  const a = devilPass(pt, [0, 0], 0);
+  near(a.along, 100, 0.01, 'along');
+  near(a.miss, 30, 0.01, 'miss');
+  assert.equal(a.side, 90, 'point is east of the track');
+  assert.ok(devilPass(pt, [0, 0], 180).along < 0, 'already past when moving south');
 });
 
 test('mission log: start, scenario events and end, in time order', () => {
