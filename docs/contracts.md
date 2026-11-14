@@ -264,6 +264,13 @@ Curiosity's route inside the bbox. It can be a single LineString `Feature` or a 
 ```
 
 - `status`: `"nominal"`, `"elevated"` or `"storm"`.
+- `replay` (optional): the 20 May 2024 storm scenario, written next to the live values so the demo can switch to it. The top-level fields above stay the live (or current) values.
+
+  ```json
+  "replay": {"status": "storm", "event_multiplier": 38.6, "message": "Replay of the 20 May 2024 solar storm: dose rate x38.6. Stay close to shelter.", "event_dose_mGy": 8.1}
+  ```
+
+  `event_dose_mGy` is absorbed dose (Gy) and is never added to mSv values.
 
 ## alerts.json (Utku)
 
@@ -301,7 +308,10 @@ All thresholds and constants. Python scripts read them from here, so there are n
   "terrain_factor": 1.2,
   "o2_kj_per_l": 20.1,
   "suit_speed_factor": 0.6,
-  "stop_dwell_min": 15
+  "stop_dwell_min": 15,
+  "rad_base_mGy_per_day": 0.21,
+  "replay_event_dose_mGy": 8.1,
+  "rad_event_window_h": 48
 }
 ```
 
@@ -313,3 +323,7 @@ All thresholds and constants. Python scripts read them from here, so there are n
   - `o2_kj_per_l`: energy released per litre of O2 consumed, kJ/L.
   - `suit_speed_factor`: suited walking speed as a fraction of Tobler's hiking speed, no unit.
   - `stop_dwell_min`: time spent at each science stop, minutes.
+- Radiation (`science/radiation.py`). Gy values are absorbed dose and are never added to Sv values:
+  - `rad_base_mGy_per_day`: mean surface absorbed dose rate measured by RAD, mGy/day.
+  - `replay_event_dose_mGy`: absorbed dose RAD measured during the 20 May 2024 replay event, mGy.
+  - `rad_event_window_h`: in live mode, a WSA-ENLIL Mars arrival within this many hours of now sets `status` to `elevated`, hours.
