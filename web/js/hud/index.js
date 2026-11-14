@@ -6,8 +6,9 @@
 //   - Emits 'hud:time' {active, playing, utc, elapsed_min, coord, d_m, storm, shelter} on every
 //     simulated minute, seek, pause, open/close and storm toggle, so the map can move an
 //     astronaut marker (storm / shelter are extra fields the map may use to highlight a shelter).
-//   - "Storm replay" button (only when radiation.json has a replay block): applies the
-//     20 May 2024 storm scenario to the dose, raises a danger alert and shows the nearest shelter.
+//   - "Storm replay" button or ?radiation=replay in the URL (only when radiation.json has a
+//     replay block): status, event_multiplier and message come from radiation.replay, the top
+//     bar shows "REPLAY: <date>", and the HUD raises a danger alert with the nearest shelter.
 //   - Any state field may be null; the HUD must never throw.
 //   - The HUD loads its own stylesheet (hud.css); every selector there starts with #hud-root.
 // Simulation clock: play / pause, speed and a time slider move the HUD through the EVA.
@@ -64,6 +65,13 @@ function fmtNum(v, digits = 0, unit = '') {
   return Number.isFinite(v) ? `${v.toFixed(digits)}${unit}` : '—';
 }
 
+// '2024-05-20' -> '20 May 2024' (UI text is English)
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fmtDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : String(iso);
+}
+
 function fmtDist(m) {
   if (!Number.isFinite(m)) return '—';
   return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
@@ -103,8 +111,12 @@ export function initHUD(state, el) {
   // Manual pick from the map ('stop:select'); cleared when the clock starts playing.
   let pinnedStop = null;
   // Demo: radiation.json "replay" scenario (20 May 2024 solar storm) switched on/off from the sim bar
-  let storm = false;
+  // ?radiation=replay in the page URL starts with the replay on (for the presentation link).
   const hasReplay = Boolean(state.radiation?.replay);
+  let storm = false;
+  try {
+    storm = hasReplay && new URLSearchParams(location.search).get('radiation') === 'replay';
+  } catch { /* no location (tests) */ }
   const fallbackStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
 
@@ -183,6 +195,9 @@ export function initHUD(state, el) {
         closed: `closed ${fmtDuration(status.min)} ago`,
       }[status.state];
       right.append(h('span', `hud-pill hud-pill--${status.state}`, label));
+    }
+    if (rad?.replay_date) {
+      right.prepend(h('span', 'hud-pill hud-pill--replay', `REPLAY: ${fmtDate(rad.replay_date)}`));
     }
     bar.append(left, right);
 
@@ -337,7 +352,7 @@ export function initHUD(state, el) {
   const stormBtn = h('button', 'hud-sim__storm', 'Storm replay');
   stormBtn.type = 'button';
   stormBtn.title = 'Replay the 20 May 2024 solar storm (radiation.json)';
-  stormBtn.setAttribute('aria-pressed', 'false');
+  stormBtn.setAttribute('aria-pressed', String(storm));
   if (hasReplay) sim.append(stormBtn);
 
   let lastMinute = null;
