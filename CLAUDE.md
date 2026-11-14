@@ -124,6 +124,26 @@ Harita, kartlar ve HUD birbirinin dosyasını import etmez; sadece şu arayüz �
 - HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; H tuşu HUD'u açıp kapatır, `stop:select` ile sıradaki durağı günceller.
 - `main.js` bu iki fonksiyonu çağırır. Başka global değişken yok.
 
+### Sayfa yerleşimi: kimin kutusu nerede
+
+`index.html` ve `base.css` sadece Ege'nindir. Serdar ve Egemen bu iki dosyayı **düzenlemez**; çakışma olmaması için sayfa baştan kutulara bölünmüştür:
+
+| Kutu | Sahibi | Not |
+|---|---|---|
+| `#panel` | Ege | Katman paneli |
+| `#map`, `#profile` | Ege | Leaflet haritası, yükseklik profili |
+| `#cards` | Egemen | `initCards(state, el)` bu elemanı alır |
+| `#hud` | Serdar | `initHUD(state, el)` bu elemanı alır; başta `hidden` |
+
+- Her modül kendi DOM'unu kendi kutusunun içinde, JS ile kurar. `hud.css` ve `cards.css` `index.html`'de zaten bağlıdır.
+- **CSS sınırı:** `hud.css`'teki her seçici `#hud` ile, `cards.css`'teki her seçici `#cards` ile başlar. `html`, `body`, `*`, çıplak etiket seçicileri ve `.leaflet-*` sınıfları sadece `base.css`'te olur.
+- Renk, font, boşluk, köşe ve z-index için sadece `base.css` değişkenleri (`var(--...)`) kullanılır; sabit hex ya da sayı yazılmaz. Yeni bir değişken gerekirse Ege'ye söylenir.
+- Katman sırası: `--z-map` < `--z-panel` < `--z-cards` < `--z-hud`.
+- **HUD modu:** HUD açılınca `document.body.dataset.mode = 'hud'`, kapanınca `'map'` yapar. Bu değeri sadece HUD yazar; HUD modunda neyin gizleneceğini `base.css` belirler (`body[data-mode="hud"]`).
+- Başlıktaki HUD düğmesi `document.dispatchEvent(new CustomEvent('hud:toggle'))` yollar. H tuşunu ve `hud:toggle` olayını HUD dinler. Harita tek harfli klavye kısayolu kullanmaz.
+- `main.js` modülleri `import()` ile yükler. `web/js/cards/index.js` ya da `web/js/hud/index.js` yoksa ya da hata atarsa konsola yazar, sayfa açılmaya devam eder.
+- Bunlar yetmezse `index.html`'i düzenleme; Ege'den iste.
+
 ## Karar saatleri (yarım kalmasın)
 
 Riskli her işin bir karar saati var; o saatte çalışmıyorsa B planına geçilir. Tam liste ekip planında, özet:
