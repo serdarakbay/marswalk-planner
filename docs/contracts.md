@@ -283,8 +283,13 @@ Curiosity's route inside the bbox. It can be a single LineString `Feature` or a 
 }
 ```
 
-- `op`: `<`, `<=`, `>`, `>=`, `==`. `level`: `info`, `warn` or `danger` (the colours are `--color-info`, `--color-warn` and `--color-danger` in `base.css`).
-- `metric` names are the values the HUD computes: `o2_remaining_pct`, `dose_mSv`, `slope_deg`, `comm_ok`, `shelter_min`.
+- `op`: `<`, `<=`, `>`, `>=`, `==`, `!=`. `level`: `info`, `warn` or `danger` (the colours are `--color-info`, `--color-warn` and `--color-danger` in `base.css`).
+- `metric` names are the values the HUD computes (`web/js/hud/index.js`):
+  - numbers: `o2_remaining_pct`, `o2_used_pct`, `dose_mSv`, `slope_deg`, `max_slope_deg`, `shelter_min`, `eva_remaining_min`, `elapsed_min`, `sun_el`, `earth_el`, `light_time_min`
+  - booleans: `comm_ok`, `at_habitat`
+  - strings: `radiation_status`, `eva_state`
+- `value` has the same type as its metric (for example `"value": false` for `comm_ok`, `"value": "storm"` for `radiation_status`). The HUD skips a rule while its metric is `null`; O2, dose and EVA-time metrics are `null` while the astronaut is inside the habitat.
+- Written by `science/alerts.py` from the thresholds in `config/mission.json`.
 
 ---
 
@@ -320,7 +325,10 @@ All thresholds and constants. Python scripts read them from here, so there are n
   "shelter_min_spacing_m": 150,
   "svf_directions": 16,
   "svf_radius_m": 100,
-  "svf_grid_m": 5
+  "svf_grid_m": 5,
+  "o2_return_margin_pct": 10,
+  "eva_dose_warn_mSv": 1.0,
+  "eva_end_warn_min": 30
 }
 ```
 
@@ -345,3 +353,7 @@ All thresholds and constants. Python scripts read them from here, so there are n
   - `svf_directions`: number of directions for the sky-view factor.
   - `svf_radius_m`: how far to search for the horizon in each direction, m.
   - `svf_grid_m`: spacing of the candidate points, m.
+- HUD alerts (`science/alerts.py`):
+  - `o2_return_margin_pct`: the "start heading back" warning fires at `o2_reserve_pct` plus this many points of remaining O2, %.
+  - `eva_dose_warn_mSv`: warning when the dose received on this EVA reaches this value, mSv.
+  - `eva_end_warn_min`: warning when this many minutes are left in the EVA window, minutes.

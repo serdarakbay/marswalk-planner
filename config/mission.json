@@ -25,5 +25,8 @@
   "shelter_min_spacing_m": 150,
   "svf_directions": 16,
   "svf_radius_m": 100,
-  "svf_grid_m": 5
+  "svf_grid_m": 5,
+  "o2_return_margin_pct": 10,
+  "eva_dose_warn_mSv": 1.0,
+  "eva_end_warn_min": 30
 }
