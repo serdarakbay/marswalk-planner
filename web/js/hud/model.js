@@ -196,26 +196,38 @@ export function safetyAt(safety, dM) {
 }
 
 
-// Arrival time of each stop = t_min of the nearest route vertex. Sorted by time.
+// A route vertex this close to a stop counts as "at the stop" (covers dwell vertices).
+const AT_STOP_M = 25;
+// A stop farther than this from every route vertex is not on the route and is not scheduled.
+const OFF_ROUTE_M = 100;
+
+// Arrival (t_min) and departure (t_leave) of each stop on the route, sorted by arrival.
+// The route stays at a stop for the dwell time, so arrival is the first vertex near the
+// stop and departure the last vertex of that same visit.
 export function stopSchedule(tl, stops) {
   if (!tl || !Array.isArray(stops)) return [];
   const out = [];
   for (const stop of stops) {
     if (!Array.isArray(stop?.coord)) continue;
-    let best = -1;
-    let bestD = Infinity;
-    tl.coords.forEach((c, i) => {
-      const d = distanceM(c, stop.coord);
-      if (d < bestD) { bestD = d; best = i; }
-    });
-    if (best >= 0) out.push({ stop, t_min: tl.t[best] });
+    const dist = tl.coords.map((c) => distanceM(c, stop.coord));
+    const dMin = Math.min(...dist);
+    if (!(dMin <= OFF_ROUTE_M)) {
+      console.warn(`[hud] stop ${stop.id ?? stop.name} is ${Math.round(dMin)} m from the route; not scheduled`);
+      continue;
+    }
+    const near = Math.max(AT_STOP_M, dMin + 1);
+    let first = dist.findIndex((d) => d <= near);
+    let last = first;
+    while (last + 1 < dist.length && dist[last + 1] <= near) last++;
+    out.push({ stop, t_min: tl.t[first], t_leave: tl.t[last] });
   }
   return out.sort((a, b) => a.t_min - b.t_min);
 }
 
+// The stop being visited now, or the next one ahead.
 export function nextStop(schedule, elapsedMin) {
   if (!schedule.length || !Number.isFinite(elapsedMin)) return null;
-  return schedule.find((s) => s.t_min >= elapsedMin) ?? null;
+  return schedule.find((s) => (s.t_leave ?? s.t_min) >= elapsedMin) ?? null;
 }
 
 // Fraction of the planned outside activity done at `elapsedMin` (0..1).

@@ -240,8 +240,16 @@ export function initHUD(state, el) {
       row(stopP.body, pos ? 'Distance' : 'From habitat', fmtDist(distanceM(from, stop.coord)));
       const entry = schedule.find((x) => x.stop === stop || (stop.id != null && x.stop.id === stop.id));
       if (entry && Number.isFinite(elapsed)) {
-        const eta = entry.t_min - elapsed;
-        row(stopP.body, 'ETA', eta >= 0 ? `in ${fmtDuration(eta)}` : 'passed');
+        const leave = entry.t_leave ?? entry.t_min;
+        if (elapsed < entry.t_min) {
+          row(stopP.body, 'ETA', `in ${fmtDuration(entry.t_min - elapsed)}`);
+        } else if (elapsed <= leave) {
+          row(stopP.body, 'At stop', `leave in ${fmtDuration(leave - elapsed)}`);
+        } else {
+          row(stopP.body, 'ETA', 'passed');
+        }
+      } else if (!entry && schedule.length && stop === pinnedStop) {
+        row(stopP.body, 'Route', 'not on planned route');
       }
       if (Number.isFinite(rs?.slope_deg)) row(stopP.body, 'Slope here', fmtNum(rs.slope_deg, 0, '°'));
       if (stop.science) {
