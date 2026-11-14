@@ -12,7 +12,7 @@ import {
   distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
-import { bestRefuge, devilPass, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
+import { bestRefuge, detourCheck, devilPass, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
 import { createRouter, legRemaining, makeGrid, pathLength, slopeAt, steepestOnPath, zAt } from './terrain.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -239,6 +239,44 @@ test('storm with terrain: the astronaut walks the path there and back', () => {
   assert.ok(back && back.leg.coords.length > 2, 'returns along the path');
   assert.ok(legRemaining(back.leg, back.legS).length >= 2, 'remaining path for the map');
   assert.ok(plan.steps.some((s) => s.mode === 'done'), 'finishes the route');
+});
+
+test('detour check: O2 at the habitat after walk + sampling + walk home; reserve and EVA window', () => {
+  const target = { id: 'X', name: 'Sulfate', coord: [0.004, 0.003] };
+  const q = { coord: [0.002, 0], target, habitat: [0, 0], o2: 10, o2PerMin: 0.2, o2StandPerMin: 0.1, minutesLeft: 300 };
+  const c = detourCheck(q);
+  near(c.walkMin, distanceM([0.002, 0], target.coord) / 50, 1e-9, 'walk there');
+  near(c.backMin, distanceM(target.coord, [0, 0]) / 50, 1e-9, 'walk home');
+  near(c.o2AtReturn, 100 - (10 + 0.2 * (c.walkMin + c.backMin) + 0.1 * SCENARIO.DETOUR_WORK_MIN), 1e-9, 'O2 at return');
+  assert.ok(c.ok, 'allowed');
+  assert.equal(detourCheck({ ...q, o2: 74 }).reason, 'o2', 'reserve would break');
+  assert.equal(detourCheck({ ...q, minutesLeft: 10 }).reason, 'window', 'EVA window closes first');
+});
+
+test('detour: walk to the target, sample, back to the route, finish later', () => {
+  const target = { id: 'X', name: 'Sulfate', coord: [0.003, 0.002] };
+  const plan = simulate({ ...base, storm: null, dust: null, detours: [{ target, t: 5 }], evaEndMin: 480 });
+  const modes = plan.steps.map((s) => s.mode);
+  for (const m of ['to_target', 'sampling', 'from_target', 'done']) assert.ok(modes.includes(m), `mode ${m} seen`);
+  const sampling = plan.steps.filter((s) => s.mode === 'sampling');
+  near(sampling.length * SCENARIO.STEP_MIN, SCENARIO.DETOUR_WORK_MIN, SCENARIO.STEP_MIN, 'sampling time');
+  near(distanceM(sampling[0].coord, target.coord), 0, 1, 'samples at the target');
+  near((sampling[8].o2 - sampling[4].o2) / 1, 0.1, 1e-6, 'standing O2 rate while sampling');
+  assert.ok(plan.at(100).delay > SCENARIO.DETOUR_WORK_MIN, 'route finishes later');
+  const text = missionLog(plan, [], []).map((x) => x.text).join(' | ');
+  for (const w of ['Detour to Sulfate', 'Sampling at Sulfate', 'back to the route', 'Back on the route']) assert.ok(text.includes(w), `log has "${w}"`);
+});
+
+test('detour: not allowed -> ignored; rest of the route too long after sampling -> home', () => {
+  const far = { id: 'F', name: 'Far', coord: [0.03, 0.03] };
+  const plan = simulate({ ...base, storm: null, dust: null, detours: [{ target: far, t: 5 }], evaEndMin: 60 });
+  assert.ok(!plan.steps.some((s) => s.mode === 'to_target'), 'EVA window rule blocks it');
+  // Allowed (home fits), but after sampling the rest of the route would end past the window
+  const near1 = { id: 'N', name: 'Near', coord: [0.003, 0.001] };
+  const tight = simulate({ ...base, storm: null, dust: null, detours: [{ target: near1, t: 5 }], evaEndMin: 30 });
+  const back = tight.steps.find((s) => s.mode === 'from_target');
+  assert.ok(back && back.detour.home && back.detour.homeReason === 'window', 'heads home');
+  assert.equal(tight.steps.at(-1).mode, 'home');
 });
 
 test('dust devil heading at the astronaut: step aside, wait, walk back, finish later', () => {

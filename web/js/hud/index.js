@@ -24,7 +24,9 @@ import {
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
 import { createRouter, legRemaining, loadTerrainGrid, slopeAt, steepestOnPath } from './terrain.js';
-import { bestRefuge, devilPass, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
+import {
+  bestRefuge, DETOUR_MODES, detourCheck, devilPass, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate,
+} from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
@@ -72,6 +74,22 @@ function fmtNum(v, digits = 0, unit = '') {
 
 const LOG_ROWS = 6;   // mission log entries shown (newest first)
 const REFUGE_ROWS = 3; // shelter options shown (lowest storm dose first)
+const TARGET_ROWS = 5; // science targets shown (nearest first)
+
+// Science targets: targets.json (array or {targets: [...]}) if loaded, else the route stops
+function scienceTargets(targets, stops) {
+  const raw = Array.isArray(targets) ? targets : Array.isArray(targets?.targets) ? targets.targets : null;
+  const list = (raw && raw.length ? raw : Array.isArray(stops) ? stops : [])
+    .filter((x) => Array.isArray(x?.coord) && x.coord.length >= 2);
+  return list.map((x, i) => ({
+    id: String(x.id ?? `t${i + 1}`),
+    name: x.name || x.id || `Target ${i + 1}`,
+    unit: x.unit || null,
+    coord: x.coord,
+    sol: x.sol ?? null,
+    note: x.note || x.science || '',
+  }));
+}
 const SLOPE_WARN_DEG = 15; // slope_warn_deg in config/mission.json: tag steeper ground
 const DEMO_START_DELAY_MS = 600; // demo links: wait for the other modules before opening the HUD
 
@@ -144,6 +162,13 @@ export function initHUD(state, el) {
   let stormT0 = SCENARIO.STORM_URL_START_MIN;
   // Storm refuge picked by the crew in the Shelter options panel ({id, t}); null = recommended
   let refugeChoice = null;
+  // Science targets the crew can detour to: targets.json (Utku) when main.js loads it, else the
+  // route stops. [{id, name, unit, coord, sol, note}]
+  const targetList = scienceTargets(state.targets, state.stops);
+  let showTargets = false;     // Targets panel open
+  let targetUnit = 'all';      // unit filter: 'all', 'clay', 'transition', 'sulfate', ...
+  let previewId = null;        // target whose path is drawn on the map (not walked yet)
+  let detourChoices = [];      // detours the crew started: [{target, t}]
   let dustT0 = SCENARIO.DUST_URL_START_MIN;
   const fallbackStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
@@ -176,6 +201,8 @@ export function initHUD(state, el) {
         ? state.radiation.base_mSv_per_day : FALLBACK.rad_base_mSv_per_day;
       simParams = {
         refugeChoice,
+        detours: detourChoices,
+        evaEndMin: Number.isFinite(state.eva?.duration_min) ? state.eva.duration_min : null,
         router,
         tl: timeline,
         shelters: state.safety?.shelters,
@@ -221,6 +248,7 @@ export function initHUD(state, el) {
       const targets = (state.safety?.shelters || []).map((s, i) => ({ id: `S${i + 1}`, coord: s?.coord }));
       const hab = state.area?.habitat ?? timeline?.coords?.[0];
       if (hab) targets.push({ id: 'habitat', coord: hab });
+      for (const tg of targetList) targets.push({ id: `T:${tg.id}`, coord: tg.coord });
       router = createRouter(grid, targets);
       router.warm();
       rebuilt();
@@ -395,6 +423,14 @@ export function initHUD(state, el) {
         scen.push({ level: 'warn', text: `Off its track: wait for the dust devil to pass, ${where(p.devil)}` });
       } else if (p.mode === 'rejoin' && legEnd) {
         scen.push({ level: 'info', text: `Dust devil passed. Back to the route: ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}` });
+      } else if (p.mode === 'to_target' && p.detour && legEnd) {
+        scen.push({ level: 'info', text: `Detour to ${p.detour.target.name}: ${fmtShort(legLeft / SCENARIO.WALK_M_PER_MIN)}, ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}, follow the path` });
+      } else if (p.mode === 'sampling' && p.detour) {
+        scen.push({ level: 'info', text: `Sampling at ${p.detour.target.name}: ${fmtShort(p.detour.workLeft)} left` });
+      } else if (p.mode === 'from_target' && p.detour && legEnd) {
+        scen.push(p.detour.home
+          ? { level: 'warn', text: `Heading home after the detour (${p.detour.homeReason === 'o2' ? 'not enough O2 for the rest of the route' : 'EVA window closes'}): ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}` }
+          : { level: 'info', text: `Back to the route: ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}` });
       } else if (p.mode === 'hold' && p.devil) {
         scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing the route ahead, ${where(p.devil)}` });
       } else if (p.devil && p.approaching && p.devilDist < SCENARIO.DUST_APPROACH_M) {
@@ -606,6 +642,12 @@ export function initHUD(state, el) {
     if (refP) colL.append(refP.box);
     colL.append(life.box);
     colR.append(stopP.box);
+    // --- science targets: "can I go there?" for each, and a Go button (detour)
+    if (showTargets) {
+      const tP = panel('Science targets');
+      safe('targets', () => renderTargets(tP.body, p, elapsed, status), tP.body);
+      colR.append(tP.box);
+    }
     // --- mission log: latest events up to now
     if (log.length && Number.isFinite(elapsed)) {
       const seen = log.filter((x) => x.t <= elapsed + 1e-6);
@@ -629,6 +671,93 @@ export function initHUD(state, el) {
     content.replaceChildren(bar, alertBox, grid, bottom);
   }
 
+  // Where a detour would start from, and its "can I go?" numbers for one target
+  function detourFrom(p, elapsed, status) {
+    const out = p ? isOutside(p.mode) : false;
+    const coord = out ? p.coord : state.area?.habitat ?? timeline?.coords?.[0];
+    const left = status?.state === 'open' ? status.min
+      : Number.isFinite(state.eva?.duration_min) && Number.isFinite(elapsed) ? state.eva.duration_min - Math.max(0, elapsed) : null;
+    return { coord, o2: p ? p.o2 : 0, minutesLeft: left };
+  }
+  function checkTarget(tg, from) {
+    return detourCheck({
+      ...from, target: tg, habitat: state.area?.habitat ?? timeline?.coords?.[0], router,
+      o2PerMin: simParams?.o2PerMin, o2StandPerMin: simParams?.o2StandPerMin,
+    });
+  }
+
+  function renderTargets(body, p, elapsed, status) {
+    if (!targetList.length) {
+      body.append(h('p', 'hud-muted', 'No science targets (targets.json / stops.json)'));
+      return;
+    }
+    // Unit filter: "I want sulfate"
+    const units = [...new Set(targetList.map((tg) => tg.unit).filter(Boolean))];
+    if (units.length > 1) {
+      const chips = h('div', 'hud-chips');
+      for (const u of ['all', ...units]) {
+        const c = h('button', 'hud-chip', u === 'all' ? 'All' : u[0].toUpperCase() + u.slice(1));
+        c.type = 'button';
+        c.setAttribute('aria-pressed', String(targetUnit === u));
+        c.addEventListener('click', () => { targetUnit = u; previewId = null; rebuilt(); });
+        chips.append(c);
+      }
+      body.append(chips);
+    }
+    const from = detourFrom(p, elapsed, status);
+    const canGo = p && (p.mode === 'route' || p.mode === 'hold');
+    const busy = p && DETOUR_MODES.has(p.mode);
+    const rows = targetList
+      .filter((tg) => targetUnit === 'all' || tg.unit === targetUnit)
+      .map((tg) => ({ tg, chk: checkTarget(tg, from) }))
+      .filter((x) => x.chk)
+      .sort((a, b) => a.chk.walkMin - b.chk.walkMin)
+      .slice(0, TARGET_ROWS);
+    const list = h('ul', 'hud-refuges');
+    list.setAttribute('aria-label', 'Science targets, nearest first');
+    for (const { tg, chk } of rows) {
+      const li = h('li');
+      const b = h('button', 'hud-refuge');
+      b.type = 'button';
+      const sel = previewId === tg.id;
+      if (sel) b.classList.add('hud-refuge--current');
+      b.setAttribute('aria-pressed', String(sel));
+      const name = h('span', 'hud-refuge__name', `${sel ? '▶ ' : ''}${tg.name}`);
+      if (tg.unit) name.append(h('span', 'hud-tag hud-tag--muted', tg.unit));
+      const verdict = chk.ok ? 'go' : chk.reason === 'o2' ? 'no: O₂ reserve' : 'no: EVA window';
+      b.append(name,
+        h('span', `hud-refuge__dose ${chk.ok ? 'hud-ok' : 'hud-no'}`, verdict),
+        h('span', 'hud-refuge__where',
+          `${chk.d < 5 ? 'here' : `${fmtShort(chk.walkMin)} · ${fmtDist(chk.d)} ${compass(bearingDeg(from.coord, tg.coord))}`} · O₂ at return ${fmtNum(chk.o2AtReturn, 0, '%')}`));
+      b.title = `${tg.name}${tg.sol ? `, Curiosity sol ${tg.sol}` : ''}: walk there, ${SCENARIO.DETOUR_WORK_MIN} min sampling, walk home. ${tg.note || ''}`.trim();
+      b.addEventListener('click', () => { previewId = sel ? null : tg.id; emitTime(); render(); });
+      li.append(b);
+      list.append(li);
+    }
+    body.append(list);
+    const picked = rows.find((x) => x.tg.id === previewId);
+    if (picked && canGo && picked.chk.ok) {
+      const go = h('button', 'hud-go', `Go to ${picked.tg.name}`);
+      go.type = 'button';
+      go.addEventListener('click', () => {
+        detourChoices = [...detourChoices.filter((x) => x.t < elapsed), { target: picked.tg, t: Math.max(0, elapsed) }];
+        previewId = null;
+        rebuilt();
+        if (clock && !clock.playing) clock.play();
+      });
+      body.append(go);
+    }
+    body.append(h('p', 'hud-muted', busy
+      ? 'Detour under way.'
+      : `Walk there, ${SCENARIO.DETOUR_WORK_MIN} min sampling, walk home: allowed if O₂ stays above ${SCENARIO.O2_RESERVE_PCT}% and before the EVA window closes. Tap to see the path.`));
+    if (detourChoices.length) {
+      const clear = h('button', 'hud-chip', 'Clear detours');
+      clear.type = 'button';
+      clear.addEventListener('click', () => { detourChoices = []; rebuilt(); });
+      body.append(clear);
+    }
+  }
+
   // --- simulation controls (built once; only their values change)
   const sim = h('div', 'hud-sim');
   const playBtn = h('button', 'hud-sim__play', 'Play');
@@ -650,7 +779,7 @@ export function initHUD(state, el) {
   eventsEl.setAttribute('aria-hidden', 'true');
   track.append(eventsEl, slider);
   sim.append(playBtn, speedSel, track, simLabel);
-  const EVENT_LABELS = { storm: 'Solar storm', sheltered: 'In shelter', hold: 'Dust devil: holding or stepping aside', dust: 'Dust devil' };
+  const EVENT_LABELS = { storm: 'Solar storm', sheltered: 'In shelter', hold: 'Dust devil: holding or stepping aside', dust: 'Dust devil', detour: 'Science detour' };
   function renderEvents() {
     eventsEl.replaceChildren();
     if (!plan?.events?.length) return;
@@ -676,6 +805,18 @@ export function initHUD(state, el) {
   dustBtn.title = 'A dust devil crosses the route: hold position until it passes (scenario)';
   dustBtn.setAttribute('aria-pressed', String(dustOn));
   sim.append(dustBtn);
+  const targetsBtn = h('button', 'hud-sim__storm hud-sim__targets', 'Targets');
+  targetsBtn.type = 'button';
+  targetsBtn.title = 'Science targets: can I go there? Path, O2 at return, Go';
+  targetsBtn.setAttribute('aria-pressed', 'false');
+  targetsBtn.addEventListener('click', () => {
+    showTargets = !showTargets;
+    if (!showTargets) previewId = null;
+    targetsBtn.setAttribute('aria-pressed', String(showTargets));
+    emitTime();
+    if (open) render();
+  });
+  if (targetList.length) sim.append(targetsBtn);
 
   let lastMinute = null;
   let clock = null;
@@ -709,6 +850,13 @@ export function initHUD(state, el) {
       console.error('[hud] route state failed', err);
     }
     const r6 = (c) => c.map((v) => Math.round(v * 1e6) / 1e6);
+    // A target picked in the Targets panel: its path is shown before the crew decides to go
+    let preview = null;
+    if (previewId && showTargets && !p?.leg) {
+      const tg = targetList.find((x) => x.id === previewId);
+      const chk = tg ? checkTarget(tg, detourFrom(p, elapsed, evaStatus(state.eva, time))) : null;
+      if (chk) preview = { name: tg.name, path: chk.path };
+    }
     document.dispatchEvent(new CustomEvent('hud:time', {
       detail: {
         active: open,
@@ -721,10 +869,13 @@ export function initHUD(state, el) {
         shelter: p?.stormOn && p.refuge && !p.refuge.habitat && isOutside(p.mode) ? r6(p.refuge.coord) : null,
         hazard: p?.devil ? { coord: r6(p.devil), radius_m: SCENARIO.DUST_RADIUS_M } : null,
         // Path still ahead to the refuge (or back to the route after the storm), around steep ground
-        refuge_path: p?.leg ? legRemaining(p.leg, p.legS).map(r6) : null,
+        refuge_path: p?.leg ? legRemaining(p.leg, p.legS).map(r6) : preview ? preview.path.map(r6) : null,
         refuge_label: p?.refuge ? (p.refuge.habitat ? 'Habitat' : `Shelter ${p.refuge.id ?? ''}`.trim())
           : p?.mode === 'return' || p?.mode === 'rejoin' ? 'Back to the route'
-            : p?.mode === 'evade' ? 'Step aside' : null,
+            : p?.mode === 'evade' ? 'Step aside'
+              : p?.mode === 'to_target' && p.detour ? p.detour.target.name
+                : p?.mode === 'from_target' && p.detour ? (p.detour.home ? 'Habitat' : 'Back to the route')
+                  : preview ? `Preview: ${preview.name}` : null,
         mode: p?.mode ?? null,
       },
     }));
