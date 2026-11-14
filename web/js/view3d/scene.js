@@ -17,6 +17,13 @@ const ROUTE_LIFT_M = 1.5;          // keep lines just above the surface
 const ROUTE_STEP_M = 4;            // resample the route for a smooth tube
 const PIN_HEIGHT_M = 40;
 const FLY_SPEED_M_S = 45;          // fly-through speed along the route
+// Bodycam: the HUD astronaut's view (hud:time), looking where they walk; the astronaut figure
+// is hidden. A little above true eye height: the terrain grid is ~9 m and the height is
+// exaggerated, so a 1.7 m camera would sit in the blur.
+const BODY_BACK_M = 6;             // camera this far behind the astronaut's position
+const BODY_UP_M = 7;               // and this far above the ground there
+const BODY_LOOK_M = 90;            // looks at a point this far ahead
+const BODY_CLEAR_M = 4;            // never closer than this to the ground under the camera
 const FOCUS_MS = 1400;
 const STRATA_ALPHA = 0.62;         // rock-layer tint over the HiRISE image
 const fmtElev = (z) => `${Math.round(z)} m`.replace('-', '\u2212');
@@ -357,15 +364,31 @@ export async function createScene(state, el, { onProgress } = {}) {
   );
   shelterLine.visible = false;
   let hudTime = null;
+  const walkDir = new THREE.Vector3(0, 0, -1);   // walking direction (bodycam), smoothed
+  let lastAstro = null;
+  let astroShown = false;
 
   function placeAstronaut() {
     const t = hudTime;
     const show = !!(t?.active && Array.isArray(t.coord));
-    astro.visible = show;
+    astroShown = show;
+    astro.visible = show && !bodycam;
     shelterLine.visible = false;
-    if (!show) return;
+    if (!show) { lastAstro = null; return; }
     astro.position.copy(posLL(t.coord[0], t.coord[1]));
-    if (t.storm && Array.isArray(t.shelter)) {
+    // Walking direction from the last position (ignore tiny moves: standing, sampling)
+    if (lastAstro) {
+      const step = astro.position.clone().sub(lastAstro).setY(0);
+      if (step.length() > 0.5) walkDir.lerp(step.normalize(), 0.35).normalize();
+    }
+    lastAstro = astro.position.clone();
+    // HUD path still to walk (to a shelter, aside from a dust devil, to a science target, back
+    // to the route): follows the ground around steep slopes, like the line on the map
+    if (Array.isArray(t.refuge_path) && t.refuge_path.length > 1) {
+      shelterLine.geometry.setFromPoints(t.refuge_path.map((c) => posLL(c[0], c[1], 6)));
+      shelterLine.material.color.set(t.storm ? colors.danger : colors.ok);
+      shelterLine.visible = true;
+    } else if (t.storm && Array.isArray(t.shelter)) {
       const a = astro.position.clone().add(new THREE.Vector3(0, 6, 0));
       const b = posLL(t.shelter[0], t.shelter[1], 6);
       shelterLine.geometry.setFromPoints([a, b]);
@@ -377,6 +400,7 @@ export async function createScene(state, el, { onProgress } = {}) {
   // ----- camera moves
   let tween = null;   // {from, to, fromT, toT, start, ms}
   let fly = null;     // {s: metres along route}
+  let bodycam = false; // camera follows the HUD astronaut
 
   function overview() {
     // frame the route, the stops and the habitat (they can be far apart); seen from the
@@ -424,6 +448,7 @@ export async function createScene(state, el, { onProgress } = {}) {
     const idx = (Array.isArray(state.stops) ? state.stops : []).findIndex((s) => s === stop || (s.id != null && s.id === stop.id));
     selectedId = stop.id ?? (idx >= 0 ? idx : null);
     applySelection();
+    if (bodycam) return;   // keep following the astronaut; the stop is highlighted
     const target = posLL(stop.coord[0], stop.coord[1], 10);
     const dir = camera.position.clone().sub(controls.target).setY(0);
     if (dir.lengthSq() < 1) dir.set(-1, 0, 1);
@@ -435,7 +460,14 @@ export async function createScene(state, el, { onProgress } = {}) {
     if (fly) { fly = null; updateButtons(); return; }
     if (!routeCurve) return;
     tween = null;
+    bodycam = false;
     fly = { s: 0 };
+    updateButtons();
+  }
+
+  function toggleBodycam() {
+    bodycam = !bodycam;
+    if (bodycam) { fly = null; tween = null; }
     updateButtons();
   }
 
@@ -443,9 +475,13 @@ export async function createScene(state, el, { onProgress } = {}) {
   const info = h('p', { class: 'v3d-info' });
   const flyBtn = h('button', { class: 'v3d-btn v3d-btn--primary', type: 'button', onclick: toggleFly, disabled: !coords.length },
     'Fly along route');
+  const bodyBtn = h('button', {
+    class: 'v3d-btn', type: 'button', onclick: toggleBodycam, 'aria-pressed': 'false',
+    title: 'Follow the HUD astronaut, looking where they walk (open the HUD with H and press Play)',
+  }, 'Bodycam');
   const resetBtn = h('button', {
     class: 'v3d-btn', type: 'button',
-    onclick: () => { const o = overview(); moveTo(o.pos, o.target); updateButtons(); },
+    onclick: () => { bodycam = false; const o = overview(); moveTo(o.pos, o.target); updateButtons(); },
   }, 'Reset view');
   const exagBtns = EXAGGERATIONS.map((x) => h('button', {
     class: 'v3d-seg', type: 'button', 'aria-pressed': String(x === exag),
@@ -505,7 +541,7 @@ export async function createScene(state, el, { onProgress } = {}) {
         strataPanel),
       legend),
     h('div', { class: 'v3d-bar' },
-      flyBtn, resetBtn,
+      flyBtn, bodyBtn, resetBtn,
       h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Vertical exaggeration' },
         h('span', { class: 'v3d-group-label' }, 'Height'), exagBtns),
       overlaySel),
@@ -514,6 +550,8 @@ export async function createScene(state, el, { onProgress } = {}) {
   function updateButtons() {
     flyBtn.textContent = fly ? 'Stop flight' : 'Fly along route';
     flyBtn.setAttribute('aria-pressed', String(!!fly));
+    bodyBtn.textContent = bodycam ? 'Stop bodycam' : 'Bodycam';
+    bodyBtn.setAttribute('aria-pressed', String(bodycam));
     exagBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(EXAGGERATIONS[i] === exag)));
   }
 
@@ -561,7 +599,10 @@ export async function createScene(state, el, { onProgress } = {}) {
     ray.setFromCamera(ndc, camera);
     renderer.domElement.style.cursor = ray.intersectObjects(pickables, false).length ? 'pointer' : 'grab';
   });
-  controls.addEventListener('start', () => { tween = null; if (fly) { fly = null; updateButtons(); } });
+  controls.addEventListener('start', () => {
+    tween = null;
+    if (fly || bodycam) { fly = null; bodycam = false; updateButtons(); }
+  });
 
   // ----- size + loop
   function resize() {
@@ -599,6 +640,16 @@ export async function createScene(state, el, { onProgress } = {}) {
         controls.target.lerp(ahead, 0.12);
       }
     }
+    astro.visible = astroShown && !bodycam;
+    if (bodycam && astroShown) {
+      const at = astro.position;
+      const want = at.clone().addScaledVector(walkDir, -BODY_BACK_M).add(new THREE.Vector3(0, BODY_UP_M, 0));
+      want.y = Math.max(want.y, yAt(want.x, want.z) + BODY_CLEAR_M);
+      const look = at.clone().addScaledVector(walkDir, BODY_LOOK_M);
+      look.y = Math.max(yAt(look.x, look.z), at.y - 20) + BODY_UP_M * 0.5;
+      camera.position.lerp(want, 0.12);
+      controls.target.lerp(look, 0.15);
+    }
     animateSelection(now);
     controls.update();
     renderer.render(scene, camera);
@@ -621,7 +672,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       resize();
       requestAnimationFrame(frameLoop);
     },
-    stop() { running = false; fly = null; updateButtons(); },
+    stop() { running = false; fly = null; bodycam = false; updateButtons(); },
     focusStop,
     setTime(detail) {
       hudTime = detail;
