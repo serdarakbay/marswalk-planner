@@ -1,6 +1,7 @@
 <!doctype html>
-<!-- Dev-only (Egemen): shows the real app with the proposed regolith palette applied on top.
-     Nothing in the app changes; the palette lives in base.css (Ege) once it is accepted.
+<!-- Dev-only (Egemen): shows the real planner with two proposals for Ege applied on top:
+     the regolith palette and the swapped side panels (stop cards left, layer panel right).
+     Nothing in the app changes; both live in base.css (Ege) once they are accepted.
      Open: python -m http.server 8000 -d web  ->  http://localhost:8000/js/cards/palette-preview.html -->
 <html lang="en">
 <head>
@@ -10,19 +11,21 @@
   <style>
     html, body { height: 100%; margin: 0; }
     body { display: grid; grid-template-rows: auto 1fr; font: 14px system-ui, sans-serif; }
-    .bar { display: flex; gap: 12px; align-items: center; padding: 6px 12px; background: #2A201B; color: #F7F2EA; }
+    .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 6px 12px; background: #2A201B; color: #F7F2EA; }
     .bar label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
     iframe { width: 100%; height: 100%; border: 0; }
   </style>
 </head>
 <body>
   <div class="bar">
-    <strong>Palette preview</strong>
-    <label><input id="on" type="checkbox" checked> Regolith palette (proposal)</label>
+    <strong>Preview</strong>
+    <label><input id="palette" type="checkbox" checked> Regolith palette</label>
+    <label><input id="swap" type="checkbox" checked> Cards left, layers right</label>
     <span>Dev only. The app itself is unchanged.</span>
   </div>
-  <iframe id="app" src="../../index.html?nocache=1" title="Martian Map"></iframe>
+  <iframe id="app" src="../../planner.html?nocache=1" title="Martian Map"></iframe>
   <script>
+    // Proposal 1: palette for base.css :root
     const PALETTE = `:root {
       --color-bg: #F7F2EA; --color-surface: #F7F2EA; --color-surface-2: #EEE4D6;
       --color-border: color-mix(in srgb, #6B5A4E 28%, #F7F2EA);
@@ -33,18 +36,30 @@
       --shadow: 0 4px 16px color-mix(in srgb, #2A201B 14%, transparent);
       color-scheme: light;
     }`;
+    // Proposal 2: swap the side panels in base.css (same rules as below, no HTML change)
+    const SWAP = `
+      .app-main { grid-template-columns: var(--cards-w) 1fr var(--panel-w); }
+      #cards { order: -1; border-left: 0; border-right: 1px solid var(--color-border); }
+      #panel { order: 1; border-right: 0; border-left: 1px solid var(--color-border); }
+      body[data-mode="hud"] .app-main { grid-template-columns: 1fr; }
+      @media (max-width: 900px) {
+        .app-main { grid-template-columns: 1fr; }
+        #cards, #panel { order: 0; }
+        #cards { border-right: 0; }
+        #panel { border-left: 0; }
+      }`;
     const frame = document.getElementById('app');
-    const box = document.getElementById('on');
+    const boxes = { palette: document.getElementById('palette'), swap: document.getElementById('swap') };
     function apply() {
       const doc = frame.contentDocument;
       if (!doc?.head) return;
-      let st = doc.getElementById('palette-preview');
-      if (!st) { st = doc.createElement('style'); st.id = 'palette-preview'; doc.head.append(st); }
-      st.textContent = box.checked ? PALETTE : '';
+      let st = doc.getElementById('preview-proposals');
+      if (!st) { st = doc.createElement('style'); st.id = 'preview-proposals'; doc.head.append(st); }
+      st.textContent = (boxes.palette.checked ? PALETTE : '') + (boxes.swap.checked ? SWAP : '');
     }
     frame.addEventListener('load', apply);
     // The palette must be in place before the 3D view reads its colours: reload the app on toggle.
-    box.addEventListener('change', () => frame.contentWindow.location.reload());
+    for (const b of Object.values(boxes)) b.addEventListener('change', () => frame.contentWindow.location.reload());
   </script>
 </body>
 </html>
