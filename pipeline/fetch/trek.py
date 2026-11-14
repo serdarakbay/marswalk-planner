@@ -7,6 +7,8 @@ catalog and its WMTSCapabilities.xml. Tile URLs follow the Leaflet EPSG4326 sche
 Run:  python -m pipeline.fetch.trek
 Raw responses are cached in data/cache/trek/; --refresh downloads them again.
 If area.json exists, every layer is checked to cover the study area.
+fallbackUrl points to the backup tile cache (web/tiles/<id>/, see pipeline/fetch/tiles.py)
+when that folder exists, and is null otherwise, so re-running this script keeps it.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ import sys
 import requests
 
 from pipeline.common import CACHE, WEB_DATA, bbox_covers, load_area, write_json
+from pipeline.fetch.tiles import TILES_DIR, fallback_url
 
 CATALOG_URL = (
     "https://trek.nasa.gov/mars/TrekServices/ws/index/eq/searchItems?start=0&rows=2147483647"
@@ -98,7 +101,8 @@ def main() -> int:
             "name": name,
             "type": kind,
             "url": info["endpoint"] + TILE_PATH + info["format"],
-            "fallbackUrl": None,
+            "fallbackUrl": (fallback_url({"id": layer_id, "format": info["format"]})
+                            if (TILES_DIR / layer_id).is_dir() else None),
             "format": info["format"],
             "maxNativeZoom": info["maxNativeZoom"],
             "attribution": f"{credit}, NASA Mars Trek",
