@@ -1,44 +1,60 @@
 {
  "rules": [
   {
-   "id": "o2_warn",
-   "metric": "o2_remaining_pct",
-   "op": "<",
-   "value": 40,
+   "id": "slope_warn",
+   "metric": "slope_deg",
+   "op": ">=",
+   "value": 15,
    "level": "warn",
-   "text": "O2 below 40%. Plan the return leg."
+   "text": "Steep ground. Slow down and check your footing."
   },
   {
-   "id": "o2_low",
-   "metric": "o2_remaining_pct",
-   "op": "<",
+   "id": "slope_max",
+   "metric": "slope_deg",
+   "op": ">=",
    "value": 25,
    "level": "danger",
-   "text": "O2 reserve reached. Return to habitat."
+   "text": "Slope over the limit. Stop and back off to flatter ground."
+  },
+  {
+   "id": "o2_turn_back",
+   "metric": "o2_remaining_pct",
+   "op": "<=",
+   "value": 35,
+   "level": "warn",
+   "text": "O2 at 35%. Start heading back to the habitat."
+  },
+  {
+   "id": "o2_reserve",
+   "metric": "o2_remaining_pct",
+   "op": "<=",
+   "value": 25,
+   "level": "danger",
+   "text": "O2 reserve reached. Return to the habitat now."
+  },
+  {
+   "id": "radiation_elevated",
+   "metric": "radiation_status",
+   "op": "==",
+   "value": "elevated",
+   "level": "warn",
+   "text": "Space weather alert. Keep stops short and stay near a shelter."
+  },
+  {
+   "id": "radiation_storm",
+   "metric": "radiation_status",
+   "op": "==",
+   "value": "storm",
+   "level": "danger",
+   "text": "Solar storm. Go to the nearest shelter now."
   },
   {
    "id": "dose_warn",
    "metric": "dose_mSv",
    "op": ">=",
-   "value": 0.25,
+   "value": 1.0,
    "level": "warn",
-   "text": "EVA dose above plan. Shorten the stop."
-  },
-  {
-   "id": "slope_warn",
-   "metric": "slope_deg",
-   "op": ">",
-   "value": 15,
-   "level": "warn",
-   "text": "Steep ground. Slow down."
-  },
-  {
-   "id": "slope_max",
-   "metric": "slope_deg",
-   "op": ">",
-   "value": 25,
-   "level": "danger",
-   "text": "Slope over limit. Turn back."
+   "text": "EVA dose over 1.0 mSv. Cut the remaining stops short."
   },
   {
    "id": "comm_lost",
@@ -46,17 +62,16 @@
    "op": "==",
    "value": false,
    "level": "warn",
-   "text": "Radio shadow. No link to habitat."
+   "text": "Radio shadow. No link to the habitat; stay on the planned route."
   },
   {
-   "id": "shelter_far",
-   "metric": "shelter_min",
-   "op": ">",
-   "value": 15,
-   "level": "info",
-   "text": "Nearest shelter is more than 15 min away."
+   "id": "eva_ending",
+   "metric": "eva_remaining_min",
+   "op": "<=",
+   "value": 30,
+   "level": "warn",
+   "text": "EVA window closes in 30 min. Head back to the habitat."
   }
  ],
- "mock": true,
- "source": "MOCK"
+ "source": "config/mission.json"
 }

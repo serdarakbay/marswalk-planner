@@ -94,6 +94,17 @@ Because the tank is calibrated with the same `o2_kj_per_l`, that value cancels o
 - **Shelters** (Assumption). Candidates are passable points within 200 m of the route. We pick the 5 points with the lowest SVF (the most enclosed) that are at least 150 m apart. "Time to shelter" is the walking time on the same cost grid as the return rings, again counting every step as uphill.
 - **Dose falls with the visible sky** (Assumption). At a shelter we take the dose rate as `base rate × SVF`: radiation is assumed to arrive evenly from the visible sky, and the terrain is assumed to block it completely. In reality more of the surface dose comes from overhead than from near the horizon, and some secondary particles come up from the ground. Blocking the low sky therefore helps less than this suggests, so the shelter benefit is probably **optimistic**.
 
+## HUD alerts
+
+The rules in `web/data/alerts.json` are written by `science/alerts.py` from `config/mission.json`.
+
+- **Slope** (Assumption). Warning at `slope_warn_deg` (15°), danger at `slope_max_deg` (25°), the same thresholds the route uses.
+- **Turn back with 10 points to spare** (Assumption). Warning when the remaining O2 reaches the reserve plus `o2_return_margin_pct` (25 % + 10 = 35 %); danger at the reserve itself (25 %). At the flat walking rate the model uses about 0.16 % of the tank per minute (75 % over 8 h), so 10 points are roughly an hour of walking back.
+- **EVA dose warning 1 mSv** (Assumption). `eva_dose_warn_mSv` = 1 mSv is about 1.5 sols of background dose on the surface (1 / 0.64 mSv per day ≈ 1.56 days ≈ 1.5 sols). This is a planning flag for "this EVA is unusual", not a health limit. On a normal walk it never fires (the current route gets about 0.04 mSv); during the replay storm (×38.6) it fires after about an hour outside.
+- **Radiation** (Assumption). Warning when `radiation.json` says `elevated`, danger with "go to the nearest shelter" when it says `storm`.
+- **Radio shadow** (Assumption). Warning whenever the route point has no line of sight to the habitat antenna (`comm_ok` is false).
+- **EVA window** (Assumption). Warning `eva_end_warn_min` (30 min) before the EVA window closes. 30 min is our choice; it is two of the 15-minute return-ring bands.
+
 ## Mission thresholds
 
 - **Slope warning 15°, impassable above 25°** (Assumption). Team values, not taken from a reference.

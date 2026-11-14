@@ -247,10 +247,12 @@ check(r["status"] in ("nominal", "elevated", "storm"), "radiation: bad status")
 # alerts.json
 a = load("alerts.json")
 marked(a, "alerts.json")
-metrics = {"o2_remaining_pct", "dose_mSv", "slope_deg", "comm_ok", "shelter_min"}
+metrics = {"o2_remaining_pct", "o2_used_pct", "dose_mSv", "slope_deg", "max_slope_deg", "shelter_min",
+           "eva_remaining_min", "elapsed_min", "sun_el", "earth_el", "light_time_min",
+           "comm_ok", "at_habitat", "radiation_status", "eva_state"}   # docs/contracts.md
 for i, rule in enumerate(a["rules"]):
     keys(rule, ["id", "metric", "op", "value", "level", "text"], f"alerts.rules[{i}]")
-    check(rule["op"] in ("<", "<=", ">", ">=", "=="), f"alerts.rules[{i}]: bad op")
+    check(rule["op"] in ("<", "<=", ">", ">=", "==", "!="), f"alerts.rules[{i}]: bad op")
     check(rule["level"] in ("info", "warn", "danger"), f"alerts.rules[{i}]: bad level")
     check(rule["metric"] in metrics, f"alerts.rules[{i}]: unknown metric")
 
