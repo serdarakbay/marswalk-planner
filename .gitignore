@@ -1,0 +1,5 @@
+
+*.tif
+*.tiff
+*.img
+data/raw/
