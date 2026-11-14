@@ -160,6 +160,8 @@ export function initHUD(state, el) {
         startMin: (range.start - evaStart) / 60000,
         endMin: (range.end - evaStart) / 60000,
         o2PerMin: Number.isFinite(state.summary?.o2_used_pct) ? state.summary.o2_used_pct / timeline.total_min : 0,
+        o2StandPerMin: Number.isFinite(state.summary?.o2_standing_pct_per_min)
+          ? state.summary.o2_standing_pct_per_min : FALLBACK.o2_standing_pct_per_min,
         doseBasePerMin: base / 1440,
         storm: storm && hasReplay ? {
           t0: stormT0,

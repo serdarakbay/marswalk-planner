@@ -9,6 +9,9 @@ export const FALLBACK = {
   // Same as rad_event_window_h in config/mission.json; used until radiation.json carries
   // its own event_window_h.
   rad_event_window_h: 48,
+  // O2 % of the tank per minute standing still: science.models.o2_used_pct(1, 0, speed_m_s=0)
+  // (Utku's Pandolf model, mission.json). Used until summary.json carries o2_standing_pct_per_min.
+  o2_standing_pct_per_min: 0.1229,
 };
 
 const MARS_RADIUS_M = 3396190; // same sphere as the project CRS (CLAUDE.md)

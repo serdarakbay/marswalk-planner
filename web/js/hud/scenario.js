@@ -55,13 +55,15 @@ function toward(a, b, meters) {
  * @param {Array}  p.habitat       [lon, lat]
  * @param {number} p.startMin      first simulated minute (relative to EVA start, may be < 0)
  * @param {number} p.endMin        last simulated minute
- * @param {number} p.o2PerMin      O2 % used per minute outside
+ * @param {number} p.o2PerMin      O2 % used per minute walking the route (route average)
+ * @param {number} p.o2StandPerMin O2 % used per minute standing still (sheltered, holding)
  * @param {number} p.doseBasePerMin  mSv per minute outside, quiet Sun
  * @param {object|null} p.storm    {t0, duration, mult, habitatFactor}
  * @param {object|null} p.dust     {t0}
  */
 export function simulate(p) {
   const { tl, habitat, startMin, endMin, o2PerMin, doseBasePerMin, storm, dust } = p;
+  const o2StandPerMin = Number.isFinite(p.o2StandPerMin) ? p.o2StandPerMin : o2PerMin;
   const dt = SCENARIO.STEP_MIN;
   const shelters = (p.shelters || []).filter((s) => Array.isArray(s?.coord));
   const total = tl.total_min;
@@ -99,7 +101,7 @@ export function simulate(p) {
       if (refuge && !refuge.habitat && habitat) {
         const left = storm.t0 + storm.duration - t;
         const home = distanceM(refuge.coord, habitat);
-        const need = o2PerMin * ((refuge.d + home) / SCENARIO.WALK_M_PER_MIN + left);
+        const need = o2PerMin * (refuge.d + home) / SCENARIO.WALK_M_PER_MIN + o2StandPerMin * left;
         if (o2 + need > 100 - SCENARIO.O2_RESERVE_PCT) {
           refuge = { coord: habitat, factor: storm.habitatFactor, habitat: true, d: distanceM(coord, habitat), o2Short: true };
         }
@@ -160,7 +162,8 @@ export function simulate(p) {
     if (mode === 'pre' || mode === 'home') coord = mode === 'home' ? refuge.coord : (habitat ?? tl.coords[0]);
 
     if (isOutside(mode)) {
-      o2 += o2PerMin * dt;
+      // Standing still (in a shelter, waiting for a dust devil) costs less than walking
+      o2 += (mode === 'sheltered' || mode === 'hold' ? o2StandPerMin : o2PerMin) * dt;
       const factor = mode === 'sheltered' ? refuge.factor : 1;
       dose += doseBasePerMin * (stormOn ? storm.mult : 1) * factor * dt;
     }
