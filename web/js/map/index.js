@@ -7,6 +7,7 @@
 
 /* global L */
 import { MARS_CRS, coordsToLatLng, toBounds, toLatLng } from './geo.js';
+import { initProfile } from './profile.js';
 
 const MAX_ZOOM = 19;
 
@@ -142,6 +143,28 @@ function miniMap(map, layers) {
 
 function imageLayer(ov) {
   return L.imageOverlay(ov.png, toBounds(ov.bounds), { opacity: 0.7, interactive: false });
+}
+
+// route.geojson -> fn(fraction 0..1) -> L.LatLng at that share of the route length.
+// The profile's d axis and the drawn geometry can differ by a few percent (projected grid
+// vs. great-circle length), so positions are matched by fraction, not by metres.
+function routeSampler(map, route) {
+  const geom = route?.geometry ?? route?.features?.[0]?.geometry;
+  if (geom?.type !== 'LineString' || geom.coordinates.length < 2) return null;
+  const pts = geom.coordinates.map(coordsToLatLng);
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + map.distance(pts[i - 1], pts[i]));
+  const length = cum[cum.length - 1];
+  return (fraction) => {
+    const target = Math.min(Math.max(fraction, 0), 1) * length;
+    let i = cum.findIndex((c) => c >= target);
+    if (i <= 0) return pts[0];
+    const t = (target - cum[i - 1]) / (cum[i] - cum[i - 1] || 1);
+    return L.latLng(
+      pts[i - 1].lat + (pts[i].lat - pts[i - 1].lat) * t,
+      pts[i - 1].lng + (pts[i].lng - pts[i - 1].lng) * t,
+    );
+  };
 }
 
 // Initial view: area.json > Curiosity traverse > bounds of the first base layer
@@ -334,6 +357,29 @@ export function initMap(state, mapEl) {
     const label = Number.isFinite(elapsed) ? `Astronaut · T+${Math.round(elapsed)} min` : 'Astronaut';
     astronaut.bindTooltip(label, { direction: 'top', offset: [0, -8] });
   });
+
+  // Elevation profile under the map; hovering it marks the same spot on the route
+  const along = routeSampler(map, state.route);
+  const total = state.summary?.profile?.at(-1)?.d;
+  const hover = L.circleMarker([0, 0], {
+    radius: 6, color: cssVar('--color-text'), weight: 2,
+    fillColor: cssVar('--color-accent'), fillOpacity: 1, interactive: false,
+  });
+  const profileEl = document.getElementById('profile');
+  if (profileEl) {
+    try {
+      initProfile(state, profileEl, {
+        onHover: (d) => {
+          const ll = along && Number.isFinite(d) && total ? along(d / total) : null;
+          if (!ll) { hover.remove(); return; }
+          hover.setLatLng(ll);
+          if (!map.hasLayer(hover)) hover.addTo(map);
+        },
+      });
+    } catch (err) {
+      console.warn('[profile] failed to start', err);
+    }
+  }
 
   // Re-measure the map when HUD mode changes the layout
   new MutationObserver(() => map.invalidateSize())

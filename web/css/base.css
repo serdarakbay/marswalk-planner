@@ -61,7 +61,7 @@
   --header-h: 56px;
   --panel-w: 260px;
   --cards-w: 340px;
-  --profile-h: 160px;
+  --profile-h: 190px;
 
   color-scheme: dark;
 }
@@ -144,10 +144,31 @@ kbd {
 }
 #map { min-height: 0; background: var(--color-bg); z-index: var(--z-map); }
 #profile {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-1);
+  min-height: 0;
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   padding: var(--space-2) var(--space-4);
 }
+
+/* Elevation profile (drawn by map/profile.js) */
+.profile-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--text-xs);
+}
+.profile-stats dt { color: var(--color-text-muted); }
+.profile-stats dd {
+  margin: 0 0 0 calc(-1 * var(--space-3));
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+.profile-chart { position: relative; min-height: 0; }
 
 /* Placeholder text while a module has not drawn anything yet */
 #panel:empty::before,
