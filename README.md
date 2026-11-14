@@ -12,7 +12,7 @@ Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, where Cur
 - **Safe route:** a least-cost walk from the habitat through the science stops and back, limited by slope, with oxygen use and radiation dose for the whole walk.
 - **Elevation profile:** elevation and slope along the route, with radio-shadow stretches where the crew loses contact. Hovering the profile marks the same spot on the map.
 - **Stop cards:** what to look at at each stop, with nearby Curiosity photos and the arrival time on the route.
-- **HUD mode:** a visor view with the next stop, remaining O2, dose, Sun and Earth position, and alerts. A simulation clock moves the astronaut along the route on the map and the profile. Press **H** or the HUD button.
+- **HUD mode:** a visor view with the next stop, remaining O2, dose, Sun and Earth position, and alerts. A simulation clock moves the astronaut along the route on the map and the profile. Press **H** or the HUD button. A **Storm replay** button (or `?radiation=replay` in the URL) replays the 20 May 2024 solar storm measured by Curiosity: dose rate x38.6, danger alerts, and the nearest shelter shown on the HUD and the map.
 
 ## Study area
 
@@ -44,8 +44,9 @@ Some files are still provisional while the team finishes the pipeline. Files mar
 | Curiosity traverse, raw images, REMS temperature | Real |
 | Sun and Earth position (JPL Horizons, Mars24), EVA window | Real |
 | DEM slope, cost map, route, return-time rings, route summary | Real, computed from the DEM |
+| Geologic units (USGS SIM 3292, clipped to Gale crater) | Real |
 | Habitat location | Provisional |
-| Stops, shelters and radio shadow, alerts, radiation status, solar events, geologic units | Mock |
+| Stops, shelters and radio shadow, alerts, radiation status, solar events | Mock |
 
 ## Run locally
 
@@ -93,6 +94,7 @@ The full list of commands, by owner, is in [CLAUDE.md](CLAUDE.md).
 - REMS temperature: Centro de Astrobiología (CSIC-INTA) / NASA/JPL-Caltech
 - Sun and Earth position: [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/); local time: Mars24 algorithm (Allison & McEwen, 2000)
 - Solar events: [NASA DONKI](https://kauai.ccmc.gsfc.nasa.gov/DONKI/)
+- Geologic units: Tanaka, K.L., et al., 2014, Geologic Map of Mars, USGS Scientific Investigations Map 3292 (public domain), [doi:10.3133/sim3292](https://doi.org/10.3133/sim3292)
 
 **Software**
 
