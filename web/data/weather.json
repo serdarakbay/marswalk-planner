@@ -1,0 +1,211 @@
+{
+ "rows": [
+  {
+   "lmst": "00:00",
+   "temp_c": -67.5
+  },
+  {
+   "lmst": "00:30",
+   "temp_c": -68.0
+  },
+  {
+   "lmst": "01:00",
+   "temp_c": -68.5
+  },
+  {
+   "lmst": "01:30",
+   "temp_c": -68.8
+  },
+  {
+   "lmst": "02:00",
+   "temp_c": -69.2
+  },
+  {
+   "lmst": "02:30",
+   "temp_c": -69.4
+  },
+  {
+   "lmst": "03:00",
+   "temp_c": -69.6
+  },
+  {
+   "lmst": "03:30",
+   "temp_c": -69.8
+  },
+  {
+   "lmst": "04:00",
+   "temp_c": -70.0
+  },
+  {
+   "lmst": "04:30",
+   "temp_c": -70.1
+  },
+  {
+   "lmst": "05:00",
+   "temp_c": -70.2
+  },
+  {
+   "lmst": "05:30",
+   "temp_c": -70.3
+  },
+  {
+   "lmst": "06:00",
+   "temp_c": -70.4
+  },
+  {
+   "lmst": "06:30",
+   "temp_c": -70.5
+  },
+  {
+   "lmst": "07:00",
+   "temp_c": -67.2
+  },
+  {
+   "lmst": "07:30",
+   "temp_c": -59.7
+  },
+  {
+   "lmst": "08:00",
+   "temp_c": -52.4
+  },
+  {
+   "lmst": "08:30",
+   "temp_c": -45.3
+  },
+  {
+   "lmst": "09:00",
+   "temp_c": -38.5
+  },
+  {
+   "lmst": "09:30",
+   "temp_c": -32.2
+  },
+  {
+   "lmst": "10:00",
+   "temp_c": -26.4
+  },
+  {
+   "lmst": "10:30",
+   "temp_c": -21.2
+  },
+  {
+   "lmst": "11:00",
+   "temp_c": -16.7
+  },
+  {
+   "lmst": "11:30",
+   "temp_c": -12.9
+  },
+  {
+   "lmst": "12:00",
+   "temp_c": -9.9
+  },
+  {
+   "lmst": "12:30",
+   "temp_c": -7.8
+  },
+  {
+   "lmst": "13:00",
+   "temp_c": -6.4
+  },
+  {
+   "lmst": "13:30",
+   "temp_c": -6.0
+  },
+  {
+   "lmst": "14:00",
+   "temp_c": -6.4
+  },
+  {
+   "lmst": "14:30",
+   "temp_c": -7.8
+  },
+  {
+   "lmst": "15:00",
+   "temp_c": -9.9
+  },
+  {
+   "lmst": "15:30",
+   "temp_c": -12.9
+  },
+  {
+   "lmst": "16:00",
+   "temp_c": -16.7
+  },
+  {
+   "lmst": "16:30",
+   "temp_c": -21.2
+  },
+  {
+   "lmst": "17:00",
+   "temp_c": -26.4
+  },
+  {
+   "lmst": "17:30",
+   "temp_c": -32.2
+  },
+  {
+   "lmst": "18:00",
+   "temp_c": -38.5
+  },
+  {
+   "lmst": "18:30",
+   "temp_c": -45.3
+  },
+  {
+   "lmst": "19:00",
+   "temp_c": -51.6
+  },
+  {
+   "lmst": "19:30",
+   "temp_c": -54.7
+  },
+  {
+   "lmst": "20:00",
+   "temp_c": -57.3
+  },
+  {
+   "lmst": "20:30",
+   "temp_c": -59.5
+  },
+  {
+   "lmst": "21:00",
+   "temp_c": -61.3
+  },
+  {
+   "lmst": "21:30",
+   "temp_c": -62.8
+  },
+  {
+   "lmst": "22:00",
+   "temp_c": -64.1
+  },
+  {
+   "lmst": "22:30",
+   "temp_c": -65.2
+  },
+  {
+   "lmst": "23:00",
+   "temp_c": -66.1
+  },
+  {
+   "lmst": "23:30",
+   "temp_c": -66.8
+  }
+ ],
+ "approximate": true,
+ "label": "Typical sol (approximate): REMS min/max, modelled diurnal shape",
+ "min_c": -70.5,
+ "max_c": -6.0,
+ "ground_min_c": -82.5,
+ "ground_max_c": 6.5,
+ "sunrise_lmst": "06:47",
+ "sunset_lmst": "18:54",
+ "sols": [
+  4966,
+  4995
+ ],
+ "ls_deg": 341.0,
+ "method": "median of 30 latest REMS sols; Parton-Logan diurnal model (peak 13:30 LMST, night decay 0.35/h)",
+ "source": "REMS, Centro de Astrobiologia (CSIC-INTA) / NASA/JPL-Caltech"
+}
