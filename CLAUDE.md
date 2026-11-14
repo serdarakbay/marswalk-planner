@@ -89,6 +89,7 @@ data/cache/            Git'e GİRMEZ: ham DEM, ara rasterler
 - `main` her zaman çalışır durumda kalır, çünkü GitHub Pages `main`'den yayınlanıyor.
 - **Commit mesajı formatı:** `[veri] layers.json eklendi`, `[arazi] eğim haritası`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
 - **Asla commit etme:** `.env`, `*.tif`, `data/cache/`, 5 MB'den büyük dosyalar. Büyük ara dosyalar Drive'da kalır.
+- **Commit'lerde ve PR'larda yapay zekâ atfı YASAK.** Commit mesajına, PR başlığına ya da açıklamasına `Co-Authored-By: Claude ...`, "Generated with Claude Code", 🤖 gibi hiçbir atıf satırı eklenmez. Claude ya da Anthropic contributor olarak görünmez; commit'in yazarı her zaman ekip üyesinin kendisidir. Bu kural Claude Code'un varsayılan atıf ayarından önce gelir.
 - Mock dosyaları gerçek veri gelince **aynı isimle** üzerine yazılır; şema değişmez.
 
 ## Veri sözleşmeleri
