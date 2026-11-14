@@ -250,6 +250,12 @@ function legendEl(legend) {
 const HABITAT_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">'
   + '<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z" fill="currentColor"/></svg>';
 
+// Radio relay badge: a small mast with signal arcs
+const RELAY_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'
+  + '<path d="M12 9v12M8.5 21h7M12 9l-3.5 12M12 9l3.5 12" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>'
+  + '<circle cx="12" cy="7" r="2" fill="currentColor"/>'
+  + '<path d="M7.6 3.6a6 6 0 0 0 0 6.8M16.4 3.6a6 6 0 0 1 0 6.8" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>';
+
 // Panel groups, in display order. Each overlay carries its group from where it was added.
 const PANEL_GROUPS = ['Imagery', 'Terrain', 'Safety', 'Science', 'Mission'];
 
@@ -369,6 +375,22 @@ export function initMap(state, mapEl) {
     const shelters = shelterLayer(state.safety.shelters);
     vectors.push(shelters);
     overlays.push({ meta: { id: 'shelters', name: 'Shelters' }, layer: shelters, on: true, group: 'Safety' });
+  }
+
+  // Radio relay from safety.json: a mast that shortens the time without a link
+  const relay = state.safety?.relay;
+  if (Array.isArray(relay?.coord)) {
+    const height = Number.isFinite(relay.antenna_height_m) ? ` (${relay.antenna_height_m} m)` : '';
+    const before = relay.offline_min_without_relay;
+    const after = state.safety?.offline_min;
+    const gain = Number.isFinite(before) && Number.isFinite(after)
+      ? `<br>Time without link ${Math.round(before)} → ${Math.round(after)} min` : '';
+    const marker = L.marker(toLatLng(relay.coord), {
+      icon: L.divIcon({ className: 'relay-pin', html: RELAY_SVG, iconSize: [24, 24], iconAnchor: [12, 22] }),
+      title: `Radio relay${height}`, alt: `Radio relay${height}`, zIndexOffset: 400,
+    }).bindTooltip(`Radio relay${height}${gain}`, { direction: 'top', offset: [0, -20] });
+    vectors.push(marker);
+    overlays.push({ meta: { id: 'relay', name: 'Radio relay' }, layer: marker, on: true, group: 'Safety' });
   }
 
   // Planned Marswalk route (Demir)

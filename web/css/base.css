@@ -340,6 +340,13 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
   box-shadow: var(--shadow);
 }
 
+.relay-pin {
+  display: grid;
+  place-items: center;
+  color: var(--color-info);
+  filter: drop-shadow(0 0 2px var(--color-bg)) drop-shadow(0 0 1px var(--color-bg));
+}
+
 /* Storm replay: nearest shelter (map/index.js) */
 .shelter-alert { animation: shelter-pulse 1.2s ease-in-out infinite; }
 @keyframes shelter-pulse { 50% { stroke-opacity: 0.25; } }

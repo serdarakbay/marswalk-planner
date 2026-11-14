@@ -197,14 +197,27 @@ function renderLegend(d) {
   const route = d.safety?.route;
   if (num(d.safety?.offline_min) || Array.isArray(route)) {
     const off = Array.isArray(route) && route.length ? Math.round((route.filter((r) => r.comm_ok === false).length / route.length) * 100) : null;
-    const parts = [num(d.safety?.offline_min) ? `${d.safety.offline_min.toFixed(1)} min without a link` : null, num(off) ? `${off}% of the route` : null].filter(Boolean);
+    const relay = d.safety?.relay;
+    const before = relay?.offline_min_without_relay;
+    const after = d.safety?.offline_min;
+    const withRelay = num(before) && num(after);
+    const parts = withRelay
+      ? [`Without a link: ${Math.round(before)} → ${Math.round(after)} min with the relay`]
+      : [num(after) ? `${after.toFixed(1)} min without a link` : null, num(off) ? `${off}% of the route` : null].filter(Boolean);
+    const mast = withRelay
+      ? `<line x1="76" y1="56" x2="76" y2="40" stroke="var(--ink)" stroke-width="1.5"/>
+         <path d="M58 30 L76 40 L100 52" stroke="var(--dusk)" stroke-width="1.4"/>`
+      : `<path d="M58 30 L100 52" stroke="var(--storm)" stroke-width="1.4" stroke-dasharray="3 3"/>`;
+    const height = num(relay?.antenna_height_m) ? `${relay.antenna_height_m} m ` : '';
     items.push(legendItem('Radio shadow',
       svg('0 0 120 90', `<path d="M0 90 L0 66 L34 62 L58 30 L76 56 L120 60 L120 90Z" fill="var(--sand)" stroke="var(--ink)" stroke-width="1.2"/>
         <line x1="14" y1="62" x2="14" y2="44" stroke="var(--ink)" stroke-width="1.5"/>
         <path d="M14 44 L58 30" stroke="var(--dusk)" stroke-width="1.4"/>
-        <path d="M58 30 L100 52" stroke="var(--storm)" stroke-width="1.4" stroke-dasharray="3 3"/>
-        <circle cx="100" cy="56" r="3" fill="var(--storm)"/>`),
-      'Where the ridge blocks the line of sight between the suit antenna and the habitat.',
+        ${mast}
+        <circle cx="100" cy="56" r="3" fill="${withRelay ? 'var(--dusk)' : 'var(--storm)'}"/>`),
+      withRelay
+        ? `Where the ridge blocks the line of sight between the suit antenna and the habitat. A ${height}radio relay on the ridge covers most of those stretches.`
+        : 'Where the ridge blocks the line of sight between the suit antenna and the habitat.',
       parts.join(' · ') || null));
   }
 
