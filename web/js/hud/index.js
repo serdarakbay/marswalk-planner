@@ -166,7 +166,8 @@ export function initHUD(state, el) {
     const doseNow = doseAt(dose, frac);
     const o2 = o2At(state.summary, frac);
     // Inside the habitat before the EVA starts and after the route ends (known only with route timing).
-    const atHabitat = timeline && frac != null ? frac >= 1 || elapsed < 0 : null;
+    // T+0 counts as inside: the astronaut is still at the habitat door.
+    const atHabitat = timeline && frac != null ? frac >= 1 || elapsed <= 0 : null;
     const rs = atHabitat ? null : routeState(timeline, elapsed);
     const pos = rs?.coord ?? null;
     // Shelter / radio-shadow info only matters while outside.
@@ -260,6 +261,8 @@ export function initHUD(state, el) {
       if (shelter) {
         const mins = Number.isFinite(safe1?.shelter_min) ? `${safe1.shelter_min.toFixed(1)} min · ` : '';
         row(life.body, 'Shelter', `${mins}${fmtDist(shelter.d_m)} ${compass(shelter.bearing_deg)}`);
+      } else if (isStorm && atHabitat) {
+        row(life.body, 'Shelter', 'In habitat');
       } else if (Number.isFinite(safe1?.shelter_min)) {
         row(life.body, 'Nearest shelter', `${safe1.shelter_min.toFixed(1)} min`);
       }
