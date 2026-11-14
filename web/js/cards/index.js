@@ -19,6 +19,8 @@ const SOL_PER_DAY = 1.0274912517;        // 1 LMST hour = 1.0275 Earth hours
 const NEARBY_MAX_M = 300;                // Curiosity photos within this distance count as "near the stop"
 const NEARBY_MAX_PHOTOS = 6;
 const ROUTE_SNAP_MAX_M = 150;            // stop must be this close to the route to get an arrival time
+const ROUTE_REVISIT_TOL_M = 10;          // vertices this much farther than the nearest still count as "at the stop"
+const DWELL_MIN_SHOWN = 2;               // a t_min jump at the stop longer than this is shown as time spent there
 
 function h(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -106,19 +108,39 @@ function routeLine(route) {
 function arrivalInfo(stop, st) {
   const line = routeLine(st.route);
   if (!line || !validCoord(stop.coord)) return null;
-  let best = -1, bestD = Infinity;
-  line.coords.forEach((c, i) => {
-    const d = distM(stop.coord, c);
-    if (d < bestD) { bestD = d; best = i; }
+  const ds = line.coords.map((c) => distM(stop.coord, c));
+  const bestD = Math.min(...ds);
+  if (!(bestD <= ROUTE_SNAP_MAX_M)) return null;
+  // Out-and-back routes pass the stop twice: among the vertices about as close
+  // as the nearest one, take the first visit (smallest t_min), not the return leg.
+  let best = -1;
+  ds.forEach((d, i) => {
+    if (d <= bestD + ROUTE_REVISIT_TOL_M && (best < 0 || Number(line.tMin[i]) < Number(line.tMin[best]))) best = i;
   });
-  if (best < 0 || bestD > ROUTE_SNAP_MAX_M) return null;
-  const tMin = Number(line.tMin[best]);
-  if (!Number.isFinite(tMin)) return null;
+  if (best < 0) return null;
+  // The route's t_min jumps at a stop by the dwell time (arrive -> leave).
+  // Walk the contiguous vertices around the stop: earliest t = arrival, latest t = departure.
+  const near = (i) => i >= 0 && i < ds.length && ds[i] <= bestD + ROUTE_REVISIT_TOL_M;
+  let lo = best, hi = best;
+  while (near(lo - 1)) lo--;
+  while (near(hi + 1)) hi++;
+  // Largest single step inside that run = the dwell (arrive just before it, leave just after).
+  const tAt = (i) => Number(line.tMin[i]);
+  let jump = lo;
+  for (let i = lo + 1; i <= hi; i++) if (tAt(i) - tAt(i - 1) > tAt(jump) - tAt(jump - 1 < lo ? jump : jump - 1)) jump = i;
+  const dwellRaw = jump > lo ? tAt(jump) - tAt(jump - 1) : 0;
+  const hasDwell = Number.isFinite(dwellRaw) && dwellRaw >= DWELL_MIN_SHOWN;
+  const tArrive = hasDwell ? tAt(jump - 1) : tAt(best);
+  const tLeave = hasDwell ? tAt(jump) : tArrive;
+  if (!Number.isFinite(tArrive)) return null;
+  const dwell = hasDwell ? tLeave - tArrive : 0;
   const start = lmstToH(st.eva?.start_lmst);
-  const lmstH = start != null ? start + tMin / 60 / SOL_PER_DAY : null;
+  const lmstH = start != null ? start + tArrive / 60 / SOL_PER_DAY : null;
   const slope = Number(line.props?.slope_deg?.[best]);
   return {
-    t_min: tMin,
+    t_min: tArrive,
+    dwell_min: dwell,
+    leave_t_min: dwell ? tLeave : null,
     lmst_h: lmstH,
     temp_c: lmstH != null ? tempAt(st.weather, lmstH) : null,
     slope_deg: Number.isFinite(slope) ? slope : null,
@@ -291,7 +313,9 @@ export function initCards(state, el) {
         stat(a.t_min < 0.5 ? 'Start' : `+${fmtDuration(a.t_min)}`, 'after EVA start'),
         a.lmst_h != null ? stat(hToLmst(a.lmst_h), 'LMST') : null,
         a.temp_c != null ? stat(`${Math.round(a.temp_c)} °C`, 'air temp.') : null,
-        a.slope_deg != null ? stat(`${Math.round(a.slope_deg)}°`, 'slope') : null));
+        a.slope_deg != null ? stat(`${Math.round(a.slope_deg)}°`, 'slope') : null),
+      a.dwell_min ? h('p', { class: 'mm-card__note mm-card__dwell' },
+        `${fmtDuration(a.dwell_min)} at this stop, leave at +${fmtDuration(a.leave_t_min)}`) : null);
   }
 
   function render() {

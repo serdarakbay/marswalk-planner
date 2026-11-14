@@ -190,3 +190,4 @@
 #cards .mm-card__stat-value { font-family: var(--font-mono); font-size: var(--text-md); font-weight: 600; white-space: nowrap; }
 #cards .mm-card__stat-label { font-size: var(--text-xs); color: var(--color-text-muted); }
 #cards .mm-card__chart-arrival { stroke: var(--color-info); stroke-width: 2; stroke-dasharray: 3 3; }
+#cards .mm-card__dwell { margin: var(--space-2) 0 0; }
