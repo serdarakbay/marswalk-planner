@@ -1,22 +1,22 @@
-# Veri sözleşmeleri
+# Data contracts
 
-`web/data/` altındaki her dosyanın tam şeması. Sahibi: Ege. Şema değişikliği gerekiyorsa önce Ege'ye söyle; kendi dosyanın şemasını tek başına değiştirme, çünkü başkası okuyor.
+The full schema of every file under `web/data/`. Owner: Utku. If you need a schema change, tell Utku first; do not change the schema of your own file on your own, because others read it.
 
-## Genel kurallar
+## General rules
 
-- Noktalar her zaman **`[lon, lat]`** (doğu pozitif, planetosentrik). Bbox her zaman `{west, south, east, north}`.
-- Birim alan adında yazar: `_m`, `_min`, `_deg`, `_mSv`, `_pct`, `_c`. Tabloda birimsiz geçen eski alanlar (`sun_az`, `sun_el`, `earth_el`) derece cinsindendir ve adları değişmez.
-- Saatler: UTC `"2026-11-15T12:46:05Z"` (ISO 8601, `Z` ile), Mars yerel saati `"HH:MM"` (LMST).
-- **Fazladan alan serbesttir**, okuyan taraf tanımadığı alanı yok sayar. Bu dosyada yazan alanlar ise zorunludur; değeri bilinmiyorsa `null` yazılır, alan silinmez.
-- Mock dosyalar gerçek veriyle **aynı isim ve aynı şemayla** yazılır. Mock olduğu belli olsun diye nesne kökünde `"source": "MOCK"` önerilir.
-- Frontend her dosyanın eksik ya da bozuk olabileceğini varsayar (`state.x === null`).
+- Points are always **`[lon, lat]`** (east positive, planetocentric). A bbox is always `{west, south, east, north}`.
+- The unit is written in the field name: `_m`, `_min`, `_deg`, `_mSv`, `_pct`, `_c`. Older fields listed without a unit in the table (`sun_az`, `sun_el`, `earth_el`) are in degrees, and their names do not change.
+- Times: UTC as `"2026-11-15T12:46:05Z"` (ISO 8601, with `Z`), Mars local time as `"HH:MM"` (LMST).
+- **Extra fields are allowed**; the reader ignores any field it does not know. The fields written in this file, however, are required; if a value is unknown, write `null`, do not remove the field.
+- Mock files are written with **the same name and the same schema** as the real data. To make it clear that a file is a mock, `"source": "MOCK"` at the object root is recommended.
+- The frontend assumes that any file can be missing or broken (`state.x === null`).
 
-`main.js`'teki `state` anahtarları ve dosya yolları:
+`state` keys and file paths in `main.js`:
 
-| `state` anahtarı | Dosya | Sahibi |
+| `state` key | File | Owner |
 |---|---|---|
 | `area` | `web/data/area.json` | Utku |
-| `layers` | `web/data/layers.json` | Ege |
+| `layers` | `web/data/layers.json` | Utku |
 | `overlays` | `web/data/overlays.json` | Demir |
 | `route` | `web/data/route.geojson` | Demir |
 | `summary` | `web/data/summary.json` | Demir |
@@ -32,7 +32,7 @@
 | `radiation` | `web/data/radiation.json` | Utku |
 | `alerts` | `web/data/alerts.json` | Utku |
 
-`config/mission.json` (Utku) frontend'e yüklenmez; Python script'lerinin ortak girdisidir. Şeması en altta.
+`config/mission.json` (Utku) is not loaded by the frontend; it is the shared input of the Python scripts. Its schema is at the bottom.
 
 ---
 
@@ -46,11 +46,11 @@
 }
 ```
 
-- `habitat` bbox'ın **içinde** olmalı. Yukarıdaki koordinat sadece örnek; gerçeğini Utku belirler.
+- `habitat` must be **inside** the bbox. The coordinate above is only an example; Utku decides the real one.
 
-## layers.json (Ege)
+## layers.json (Utku)
 
-Altlık katmanları (Mars Trek WMTS).
+Base map layers (Mars Trek WMTS).
 
 ```json
 [
@@ -67,12 +67,12 @@ Altlık katmanları (Mars Trek WMTS).
 ]
 ```
 
-- `type`: `"base"` (tek seçilir) ya da `"overlay"` (üst üste açılabilir).
-- `format`: `"jpg"` ya da `"png"`. `fallbackUrl` yoksa `null`.
+- `type`: `"base"` (only one is selected) or `"overlay"` (several can be stacked).
+- `format`: `"jpg"` or `"png"`. If there is no `fallbackUrl`, it is `null`.
 
 ## overlays.json (Demir)
 
-Önceden üretilmiş PNG katmanları (eğim, maliyet, ...).
+Pre-rendered PNG layers (slope, cost, ...).
 
 ```json
 [
@@ -90,8 +90,8 @@ Altlık katmanları (Mars Trek WMTS).
 ]
 ```
 
-- `png` yolu `web/`'e göre görelidir. `bounds`, PNG'nin warp edildiği sınırlarla **birebir** aynı olmalı.
-- `legend` boş olabilir (`[]`).
+- The `png` path is relative to `web/`. `bounds` must be **exactly** the same as the bounds the PNG was warped to.
+- `legend` can be empty (`[]`).
 
 ## route.geojson (Demir)
 
@@ -106,8 +106,8 @@ Altlık katmanları (Mars Trek WMTS).
 }
 ```
 
-- `slope_deg[i]` ve `t_min[i]` koordinat `i` ile eşleşir; dizilerin boyu koordinat sayısıyla aynıdır.
-- `t_min` başlangıçtan itibaren birikimli süredir.
+- `slope_deg[i]` and `t_min[i]` belong to coordinate `i`; each array has the same length as the number of coordinates.
+- `t_min` is the cumulative time from the start.
 
 ## summary.json (Demir)
 
@@ -122,7 +122,7 @@ Altlık katmanları (Mars Trek WMTS).
 }
 ```
 
-- `profile`: `d` metre (başlangıçtan mesafe), `z` metre (Mars areoid'ine göre yükseklik), `slope` derece.
+- `profile`: `d` in metres (distance from the start), `z` in metres (elevation relative to the Mars areoid), `slope` in degrees.
 
 ## safety/safety.json (Utku)
 
@@ -138,9 +138,9 @@ Altlık katmanları (Mars Trek WMTS).
 }
 ```
 
-- `overlays[]` şeması `overlays.json` ile aynıdır; katman paneli ikisini birlikte gösterir.
-- `svf`: sky-view factor, 0–1. `route[].d` metre, `summary.json` profilindeki `d` ile aynı eksen.
-- `offline_min`: rota boyunca toplam haberleşmesiz süre.
+- `overlays[]` has the same schema as `overlays.json`; the layer panel shows both together.
+- `svf`: sky-view factor, 0–1. `route[].d` is in metres, on the same axis as `d` in the `summary.json` profile.
+- `offline_min`: total time without communication along the route.
 
 ## stops.json (Utku)
 
@@ -156,7 +156,7 @@ Altlık katmanları (Mars Trek WMTS).
 ]
 ```
 
-- Duraklar rota sırasıyla listelenir. `stop:select` olayının `detail` değeri bu nesnelerden biridir.
+- Stops are listed in route order. The `detail` of the `stop:select` event is one of these objects.
 
 ## geology.geojson (Utku)
 
@@ -182,7 +182,7 @@ Altlık katmanları (Mars Trek WMTS).
 
 ## traverse.geojson (Egemen)
 
-Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota parçalarından oluşan bir `FeatureCollection` olabilir; okuyan taraf ikisini de kabul eder.
+Curiosity's route inside the bbox. It can be a single LineString `Feature` or a `FeatureCollection` of route segments; the reader accepts both.
 
 ```json
 {
@@ -195,7 +195,7 @@ Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota pa
 }
 ```
 
-- Her parça bir `LineString`. `properties` içindeki `sol_start`, `sol_end` ve `source` önerilir, zorunlu değil.
+- Each segment is a `LineString`. `sol_start`, `sol_end` and `source` in `properties` are recommended, not required.
 
 ## weather.json (Egemen)
 
@@ -206,7 +206,7 @@ Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota pa
 }
 ```
 
-- `rows` LMST'ye göre sıralı. Serdar'ın EVA penceresi bu dosyayı okur (yoksa kendi MOCK eğrisine düşer).
+- `rows` are sorted by LMST. Serdar's EVA window reads this file (if it is missing, it falls back to its own MOCK curve).
 
 ## sun.json (Serdar)
 
@@ -221,8 +221,8 @@ Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota pa
 }
 ```
 
-- `sun_az` kuzeyden saat yönünde derece; `sun_el`, `earth_el` derece. Horizons'a ulaşılamazsa `earth_el` ve `light_time_min` `null` olur.
-- `observer.from`: `"area.json"` ya da `"fallback"`.
+- `sun_az` is in degrees, clockwise from north; `sun_el` and `earth_el` are in degrees. If Horizons cannot be reached, `earth_el` and `light_time_min` are `null`.
+- `observer.from`: `"area.json"` or `"fallback"`.
 
 ## eva_window.json (Serdar)
 
@@ -238,7 +238,7 @@ Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota pa
 }
 ```
 
-- Zorunlu alanlar: `start_lmst`, `end_lmst`, `reason`. Pencere yoksa ilk ikisi `null`.
+- Required fields: `start_lmst`, `end_lmst`, `reason`. If there is no window, the first two are `null`.
 
 ## donki.json (Utku)
 
@@ -249,8 +249,8 @@ Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota pa
 }
 ```
 
-- `mode`: `"live"` ya da `"replay"`. Replay her zaman 20 Mayıs 2024 olayıdır.
-- `type`: DONKI olay tipi (`FLR`, `CME`, `SEP`, ...).
+- `mode`: `"live"` or `"replay"`. Replay is always the 20 May 2024 event.
+- `type`: DONKI event type (`FLR`, `CME`, `SEP`, ...).
 
 ## radiation.json (Utku)
 
@@ -263,7 +263,7 @@ Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota pa
 }
 ```
 
-- `status`: `"nominal"`, `"elevated"` ya da `"storm"`.
+- `status`: `"nominal"`, `"elevated"` or `"storm"`.
 
 ## alerts.json (Utku)
 
@@ -275,14 +275,14 @@ Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota pa
 }
 ```
 
-- `op`: `<`, `<=`, `>`, `>=`, `==`. `level`: `info`, `warn` ya da `danger` (renkler `base.css`'teki `--color-info`, `--color-warn`, `--color-danger`).
-- `metric` adları HUD'un hesapladığı değerlerdir: `o2_remaining_pct`, `dose_mSv`, `slope_deg`, `comm_ok`, `shelter_min`.
+- `op`: `<`, `<=`, `>`, `>=`, `==`. `level`: `info`, `warn` or `danger` (the colours are `--color-info`, `--color-warn` and `--color-danger` in `base.css`).
+- `metric` names are the values the HUD computes: `o2_remaining_pct`, `dose_mSv`, `slope_deg`, `comm_ok`, `shelter_min`.
 
 ---
 
 ## config/mission.json (Utku)
 
-Tüm eşik ve sabitler. Python script'leri buradan okur, kodda sihirli sayı olmaz.
+All thresholds and constants. Python scripts read them from here, so there are no magic numbers in the code.
 
 ```json
 {
@@ -299,4 +299,4 @@ Tüm eşik ve sabitler. Python script'leri buradan okur, kodda sihirli sayı olm
 }
 ```
 
-- `eva_min_sun_el_deg` ve `eva_min_temp_c` Serdar'ın EVA penceresi için gerekir.
+- `eva_min_sun_el_deg` and `eva_min_temp_c` are needed for Serdar's EVA window.
