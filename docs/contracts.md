@@ -182,15 +182,20 @@ Altlık katmanları (Mars Trek WMTS).
 
 ## traverse.geojson (Egemen)
 
-Curiosity'nin bbox içindeki rotası.
+Curiosity'nin bbox içindeki rotası. Tek bir LineString `Feature` ya da rota parçalarından oluşan bir `FeatureCollection` olabilir; okuyan taraf ikisini de kabul eder.
 
 ```json
 {
-  "type": "Feature",
-  "geometry": {"type": "LineString", "coordinates": [[137.37, -4.76], [137.372, -4.758]]},
-  "properties": {"source": "MSL traverse"}
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature",
+     "geometry": {"type": "LineString", "coordinates": [[137.383458, -4.730024], [137.384, -4.7305]]},
+     "properties": {"sol_start": 2468, "sol_end": 2824, "source": "MSL traverse, NASA/JPL-Caltech (MMGIS)"}}
+  ]
 }
 ```
+
+- Her parça bir `LineString`. `properties` içindeki `sol_start`, `sol_end` ve `source` önerilir, zorunlu değil.
 
 ## weather.json (Egemen)
 
