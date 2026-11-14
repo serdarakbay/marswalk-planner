@@ -225,6 +225,12 @@ function weatherChart(weather, eva, arrivalH = null) {
     svg.append(t);
   }
   const d = rows.map((r, i) => `${i ? 'L' : 'M'}${x(r.t).toFixed(1)},${y(r.c).toFixed(1)}`).join('');
+  // oxide -> oxide-text gradient along the curve; stop colours are set in cards.css
+  const grad = s('linearGradient', { id: 'mm-chart-grad', x1: '0', y1: '0', x2: '1', y2: '0' });
+  grad.append(s('stop', { offset: '0', class: 'mm-card__grad-a' }), s('stop', { offset: '1', class: 'mm-card__grad-b' }));
+  const defs = s('defs');
+  defs.append(grad);
+  svg.prepend(defs);
   svg.append(s('path', { d, class: 'mm-card__chart-line' }));
 
   const minC = weather.min_c ?? Math.min(...cs);

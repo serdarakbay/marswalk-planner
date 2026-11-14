@@ -7,6 +7,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js/+esm';
 import {
   makeFrame, sampleGrid, routeCoords, buildHeights, buildBaseImage, overlayChoices, composeImage, distM,
+  strataCanvas, STRATA_STEP_M,
 } from './terrain.js';
 
 const EXAGGERATIONS = [1, 2, 3];
@@ -17,6 +18,8 @@ const ROUTE_STEP_M = 4;            // resample the route for a smooth tube
 const PIN_HEIGHT_M = 40;
 const FLY_SPEED_M_S = 45;          // fly-through speed along the route
 const FOCUS_MS = 1400;
+const STRATA_ALPHA = 0.62;         // rock-layer tint over the HiRISE image
+const fmtElev = (z) => `${Math.round(z)} m`.replace('-', '\u2212');
 
 // ---------------------------------------------------------------- helpers
 const css = (name, fallback) =>
@@ -116,6 +119,9 @@ export async function createScene(state, el, { onProgress } = {}) {
     text: css('--color-text', 'white'),
     bg: css('--color-bg', 'black'),
     dust: css('--color-dust', 'gray'),
+    // rock-layer colours; fall back to the older palette if base.css has no clay/sulfate yet
+    clay: css('--color-clay', '') || css('--color-info', 'skyblue'),
+    sulfate: css('--color-sulfate', '') || css('--color-sand', 'tan'),
   };
 
   onProgress?.('Building terrain…');
@@ -219,9 +225,17 @@ export async function createScene(state, el, { onProgress } = {}) {
     return out;
   }
 
+  const stopObjs = new Map();   // stop id -> {head, lab, ring, headY}
+  let selectedId = null;
+  const stopElev = (stop) => {
+    const [x, z] = frame.toXZ(stop.coord[0], stop.coord[1]);
+    return sampleGrid(grid, x, z);
+  };
+
   function buildMarks() {
     marks.clear();
     pickables.length = 0;
+    stopObjs.clear();
 
     // planned route
     if (coords.length >= 2) {
@@ -299,11 +313,21 @@ export async function createScene(state, el, { onProgress } = {}) {
       head.userData.stop = stop;
       stick.userData.stop = stop;
       stick.castShadow = true;
-      const lab = labelSprite(`${i + 1}  ${stop.name || stop.id}`, colors.sand);
+      const name = `${i + 1}  ${stop.name || stop.id}`;
+      const lab = labelSprite(heights.real ? `${name} · ${fmtElev(stopElev(stop))}` : name, colors.sand);
       lab.position.copy(head.position).add(new THREE.Vector3(0, 6, 0));
-      marks.add(stick, head, lab);
+      // pulsing ring on the ground, shown only for the selected stop
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(7, 9.5, 48).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: colors.accent, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      ring.position.copy(ground).add(new THREE.Vector3(0, 1.5, 0));
+      ring.visible = false;
+      marks.add(stick, head, lab, ring);
       pickables.push(head, stick);
+      stopObjs.set(stop.id ?? i, { head, lab, ring, headY: head.position.y });
     });
+    applySelection();
 
     marks.add(astro);
     marks.add(shelterLine);
@@ -355,7 +379,8 @@ export async function createScene(state, el, { onProgress } = {}) {
   let fly = null;     // {s: metres along route}
 
   function overview() {
-    // frame the route, the stops and the habitat (they can be far apart)
+    // frame the route, the stops and the habitat (they can be far apart); seen from the
+    // south, so the walk reads bottom (habitat) to top (stop 1), clear of the info panel
     const box = new THREE.Box3();
     const pts = [...coords, ...(Array.isArray(state.stops) ? state.stops.map((s) => s.coord) : []), state.area.habitat]
       .filter((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]));
@@ -363,7 +388,7 @@ export async function createScene(state, el, { onProgress } = {}) {
     else box.setFromObject(terrain);
     const center = box.getCenter(new THREE.Vector3());
     const size = Math.max(box.getSize(new THREE.Vector3()).length(), 600);
-    return { target: center, pos: center.clone().add(new THREE.Vector3(-0.55 * size, 0.6 * size, 0.85 * size)) };
+    return { target: center, pos: center.clone().add(new THREE.Vector3(0.15 * size, 0.55 * size, 0.95 * size)) };
   }
 
   function moveTo(pos, target, ms = FOCUS_MS) {
@@ -372,8 +397,33 @@ export async function createScene(state, el, { onProgress } = {}) {
     tween = { from: camera.position.clone(), to: pos, fromT: controls.target.clone(), toT: target, start: performance.now(), ms };
   }
 
+  function applySelection() {
+    for (const [id, o] of stopObjs) {
+      const on = id === selectedId;
+      o.ring.visible = on;
+      o.head.material.emissive.set(on ? colors.accent : colors.sand);
+      o.head.material.emissiveIntensity = on ? 0.9 : selectedId == null ? 0.35 : 0.15;
+      o.lab.material.opacity = on || selectedId == null ? 1 : 0.55;
+      o.head.position.y = o.headY;
+    }
+  }
+
+  function animateSelection(now) {
+    const o = stopObjs.get(selectedId);
+    if (!o) return;
+    const t = now / 1000;
+    o.head.position.y = o.headY + Math.sin(t * 3) * 2.5;
+    o.head.material.emissiveIntensity = 0.75 + 0.35 * Math.sin(t * 4);
+    const f = (t / 1.4) % 1;
+    o.ring.scale.setScalar(1 + f * 3);
+    o.ring.material.opacity = 0.9 * (1 - f);
+  }
+
   function focusStop(stop, { instant = false } = {}) {
     if (!Array.isArray(stop?.coord)) return;
+    const idx = (Array.isArray(state.stops) ? state.stops : []).findIndex((s) => s === stop || (s.id != null && s.id === stop.id));
+    selectedId = stop.id ?? (idx >= 0 ? idx : null);
+    applySelection();
     const target = posLL(stop.coord[0], stop.coord[1], 10);
     const dir = camera.position.clone().sub(controls.target).setY(0);
     if (dir.lengthSq() < 1) dir.set(-1, 0, 1);
@@ -402,10 +452,16 @@ export async function createScene(state, el, { onProgress } = {}) {
     onclick: () => setExag(x),
   }, `${x}×`));
   const choices = overlayChoices(state);
+  let strata = null;
+  if (heights.real) {
+    strata = strataCanvas(grid, colors.clay, colors.sulfate, colors.text);
+    choices.unshift({ id: 'strata', name: 'Rock layers (clay \u2192 sulfate)', canvas: strata.canvas, alpha: STRATA_ALPHA });
+  }
   const overlaySel = h('select', {
     class: 'v3d-select', 'aria-label': 'Layer draped on the terrain',
     onchange: async (e) => {
       const o = choices[Number(e.target.value)] || null;
+      strataPanel.hidden = o?.id !== 'strata';
       try {
         texture.image = await composeImage(base, o, state.area.bbox);
         texture.needsUpdate = true;
@@ -421,13 +477,32 @@ export async function createScene(state, el, { onProgress } = {}) {
     h('li', {}, h('span', { class: 'v3d-key v3d-key--astro' }), 'Astronaut (HUD clock)'),
   );
 
+  const strataPanel = h('div', { class: 'v3d-strata', hidden: true });
+  if (strata) {
+    const span = strata.hi - strata.lo || 1;
+    const pos = (z) => `${Math.min(Math.max(((z - strata.lo) / span) * 100, 0), 100)}%`;
+    const stopsOn = (Array.isArray(state.stops) ? state.stops : [])
+      .map((s, i) => (Array.isArray(s.coord) ? { n: i + 1, name: s.name, z: stopElev(s) } : null)).filter(Boolean);
+    strataPanel.append(
+      h('p', { class: 'v3d-kicker' }, 'Rock layers'),
+      h('div', { class: 'v3d-strata-bar' },
+        stopsOn.map((s) => h('span', { class: 'v3d-strata-stop', style: `left:${pos(s.z)}`, title: `${s.name}: ${fmtElev(s.z)}` }, String(s.n)))),
+      h('div', { class: 'v3d-strata-ends' },
+        h('span', {}, h('b', {}, 'Older · clay-bearing'), h('br'), `lower, ${fmtElev(strata.lo)}`),
+        h('span', {}, h('b', {}, 'Younger · sulfate-bearing'), h('br'), `higher, ${fmtElev(strata.hi)}`)),
+      h('p', { class: 'v3d-src' },
+        `Mount Sharp's layers lie nearly flat, so walking uphill steps forward in time: from rock formed in a lake to salts left as the water dried up. Colour = DEM elevation (lines every ${STRATA_STEP_M} m), not mapped unit boundaries.`),
+    );
+  }
+
   const ui = h('div', { class: 'v3d-ui' },
     h('div', { class: 'v3d-top' },
       h('div', { class: 'v3d-title' },
         h('p', { class: 'v3d-kicker' }, '3D terrain'),
         info,
         h('p', { class: heights.real ? 'v3d-src' : 'v3d-src v3d-src--warn' }, heights.label),
-        h('p', { class: 'v3d-src' }, `Image: ${base.label}`)),
+        h('p', { class: 'v3d-src' }, `Image: ${base.label}`),
+        strataPanel),
       legend),
     h('div', { class: 'v3d-bar' },
       flyBtn, resetBtn,
@@ -524,6 +599,7 @@ export async function createScene(state, el, { onProgress } = {}) {
         controls.target.lerp(ahead, 0.12);
       }
     }
+    animateSelection(now);
     controls.update();
     renderer.render(scene, camera);
     requestAnimationFrame(frameLoop);

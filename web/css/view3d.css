@@ -38,13 +38,20 @@
   box-shadow: var(--shadow);
   backdrop-filter: blur(6px);
 }
-#view3d-root .v3d-title { max-width: 26rem; padding: var(--space-2) var(--space-3); }
+#view3d-root .v3d-title {
+  max-width: 26rem;
+  padding: var(--space-2) var(--space-3);
+  /* thin oxide -> oxide-text strip on top of the info panel */
+  background:
+    linear-gradient(90deg, var(--color-accent), var(--color-accent-text, var(--color-accent-hover))) top / 100% var(--space-1) no-repeat,
+    color-mix(in srgb, var(--color-bg) 78%, transparent);
+}
 #view3d-root .v3d-kicker {
   margin: 0;
   font-size: var(--text-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--color-accent-text, var(--color-accent));
 }
 #view3d-root .v3d-info { margin: var(--space-1) 0 0; font-family: var(--font-mono); font-size: var(--text-xs); }
 #view3d-root .v3d-src { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--color-text-muted); }
@@ -100,11 +107,11 @@
 #view3d-root .v3d-btn--primary,
 #view3d-root .v3d-btn[aria-pressed="true"],
 #view3d-root .v3d-seg[aria-pressed="true"] {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-text, var(--color-accent-hover)));
+  border-color: transparent;
   color: var(--color-text-inverse);
 }
-#view3d-root .v3d-btn--primary:hover { background: var(--color-accent-hover); }
+#view3d-root .v3d-btn--primary:hover { background: var(--color-accent-text, var(--color-accent-hover)); }
 
 #view3d-root .v3d-group { display: flex; align-items: center; gap: var(--space-1); }
 #view3d-root .v3d-group-label { margin-right: var(--space-1); font-size: var(--text-xs); color: var(--color-text-muted); }
@@ -113,10 +120,52 @@
 #view3d-root .v3d-hint {
   align-self: center;
   margin: var(--space-1) 0 0;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
-  text-shadow: 0 1px 2px var(--color-bg);
 }
+
+/* rock layers (clay -> sulfate) explainer, shown when that layer is draped */
+#view3d-root .v3d-strata {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+#view3d-root .v3d-strata[hidden] { display: none; }
+#view3d-root .v3d-strata-bar {
+  position: relative;
+  height: var(--space-3);
+  margin: var(--space-6) 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--color-clay, var(--color-info)), var(--color-sulfate, var(--color-sand)));
+}
+#view3d-root .v3d-strata-stop {
+  position: absolute;
+  bottom: 100%;
+  transform: translate(-50%, calc(var(--space-1) * -0.5));
+  display: grid;
+  place-items: center;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 2px solid var(--color-bg);
+  border-radius: 50%;
+  background: var(--color-sand);
+  color: var(--color-text-inverse);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+#view3d-root .v3d-strata-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+#view3d-root .v3d-strata-ends span:last-child { text-align: right; }
+#view3d-root .v3d-strata-ends b { color: var(--color-text); font-weight: 600; }
 
 /* HUD mode (class set by index.js from body[data-mode]): the visor panels own the screen */
 #view3d-root.is-hud .v3d-ui { display: none; }
