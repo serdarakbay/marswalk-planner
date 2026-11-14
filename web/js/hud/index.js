@@ -18,7 +18,7 @@
 
 import {
   activityFraction, compass, distanceM, doseAt, effectiveRadiation, evaDose, evalAlerts, evaStatus, radiationAt,
-  bearingDeg, FALLBACK, fmtDuration, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState,
+  bearingDeg, FALLBACK, fmtDuration, shadowIntervals, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState,
   routeTimeline, safetyAt,
   stopSchedule, sunAt,
 } from './model.js';
@@ -74,6 +74,14 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function fmtDate(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
   return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : String(iso);
+}
+
+// Short durations: '<1 min', '6 min', '1h 05m'
+function fmtShort(min) {
+  if (!Number.isFinite(min)) return '—';
+  if (min < 1) return '<1 min';
+  if (min < 60) return `${Math.round(min)} min`;
+  return fmtDuration(min);
 }
 
 function fmtDist(m) {
@@ -135,9 +143,11 @@ export function initHUD(state, el) {
   // Route timing (null until Demir's route.geojson / summary.json exist)
   let timeline = null;
   let schedule = [];
+  let shadows = [];   // radio-shadow stretches ahead, in route minutes
   try {
     timeline = routeTimeline(state.route, state.summary);
     schedule = stopSchedule(timeline, state.stops);
+    shadows = shadowIntervals(timeline, state.safety);
   } catch (err) {
     console.error('[hud] route timeline failed', err);
   }
@@ -246,6 +256,18 @@ export function initHUD(state, el) {
     const shelter = !p && isStorm && !atHabitat
       ? nearestShelter(state.safety?.shelters, pos ?? state.area?.habitat) : null;
     const refuge = p?.refuge ?? null;
+    // Radio shadow now / next, while walking the route (route minutes)
+    const curShadow = onRoute ? shadows.find((x) => tau >= x.a && tau < x.b) ?? null : null;
+    const nextShadow = onRoute ? shadows.find((x) => x.a > tau) ?? null : null;
+    // Point of no return: O2 above the reserve, minus the O2 to walk home from here
+    let turnBack = null;
+    if (o2 && !atHabitat && Array.isArray(state.area?.habitat) && Number.isFinite(state.summary?.o2_used_pct) && timeline) {
+      const perMin = state.summary.o2_used_pct / timeline.total_min;
+      const here = pos ?? state.area.habitat;
+      const homeMin = (distanceM(here, state.area.habitat) * SCENARIO.RETURN_PATH_FACTOR) / SCENARIO.WALK_M_PER_MIN;
+      const spare = o2.remaining_pct - SCENARIO.O2_RESERVE_PCT - homeMin * perMin;
+      turnBack = { spareMin: perMin > 0 ? spare / perMin : Infinity, homeMin };
+    }
     const stormLeft = plan?.storm && Number.isFinite(elapsed)
       ? plan.storm.t0 + plan.storm.duration - elapsed : null;
 
@@ -291,7 +313,8 @@ export function initHUD(state, el) {
       eva_remaining_min: out && status?.state === 'open' ? status.min : null,
       max_slope_deg: state.summary?.max_slope_deg ?? null,
       slope_deg: rs?.slope_deg ?? null,
-      comm_ok: typeof safe1?.comm_ok === 'boolean' ? safe1.comm_ok : null,
+      // Radio link: the shadow intervals (same scale as the countdown) when available, else safety.json row
+      comm_ok: onRoute && shadows.length ? !curShadow : typeof safe1?.comm_ok === 'boolean' ? safe1.comm_ok : null,
       shelter_min: Number.isFinite(safe1?.shelter_min) ? safe1.shelter_min : null,
       eva_state: status?.state ?? null,
       at_habitat: atHabitat,
@@ -329,6 +352,14 @@ export function initHUD(state, el) {
             : { level: 'warn', text: `Dust devil ${where(p.devil)}: keep clear` });
       } else if (p.mode === 'route' && p.justCleared) {
         scen.push({ level: 'info', text: 'Dust devil passed. Resume the walk.' });
+      }
+      if (nextShadow && nextShadow.a - tau <= SCENARIO.SHADOW_WARN_MIN) {
+        scen.push({ level: 'info', text: `Radio shadow in ${fmtShort(nextShadow.a - tau)}, for ${fmtShort(nextShadow.b - nextShadow.a)}: check in now` });
+      }
+      if (turnBack && turnBack.spareMin <= 0) {
+        scen.push({ level: 'danger', text: 'Turn back now: O2 left is only enough for the way home and the reserve' });
+      } else if (turnBack && turnBack.spareMin < 30) {
+        scen.push({ level: 'warn', text: `Turn back within ${fmtDuration(turnBack.spareMin)}: O2 for the way home + ${SCENARIO.O2_RESERVE_PCT}% reserve` });
       }
     } else if (shelter) {
       const mins = Number.isFinite(safe1?.shelter_min) ? `${safe1.shelter_min.toFixed(1)} min, ` : '';
@@ -379,6 +410,9 @@ export function initHUD(state, el) {
         row(life.body, 'Nearest shelter', `${safe1.shelter_min.toFixed(1)} min`);
       }
       if (p && p.delay >= 0.5 && p.mode !== 'done') row(life.body, 'Delay', `+${fmtDuration(p.delay)}`);
+      if (turnBack) {
+        row(life.body, 'Turn back by', turnBack.spareMin <= 0 ? 'NOW' : `T+${fmtDuration(elapsed + turnBack.spareMin)}`, 'est.');
+      }
       if (Number.isFinite(eva?.duration_min)) row(life.body, 'EVA length', fmtDuration(eva.duration_min));
     }, life.body);
 
@@ -433,8 +467,15 @@ export function initHUD(state, el) {
       const up = Number.isFinite(s?.earth_el) ? s.earth_el >= 0 : null;
       row(comms.body, 'Earth elevation', fmtNum(s?.earth_el, 1, '°'));
       row(comms.body, 'Direct link', up == null ? '—' : up ? 'Line of sight' : 'Below horizon');
-      if (typeof safe1?.comm_ok === 'boolean') {
+      if (curShadow) {
+        row(comms.body, 'Radio to habitat', `Shadow · back in ${fmtShort(curShadow.b - tau)}`);
+      } else if (onRoute && shadows.length) {
+        row(comms.body, 'Radio to habitat', 'Clear');
+      } else if (typeof safe1?.comm_ok === 'boolean') {
         row(comms.body, 'Radio to habitat', safe1.comm_ok ? 'Clear' : 'Radio shadow');
+      }
+      if (nextShadow && !curShadow) {
+        row(comms.body, 'Next shadow', `in ${fmtShort(nextShadow.a - tau)} · ${fmtShort(nextShadow.b - nextShadow.a)} long`);
       }
       row(comms.body, 'One-way delay', fmtNum(s?.light_time_min, 1, ' min'));
       if (Number.isFinite(s?.light_time_min)) {

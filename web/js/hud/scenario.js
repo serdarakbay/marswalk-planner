@@ -28,6 +28,8 @@ export const SCENARIO = {
   DUST_HOLD_M: 120,            // hold position inside this distance while it approaches
   DUST_CLEAR_M: 160,           // resume once it is this far and moving away
   O2_RESERVE_PCT: 25,          // o2_reserve_pct in config/mission.json: never plan to dip below it
+  RETURN_PATH_FACTOR: 1.3,     // walk home is ~30 % longer than the straight line (assumption)
+  SHADOW_WARN_MIN: 10,         // warn this many route minutes before a radio shadow
 };
 
 const OUTSIDE = new Set(['route', 'hold', 'to_refuge', 'sheltered', 'return']);

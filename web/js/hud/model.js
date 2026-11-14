@@ -326,3 +326,38 @@ export function nearestShelter(shelters, from) {
   if (best) best.bearing_deg = bearingDeg(from, best.coord);
   return best;
 }
+
+// ---------------------------------------------------------------------------
+// Radio shadow ahead (safety.json route[{d, comm_ok}], Utku)
+
+// Stretches of the route without a link, as route-time intervals [{a, b}] in minutes.
+// safety.json measures d along the summary.json profile; it is rescaled to this route's length.
+// Returns [] when safety.json was built for another route.
+export function shadowIntervals(tl, safety) {
+  const rows = safety?.route;
+  if (!tl || !Array.isArray(rows) || rows.length < 2) return [];
+  const len = tl.d[tl.d.length - 1];
+  const last = rows[rows.length - 1].d;
+  if (!Number.isFinite(last) || last <= 0 || Math.abs(last - len) / len > 0.1) return [];
+  const tauAtD = (dRoute) => {
+    for (let i = 1; i < tl.d.length; i++) {
+      if (tl.d[i] >= dRoute) {
+        const f = tl.d[i] === tl.d[i - 1] ? 0 : (dRoute - tl.d[i - 1]) / (tl.d[i] - tl.d[i - 1]);
+        return tl.t[i - 1] + (tl.t[i] - tl.t[i - 1]) * f;
+      }
+    }
+    return tl.t[tl.t.length - 1];
+  };
+  const out = [];
+  let start = null;
+  rows.forEach((r, i) => {
+    const bad = r.comm_ok === false;
+    if (bad && start === null) start = r.d;
+    const closes = start !== null && (!bad || i === rows.length - 1);
+    if (closes) {
+      out.push({ a: tauAtD((start * len) / last), b: tauAtD((r.d * len) / last) });
+      start = null;
+    }
+  });
+  return out.filter((x) => x.b > x.a);
+}
