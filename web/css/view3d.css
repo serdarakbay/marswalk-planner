@@ -1,0 +1,126 @@
+/* 3D view. Owner: Egemen (branch `veri`). Loaded by web/js/view3d/index.js.
+   Project layout rules: every selector starts with #view3d-root,
+   colours / fonts / spacing / radius come only from base.css variables.
+   #view3d-root itself (grid cell, background, z-index) is styled by base.css. */
+
+#view3d-root .v3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+#view3d-root .v3d-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* overlay UI: only the controls catch the mouse */
+#view3d-root .v3d-ui {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  pointer-events: none;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+}
+#view3d-root .v3d-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
+
+#view3d-root .v3d-title,
+#view3d-root .v3d-legend,
+#view3d-root .v3d-bar {
+  background: color-mix(in srgb, var(--color-bg) 78%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+}
+#view3d-root .v3d-title { max-width: 26rem; padding: var(--space-2) var(--space-3); }
+#view3d-root .v3d-kicker {
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+#view3d-root .v3d-info { margin: var(--space-1) 0 0; font-family: var(--font-mono); font-size: var(--text-xs); }
+#view3d-root .v3d-src { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--color-text-muted); }
+#view3d-root .v3d-src--warn { color: var(--color-warn); }
+
+#view3d-root .v3d-legend {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  font-size: var(--text-xs);
+}
+#view3d-root .v3d-legend li { display: flex; align-items: center; gap: var(--space-2); }
+#view3d-root .v3d-key { flex: none; display: inline-block; width: var(--space-4); height: var(--space-1); border-radius: var(--radius-sm); }
+#view3d-root .v3d-key--route { background: var(--color-accent); }
+#view3d-root .v3d-key--traverse { background: repeating-linear-gradient(90deg, var(--color-info) 0 var(--space-1), transparent var(--space-1) var(--space-2)); }
+#view3d-root .v3d-key--stop { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--color-sand); }
+#view3d-root .v3d-key--shelter { width: var(--space-2); height: var(--space-2); background: var(--color-ok); transform: rotate(45deg); }
+#view3d-root .v3d-key--astro { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--color-hud); }
+
+#view3d-root .v3d-bar {
+  align-self: center;
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  pointer-events: auto;
+}
+#view3d-root .v3d-btn,
+#view3d-root .v3d-seg,
+#view3d-root .v3d-select {
+  height: var(--space-6);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+#view3d-root .v3d-btn:hover,
+#view3d-root .v3d-seg:hover,
+#view3d-root .v3d-select:hover,
+#view3d-root .v3d-btn:focus-visible,
+#view3d-root .v3d-seg:focus-visible,
+#view3d-root .v3d-select:focus-visible { border-color: var(--color-accent); outline: none; }
+#view3d-root .v3d-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#view3d-root .v3d-btn--primary,
+#view3d-root .v3d-btn[aria-pressed="true"],
+#view3d-root .v3d-seg[aria-pressed="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+#view3d-root .v3d-btn--primary:hover { background: var(--color-accent-hover); }
+
+#view3d-root .v3d-group { display: flex; align-items: center; gap: var(--space-1); }
+#view3d-root .v3d-group-label { margin-right: var(--space-1); font-size: var(--text-xs); color: var(--color-text-muted); }
+#view3d-root .v3d-seg { padding: 0 var(--space-2); font-family: var(--font-mono); }
+
+#view3d-root .v3d-hint {
+  align-self: center;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-shadow: 0 1px 2px var(--color-bg);
+}
+
+/* HUD mode (class set by index.js from body[data-mode]): the visor panels own the screen */
+#view3d-root.is-hud .v3d-ui { display: none; }
+
+@media (max-width: 720px) {
+  #view3d-root .v3d-legend { display: none; }
+}
