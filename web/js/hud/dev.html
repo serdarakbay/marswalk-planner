@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HUD dev</title>
+  <!-- Same stylesheets and boxes as web/index.html (hud.css is loaded by the HUD itself). -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="../../css/base.css">
+  <style>
+    /* dev page only: stand-in for the map and a test toolbar */
+    .dev-map { height: 100%; background: radial-gradient(circle at 30% 40%, var(--color-dust), var(--color-bg) 70%); }
+    .dev-bar { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
+  </style>
+</head>
+<body data-mode="map">
+  <!-- Dev harness for the HUD only. Real data: sun.json, eva_window.json.
+       Everything else: MOCK (mock-state.js). ?mock=0 sets them to null. -->
+  <div class="app">
+    <header class="app-header">
+      <h1>HUD dev</h1>
+      <div class="dev-bar" id="dev">
+        <button id="hud-toggle" class="btn" type="button" aria-pressed="false">HUD <kbd>H</kbd></button>
+      </div>
+    </header>
+    <main class="dev-map"></main>
+  </div>
+  <div id="hud-root" hidden></div>
+
+  <script type="module">
+    import { initHUD } from './index.js';
+    import { MOCK_STATE } from './mock-state.js';
+
+    async function load(path) {
+      try {
+        const r = await fetch(path, { cache: 'no-cache' });
+        if (!r.ok) throw new Error(r.status);
+        return await r.json();
+      } catch (err) {
+        console.warn(`[dev] could not load ${path}`, err);
+        return null;
+      }
+    }
+
+    const useMock = new URLSearchParams(location.search).get('mock') !== '0';
+    const keys = ['area', 'layers', 'overlays', 'route', 'summary', 'safety', 'stops', 'geology',
+      'images', 'traverse', 'weather', 'sun', 'eva', 'donki', 'radiation', 'alerts'];
+    const state = Object.fromEntries(keys.map((k) => [k, null]));
+    state.sun = await load('../../data/sun.json');
+    state.eva = await load('../../data/eva_window.json');
+    if (useMock) Object.assign(state, MOCK_STATE);
+
+    // Same wiring as main.js
+    const btn = document.getElementById('hud-toggle');
+    btn.addEventListener('click', () => document.dispatchEvent(new CustomEvent('hud:toggle')));
+    new MutationObserver(() => btn.setAttribute('aria-pressed', String(document.body.dataset.mode === 'hud')))
+      .observe(document.body, { attributes: true, attributeFilter: ['data-mode'] });
+
+    const hud = initHUD(state, document.getElementById('hud-root'));
+    window.__hud = hud; // dev only
+    hud.toggle(true);
+
+    const bar = document.getElementById('dev');
+    for (const stop of state.stops ?? []) {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = `stop ${stop.id}`;
+      b.onclick = () => document.dispatchEvent(new CustomEvent('stop:select', { detail: stop }));
+      bar.append(b);
+    }
+    const m = document.createElement('button');
+    m.className = 'btn';
+    m.textContent = useMock ? 'No MOCK' : 'MOCK';
+    m.onclick = () => { location.search = useMock ? '?mock=0' : ''; };
+    bar.append(m);
+  </script>
+</body>
+</html>
