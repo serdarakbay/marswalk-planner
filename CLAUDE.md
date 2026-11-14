@@ -1,119 +1,124 @@
 # CLAUDE.md: Martian Map (NASA Space Apps 2026)
 
-Bu dosya, repoda çalışan herkes ve onların Claude oturumları için tek doğru kaynaktır. Burada yazmayan bir kural için önce Ege'ye sor.
+This file is the single source of truth for everyone working in this repo and for their Claude sessions. If a rule is not written here, ask Ege first.
 
-## Proje
+## Project
 
-Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curiosity'nin incelediği boxwork bölgesinde bir astronot yürüyüşü (Marswalk) için şunları birleştiren web uygulaması yapıyoruz:
+Challenge: **Interplanetary Survival Guide: Martian Map**. We are building a web app for an astronaut walk (a Marswalk) in Gale crater, in the boxwork area that Curiosity studied. It combines:
 
-- katmanlı harita (optik, termal, spektral, jeoloji)
-- güvenli rota (eğim, pürüzlülük, O2 ve radyasyon bütçesi)
-- durak kartları (Curiosity fotoğrafları + bilim notu)
-- HUD modu (vizör görünümü: sıradaki durak, kalan O2 ve doz, uyarılar)
+- a layered map (optical, thermal, spectral, geology)
+- a safe route (slope, roughness, O2 and radiation budget)
+- stop cards (Curiosity photos + a science note)
+- a HUD mode (visor view: next stop, remaining O2 and dose, alerts)
 
-- **Kod dondurma:** Pazar 15 Kasım 12:00 (İstanbul). Bu saatten sonra sadece bug fix yapılır.
-- **Teslim hedefi:** Pazar 18:00. Teslim sistemi 23:59'da kapanıyor.
+- **Code freeze:** Sunday 15 November, 12:00 (Istanbul). After that, bug fixes only.
+- **Submission target:** Sunday 18:00. The submission system closes at 23:59.
 - **Language:** Code, comments, documentation, commit messages, UI text, the project page and slides are all in **English**.
 
-## Çalışma alanı
+## Study area
 
 ```json
 {"bbox": {"west": 137.36, "south": -4.77, "east": 137.40, "north": -4.73}}
 ```
 
-- Yaklaşık 2,4 × 2,4 km (Mars'ta 1° ≈ 59,2 km).
-- Boylam doğu pozitif, enlem planetosentrik (Mars Trek ile aynı).
-- Habitat noktasını `web/data/area.json`'da Utku belirler. Kodda sabit koordinat yazma, her zaman `area.json`'dan oku.
+- About 2.4 × 2.4 km (on Mars, 1° ≈ 59.2 km).
+- Longitude is east-positive, latitude is planetocentric (same as Mars Trek).
+- Utku sets the habitat location in `web/data/area.json`. Never hard-code coordinates; always read them from `area.json`.
 
-## Ekip ve sahiplik
+## Team and ownership
 
-Çalışmaya başlamadan önce kullanıcının hangi ekip üyesi olduğunu belirle (branch adından ya da doğrudan sorarak). **Sadece o kişinin sahibi olduğu dosyaları düzenle.**
+Before you start, find out which team member the user is (from the branch name or by asking). **Only edit files owned by that person.**
 
-| Kişi | Rol | Branch | Yazabileceği yerler |
+| Person | Role | Branch | Can write to |
 |---|---|---|---|
-| Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
-| Demir | Arazi ve Rota | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
-| Egemen | Veri: Curiosity ve REMS + durak kartları + UI/3D tasarım | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css`, `web/js/view3d/`, `web/css/view3d.css` |
-| Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/js/hud/`, `web/css/hud.css` |
-| Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `harita`, `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, `web/data/` içinde: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
+| Ege | Services, map, integration | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
+| Demir | Terrain and route | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
+| Egemen | Data: Curiosity and REMS + stop cards + UI/3D design | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css`, `web/js/view3d/`, `web/css/view3d.css` |
+| Serdar | Horizons, EVA window, HUD, geologic map | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/js/hud/`, `web/css/hud.css` |
+| Utku | Science, safety layers, radiation, story | `harita`, `bilim` | `science/` (except `science/eva/`, including `science/safety/`), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, and in `web/data/`: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
 
 **Mocks:** Utku writes all mock files under `web/data/`. When the real file is ready, its owner's script overwrites the mock.
 
-**Veri sahipliği kuralı:** Ham veriyi tek kişi indirir; aynı verinin farklı ürünlerini iki kişi üretebilir, ama her çıktı dosyasının tek yazarı vardır. Başka biri o veriye ihtiyaç duyarsa sahibin ara çıktısını ya da `web/data/` dosyasını okur, API'yi kendisi çağırmaz.
+**Data ownership rule:** One person downloads each raw dataset. Two people may build different products from the same data, but every output file has exactly one author. If someone else needs that data, they read the owner's intermediate output or `web/data/` file; they do not call the API themselves.
 
-- USGS DEM → sadece Demir indirir. Kestiği `data/cache/dem_clip.tif`'i Drive'dan Utku'yla paylaşır. Demir bu DEM'den eğim, maliyet ve rota; Utku radyo gölgesi, sığınak ve `safety.json` üretir. Overlay PNG'lerini ikisi de `arazi/geo.py` içindeki `to_overlay_png()` ile üretir (Utku sadece import eder, değiştirmez); böylece katmanlar birebir hizalanır.
+- USGS DEM → Demir only. Demir shares the clipped `data/cache/dem_clip.tif` with Utku over Drive. Demir builds slope, cost and the route from it; Utku builds the radio shadow, shelters and `safety.json`. Both make overlay PNGs with `to_overlay_png()` in `arazi/geo.py` (Utku only imports it, never changes it), so the layers line up exactly.
 - Mars Trek WMTS and tile cache → Utku only
-- Curiosity ham görüntüleri, MSL traverse, REMS → sadece Egemen
-- JPL Horizons → sadece Serdar
+- Curiosity raw images, MSL traverse, REMS → Egemen only
+- JPL Horizons → Serdar only
 - DONKI → Utku only
 - USGS geologic map → Serdar only
 
 `requirements.txt` at the repo root and `pipeline/common.py` (shared helpers that read `area.json`) belong to Utku. If you need a new Python package, tell Utku.
 
-Başkasının dosyasında değişiklik gerekiyorsa düzenleme. Kullanıcıya "bu dosya X'in, ona şunu iletmen gerekiyor" de ve gereken değişikliği metin olarak öner.
+If a change is needed in someone else's file, do not edit it. Tell the user "this file belongs to X, you need to pass this on" and write the change out as text.
 
-## Klasör yapısı
+## Folder layout
 
 ```
 pipeline/
-  common.py            Utku: reads area.json, shared helpers
+  common.py            Utku: reads area.json and mission.json, shared helpers
   fetch/trek.py        Utku: Mars Trek layers → layers.json
   fetch/tiles.py       Utku: backup tile cache → web/tiles/
-  fetch/curiosity.py   Egemen: ham görüntüler + traverse
-  fetch/rems.py        Egemen: sıcaklık eğrisi
-  fetch/horizons.py    Serdar: Güneş/Dünya açıları, LMST
-  fetch/donki.py       Utku: güneş olayları (live + replay)
+  fetch/curiosity.py   Egemen: raw images + traverse
+  fetch/rems.py        Egemen: temperature curve
+  fetch/horizons.py    Serdar: Sun/Earth angles, LMST
+  fetch/donki.py       Utku: solar events (live + replay)
   fetch/usgs.py        Serdar: USGS geologic units → geology.geojson
-arazi/                 Demir: DEM işleme, eğim, maliyet, rota, geri dönüş halkaları
-arazi/geo.py           Demir: to_overlay_png() — Utku da import eder
-science/               Utku: models.py (O2, doz), radyasyon, duraklar, uyarılar
-science/safety/        Utku: radyo gölgesi (viewshed), sığınak (sky-view), safety.json
-science/eva/           Serdar: EVA penceresi
-config/mission.json    Utku: tüm eşik ve sabitler (tek kaynak)
+arazi/                 Demir: DEM processing, slope, cost, route, return-time rings
+arazi/geo.py           Demir: to_overlay_png(); Utku imports it too
+science/               Utku: models.py (O2, dose), radiation, stops, alerts
+science/safety/        Utku: radio shadow (viewshed), shelters (sky-view), safety.json
+science/mocks/         Utku: mock generator and checker for web/data/
+science/eva/           Serdar: EVA window
+config/mission.json    Utku: every threshold and constant (single source)
 web/
   index.html           Ege
-  js/main.js           Ege: uygulama girişi, modülleri bağlar
-  js/map/              Ege: Leaflet, katman paneli, rota, profil
-  js/hud/              Serdar: HUD modu
-  js/cards/            Egemen: durak kartları
-  css/base.css         Ege: renk paleti ve CSS değişkenleri (hud.css → Serdar, cards.css → Egemen; ikisi de base.css değişkenlerini kullanır)
-  data/                Üretilen JSON/PNG; her dosyanın tek yazarı var (tabloya bak)
+  js/main.js           Ege: app entry point, wires the modules together
+  js/map/              Ege: Leaflet, layer panel, route, profile
+  js/hud/              Serdar: HUD mode
+  js/cards/            Egemen: stop cards
+  js/view3d/           Egemen: 3D view
+  css/base.css         Ege: palette and CSS variables (hud.css → Serdar, cards.css and view3d.css → Egemen; all use the base.css variables)
+  assets/              Ege: images for the site and the README
+  data/                Generated JSON/PNG; every file has one author (see the table)
   tiles/               Utku: backup tile cache
 docs/contracts.md      Utku: all JSON schemas
-docs/story/            Utku: senaryo, varsayımlar, sunum notları
-data/cache/            Git'e GİRMEZ: ham DEM, ara rasterler
+docs/story/            Utku: scenario, assumptions, presentation notes
+docs/credits.md        Egemen: libraries, repos and assets used in the UI/3D work, with licenses
+data/cache/            NOT in git: raw DEM, intermediate rasters
 ```
 
-## Git kuralları
+## Git rules
 
-- Herkes kendi branch'inde çalışır. `main`'e merge'ü sadece Ege yapar.
-- **`main`'e ASLA doğrudan push etme.** `git push origin main`, `main`'e commit, `main`'e merge ya da GitHub'da "Merge pull request" düğmesi yasak; sadece kendi branch'ine push et (`git push origin <branch>`). İşin hazır olunca Ege'ye haber ver ya da PR aç, merge'ü Ege yapar. Claude olarak kullanıcı Ege değilse `main`'e push eden ya da merge eden hiçbir komutu çalıştırma; kullanıcı istese bile önce bu kuralı hatırlat.
-- **Force push** (`--force`, `--force-with-lease`) sadece kendi branch'inde ve gerçekten gerekirse yapılır; `main`'de ve başkasının branch'inde asla.
-- Kodun klasörü sahiplik tablosundaki yerdir. Repodaki boş `engine/` klasörü kullanılmaz; Demir'in kodu `arazi/` altına gider.
-- **Merge saatleri:** Cmt 14:00, 17:00, 20:00, 23:00; Paz 09:00, 11:30. PR merge saatinden 15 dk önce açılır.
-- PR açmadan önce: `git pull --rebase origin main`.
-- `main` her zaman çalışır durumda kalır, çünkü GitHub Pages `main`'den yayınlanıyor.
-- **Commit mesajı formatı:** `[veri] add layers.json`, `[arazi] slope map`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
-- **Asla commit etme:** `.env`, `*.tif`, `data/cache/`, 5 MB'den büyük dosyalar. Büyük ara dosyalar Drive'da kalır.
-- **Commit'lerde ve PR'larda yapay zekâ atfı YASAK.** Commit mesajına, PR başlığına ya da açıklamasına `Co-Authored-By: Claude ...`, "Generated with Claude Code", 🤖 gibi hiçbir atıf satırı eklenmez. Claude ya da Anthropic contributor olarak görünmez; commit'in yazarı her zaman ekip üyesinin kendisidir. Bu kural Claude Code'un varsayılan atıf ayarından önce gelir; ayrıca `.claude/settings.json` atıfı herkes için kapatır, o dosyayı değiştirme.
-- Mock dosyaları gerçek veri gelince **aynı isimle** üzerine yazılır; şema değişmez.
+- Everyone works on their own branch. Only Ege merges into `main`.
+- **NEVER push to `main` directly.** `git push origin main`, committing on `main`, merging into `main` and the "Merge pull request" button on GitHub are all forbidden; push only to your own branch (`git push origin <branch>`). When your work is ready, tell Ege or open a PR; Ege does the merge. As Claude, if the user is not Ege, never run a command that pushes to or merges into `main`; if the user asks for it, remind them of this rule first.
+- **Force push** (`--force`, `--force-with-lease`) only on your own branch and only when really needed; never on `main` or on someone else's branch.
+- Code lives in the folder given in the ownership table.
+- Changes to someone else's files, including Ege's map and page files, are agreed with the owner first; say so in the commit message.
+- **Merge times:** Sat 14:00, 17:00, 20:00, 23:00; Sun 09:00, 11:30. Open the PR 15 minutes before a merge time.
+- Before opening a PR: `git pull --rebase origin main`. Do not merge `main` or your own remote branch into your branch; rebase instead.
+- `main` must always work, because GitHub Pages publishes from `main`.
+- **Commit message format:** `[veri] add layers.json`, `[arazi] slope map`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
+- **Never commit:** `.env`, `*.tif`, `data/cache/`, files larger than 5 MB. Large intermediate files stay on Drive.
+- **No AI attribution in commits or PRs.** Never add `Co-Authored-By: Claude ...`, "Generated with Claude Code", 🤖 or any similar attribution line to a commit message, PR title or PR description. Claude or Anthropic must never appear as a contributor; the author of a commit is always the team member. This rule overrides Claude Code's default attribution setting; `.claude/settings.json` also turns attribution off for everyone, so do not change that file.
+- When the real data arrives, mock files are overwritten **under the same name**; the schema does not change.
 
-## Veri sözleşmeleri
+## Data contracts
 
-Tam şemalar `docs/contracts.md`'de. Özet:
+Full schemas are in `docs/contracts.md`. Summary:
 
-| Dosya | Sahibi | Ana alanlar |
+| File | Owner | Main fields |
 |---|---|---|
 | `area.json` | Utku | `bbox{west,south,east,north}`, `habitat[lon,lat]`, `crs` |
-| `layers.json` | Ege | `[{id,name,type,url,fallbackUrl,format,maxNativeZoom,attribution}]` |
+| `layers.json` | Utku | `[{id,name,type,url,fallbackUrl,format,maxNativeZoom,attribution}]` |
 | `overlays.json` | Demir | `[{id,name,png,bounds{west,south,east,north},legend}]` |
 | `route.geojson` | Demir | LineString; properties: `slope_deg[]`, `t_min[]` |
 | `summary.json` | Demir | `distance_m`, `duration_min`, `o2_used_pct`, `dose_mSv`, `max_slope_deg`, `profile[{d,z,slope}]` |
-| `safety.json` | Utku | `overlays[]` (`overlays.json` ile aynı şema; katman paneli ikisini birlikte okur), `shelters[{coord,svf}]`, `route[{d,comm_ok,shelter_min}]`, `offline_min` |
+| `safety.json` | Utku | `overlays[]` (same schema as `overlays.json`; the layer panel reads both), `shelters[{coord,svf}]`, `route[{d,comm_ok,shelter_min}]`, `offline_min` |
 | `stops.json` | Utku | `[{id,name,coord[lon,lat],science,photos[{url,sol,camera,credit}]}]` |
-| `geology.geojson` | Serdar | Polygon'lar; properties: `unit`, `name`, `note` |
+| `geology.geojson` | Serdar | Polygons; properties: `unit`, `name`, `note` |
 | `images.json` | Egemen | `[{url,sol,camera,utc,site,drive,credit}]` |
-| `traverse.geojson` | Egemen | Curiosity'nin bbox içindeki rotası (LineString) |
+| `traverse.geojson` | Egemen | Curiosity's path inside the bbox (LineString) |
 | `weather.json` | Egemen | `rows[{lmst,temp_c}]` |
 | `sun.json` | Serdar | `rows[{utc,lmst,sun_az,sun_el,earth_el,light_time_min}]` |
 | `eva_window.json` | Serdar | `start_lmst`, `end_lmst`, `reason` |
@@ -121,38 +126,39 @@ Tam şemalar `docs/contracts.md`'de. Özet:
 | `radiation.json` | Utku | `base_mSv_per_day`, `event_multiplier`, `status`, `message` |
 | `alerts.json` | Utku | `rules[{id,metric,op,value,level,text}]` |
 
-## Parçalar arası JS arayüzü
+## JS interface between modules
 
-Harita, kartlar ve HUD birbirinin dosyasını import etmez; sadece şu arayüz üzerinden konuşur:
+The map, cards, HUD and 3D view never import each other's files; they talk only through this interface:
 
-- `web/js/main.js` (Ege) tüm `web/data/` dosyalarını bir kez yükler ve tek bir `state` nesnesine koyar: `{area, layers, overlays, route, summary, safety, stops, geology, images, traverse, weather, sun, eva, donki, radiation, alerts}`. Eksik ya da bozuk dosya `null` kalır, uygulama çökmez.
-- Harita (Ege) duraka tıklanınca: `document.dispatchEvent(new CustomEvent('stop:select', {detail: stop}))`
-- Kartlar (Egemen): `web/js/cards/index.js` → `export function initCards(state, el)`; `stop:select` olayını dinler.
-- HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; H tuşu HUD'u açıp kapatır, `stop:select` ile sıradaki durağı günceller.
-- HUD (Serdar) emits `document.dispatchEvent(new CustomEvent('hud:time', {detail}))` on every simulated clock step: `detail = {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}`. `coord` is null when there is no route. The map (Ege) listens and shows the astronaut marker; it hides the marker when `active` is false.
-- `main.js` bu iki fonksiyonu çağırır. Başka global değişken yok.
+- `web/js/main.js` (Ege) loads every `web/data/` file once into a single `state` object: `{area, layers, overlays, route, summary, safety, stops, geology, images, traverse, weather, sun, eva, donki, radiation, alerts}`. A missing or broken file stays `null`; the app never crashes.
+- When a stop is clicked, the map (Ege) dispatches `document.dispatchEvent(new CustomEvent('stop:select', {detail: stop}))`.
+- Cards (Egemen): `web/js/cards/index.js` → `export function initCards(state, el)`; listens to `stop:select`.
+- HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; the H key opens and closes the HUD, and `stop:select` updates the next stop.
+- HUD (Serdar) emits `document.dispatchEvent(new CustomEvent('hud:time', {detail}))` on every simulated clock step: `detail = {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}`. `coord` is null when there is no route. The map (Ege) listens and shows the astronaut marker, and the elevation profile shows the same position; both hide it when `active` is false.
+- 3D view (Egemen): `web/js/view3d/index.js` → `export function initView3D(state, el)`; listens to `view3d:toggle`, `stop:select` and `hud:time`.
+- `main.js` calls these init functions. There are no other globals.
 
-### Sayfa yerleşimi: kimin kutusu nerede
+### Page layout: whose box is where
 
-`index.html` ve `base.css` sadece Ege'nindir. Serdar ve Egemen bu iki dosyayı **düzenlemez**; çakışma olmaması için sayfa baştan kutulara bölünmüştür:
+`index.html` and `base.css` belong to Ege only. Serdar and Egemen do **not** edit these two files; the page is split into boxes from the start so nobody collides:
 
-| Kutu | Sahibi | Not |
+| Box | Owner | Note |
 |---|---|---|
-| `#panel` | Ege | Katman paneli |
-| `#map`, `#profile` | Ege | Leaflet haritası, yükseklik profili |
-| `#cards` | Egemen | `initCards(state, el)` bu elemanı alır |
-| `#hud-root` | Serdar | `initHUD(state, el)` bu elemanı alır; başta `hidden` |
-| `#view3d-root` | Egemen | `initView3D(state, el)` bu elemanı alır; başta `hidden` |
+| `#panel` | Ege | Layer panel |
+| `#map`, `#profile` | Ege | Leaflet map, elevation profile |
+| `#cards` | Egemen | `initCards(state, el)` receives this element |
+| `#hud-root` | Serdar | `initHUD(state, el)` receives this element; starts `hidden` |
+| `#view3d-root` | Egemen | `initView3D(state, el)` receives this element; starts `hidden` |
 
-- Her modül kendi DOM'unu kendi kutusunun içinde, JS ile kurar. `cards.css` `index.html`'de zaten bağlıdır; HUD kendi CSS'ini (`hud.css`) kendisi yükler.
-- **CSS sınırı:** `hud.css`'teki her seçici `#hud-root` ile, `cards.css`'teki her seçici `#cards` ile başlar. `html`, `body`, `*`, çıplak etiket seçicileri ve `.leaflet-*` sınıfları sadece `base.css`'te olur.
-- Renk, font, boşluk, köşe ve z-index için sadece `base.css` değişkenleri (`var(--...)`) kullanılır; sabit hex ya da sayı yazılmaz. Yeni bir değişken gerekirse Ege'ye söylenir.
-- Katman sırası: `--z-map` < `--z-panel` < `--z-cards` < `--z-hud`.
-- **HUD modu:** HUD açılınca `document.body.dataset.mode = 'hud'`, kapanınca `'map'` yapar. Bu değeri sadece HUD yazar; HUD modunda neyin gizleneceğini `base.css` belirler (`body[data-mode="hud"]`).
-- Başlıktaki HUD düğmesi `document.dispatchEvent(new CustomEvent('hud:toggle'))` yollar. H tuşunu ve `hud:toggle` olayını HUD dinler. Harita tek harfli klavye kısayolu kullanmaz.
-- `main.js` modülleri `import()` ile yükler. `web/js/cards/index.js` ya da `web/js/hud/index.js` yoksa ya da hata atarsa konsola yazar, sayfa açılmaya devam eder.
-- The header 3D button dispatches `document.dispatchEvent(new CustomEvent('view3d:toggle'))`. The 3D view listens to it, shows or hides `#view3d-root` itself, and sets `document.body.dataset.view = '3d'` / `'map'`; `main.js` loads it like the other modules (`web/js/view3d/index.js` → `export function initView3D(state, el)`). A missing or failing 3D module never breaks the page.
-- Bunlar yetmezse `index.html`'i düzenleme; Ege'den iste.
+- Every module builds its own DOM inside its own box, with JS. `cards.css` is already linked in `index.html`; the HUD loads its own CSS (`hud.css`) itself, and the 3D view does the same with `view3d.css`.
+- **CSS boundary:** every selector in `hud.css` starts with `#hud-root`, every selector in `cards.css` with `#cards`, every selector in `view3d.css` with `#view3d-root`. `html`, `body`, `*`, bare tag selectors and `.leaflet-*` classes live only in `base.css`.
+- Use only `base.css` variables (`var(--...)`) for colour, font, spacing, radius and z-index; no hard-coded hex values or numbers. If you need a new variable, ask Ege.
+- Stacking order: `--z-map` < `--z-view3d` < `--z-panel` < `--z-cards` < `--z-hud`.
+- **HUD mode:** when the HUD opens it sets `document.body.dataset.mode = 'hud'`, and `'map'` when it closes. Only the HUD writes this value; `base.css` decides what is hidden in HUD mode (`body[data-mode="hud"]`).
+- The header HUD button dispatches `document.dispatchEvent(new CustomEvent('hud:toggle'))`. The HUD listens to the H key and to `hud:toggle`. The map uses no single-letter keyboard shortcuts.
+- The header 3D button dispatches `document.dispatchEvent(new CustomEvent('view3d:toggle'))`. The 3D view listens to it, shows or hides `#view3d-root` itself, and sets `document.body.dataset.view = '3d'` / `'map'`. The button only appears once the 3D module has started.
+- `main.js` loads the modules with `import()`. If `web/js/cards/index.js`, `web/js/hud/index.js` or `web/js/view3d/index.js` is missing or throws, it logs to the console and the page keeps working.
+- If this is not enough, do not edit `index.html`; ask Ege.
 
 ## Design tasks (Egemen)
 
@@ -172,40 +178,40 @@ Besides the stop cards, Egemen owns the look and feel upgrades and the 3D view. 
 - Performance: the page must stay usable on a laptop; load 3D lazily (only when the 3D button is pressed) and fall back quietly if WebGL is missing.
 - Decision time below: if the 3D view is not working by then, ship the UI improvements only.
 
-## Karar saatleri (yarım kalmasın)
+## Decision times (nothing left half-done)
 
-Riskli her işin bir karar saati var; o saatte çalışmıyorsa B planına geçilir. Tam liste ekip planında, özet:
+Every risky task has a decision time; if it does not work by then, switch to plan B. The full list is in the team plan; summary:
 
-| İş | Sahibi | Karar | B planı |
+| Task | Owner | Decide by | Plan B |
 |---|---|---|---|
-| 1 m DEM kapsaması | Demir | Cmt 13:30 | HiRISE DTM ya da bbox kaydırma |
-| MSL traverse | Egemen | Cmt 13:30 | Mars Trek'ten elle 10–15 nokta |
-| Curiosity görüntü API'si | Egemen | Cmt 14:30 | Raw Images sitesinden elle 8–10 URL |
-| Horizons Mars yüzeyi | Serdar | Cmt 14:30 | Mars24 algoritmasıyla analitik Güneş açısı |
-| USGS GeoJSON | Serdar | Cmt 16:00 | Bırakılır, Trek jeoloji katmanı kalır |
-| REMS | Egemen | Cmt 16:30 | Tipik günlük eğri, "yaklaşık" etiketli |
-| Rota | Demir | Cmt 19:30 | 2 m DEM; olmazsa düz çizgi + eğim uyarısı |
-| `gdal_viewshed` / rvt-py | Utku | Cmt 19:30 | numpy ile 8 yönde ufuk açısı ve basit görüş hattı; olmazsa sadece radyo gölgesi |
-| Uçtan uca demo | Ege | Cmt 23:30 | Ek modüller iptal, herkes entegrasyona |
-| HUD tamamı | Serdar | Paz 03:00 | 23:00'teki HUD MVP |
+| 1 m DEM coverage | Demir | Sat 13:30 | HiRISE DTM or shift the bbox |
+| MSL traverse | Egemen | Sat 13:30 | 10–15 points by hand from Mars Trek |
+| Curiosity image API | Egemen | Sat 14:30 | 8–10 URLs by hand from the Raw Images site |
+| Horizons Mars surface | Serdar | Sat 14:30 | Analytic Sun angle with the Mars24 algorithm |
+| USGS GeoJSON | Serdar | Sat 16:00 | Drop it; keep the Trek geology layer |
+| REMS | Egemen | Sat 16:30 | Typical daily curve, labelled "approximate" |
+| Route | Demir | Sat 19:30 | 2 m DEM; otherwise a straight line + slope warning |
+| `gdal_viewshed` / rvt-py | Utku | Sat 19:30 | Horizon angle in 8 directions and a simple line of sight with numpy; otherwise radio shadow only |
 | 3D view MVP | Egemen | Sat 23:00 | UI improvements only, 3D button hidden |
+| End-to-end demo | Ege | Sat 23:30 | Extra modules cancelled, everyone on integration |
+| Full HUD | Serdar | Sun 03:00 | The 23:00 HUD MVP |
 
-30 dakikadan fazla aynı sorunda takılırsan gruba yaz. Claude olarak, kullanıcı karar saatini geçmiş bir işte takılıyorsa B planını hatırlat.
+If you are stuck on the same problem for more than 30 minutes, tell the group. As Claude, if the user is stuck on a task past its decision time, remind them of plan B.
 
-## Koordinat ve birim kuralları
+## Coordinate and unit rules
 
-- JSON'da noktalar her zaman **[lon, lat]** sırasında (GeoJSON standardı).
-- Bbox her zaman isimli alanlarla yazılır: `{west, south, east, north}`. Dizi halinde bbox kullanma.
-- Leaflet [lat, lon] bekler. Dönüşüm sadece `web/js/map/geo.js` içindeki `toLatLng()` helper'ında yapılır.
-- Birim alan adında yazar: `_m`, `_min`, `_deg`, `_mSv`, `_pct`, `_c`. Gy (emilen doz) ile Sv (doz eşdeğeri) asla karıştırılmaz.
+- Points in JSON are always **[lon, lat]** (GeoJSON standard).
+- A bbox is always written with named fields: `{west, south, east, north}`. Never use an array bbox.
+- Leaflet expects [lat, lon]. The conversion happens only in the `toLatLng()` helper in `web/js/map/geo.js`.
+- The unit goes in the field name: `_m`, `_min`, `_deg`, `_mSv`, `_pct`, `_c`. Gy (absorbed dose) and Sv (dose equivalent) are never mixed.
 - Mars CRS (rasterio/pyproj):
-  - Coğrafi: `+proj=longlat +R=3396190 +no_defs` (PROJ destekliyorsa `IAU_2015:49900`)
-  - Metrik hesap: `+proj=eqc +lat_ts=0 +lon_0=0 +R=3396190 +units=m +no_defs`
-- **Eğim, mesafe, maliyet her zaman metre cinsinden projeksiyonlu gridde hesaplanır.** Sadece görselleştirme PNG'si coğrafi grid'e warp edilir. PNG sınırları `overlays.json`'daki `bounds` ile birebir aynı olmalı.
+  - Geographic: `+proj=longlat +R=3396190 +no_defs` (`IAU_2015:49900` if PROJ supports it)
+  - Metric: `+proj=eqc +lat_ts=0 +lon_0=0 +R=3396190 +units=m +no_defs`
+- **Slope, distance and cost are always computed in metres on a projected grid.** Only the visualisation PNG is warped to the geographic grid. PNG bounds must match `bounds` in `overlays.json` exactly.
 
-## Görev sabitleri
+## Mission constants
 
-Tüm eşikler `config/mission.json`'dan okunur. Kodda sihirli sayı yazma. Başlangıç değerleri (Utku değiştirebilir):
+Every threshold is read from `config/mission.json` (Utku). Never write magic numbers in code. The full list, with sources and reasoning, is in `docs/story/assumptions.md`; the main values:
 
 ```json
 {
@@ -213,6 +219,8 @@ Tüm eşikler `config/mission.json`'dan okunur. Kodda sihirli sayı yazma. Başl
   "slope_warn_deg": 15,
   "slope_max_deg": 25,
   "eva_nominal_hours": 8,
+  "eva_min_sun_el_deg": 15,
+  "eva_min_temp_c": -40,
   "o2_reserve_pct": 25,
   "rad_base_mSv_per_day": 0.64,
   "dem_resolution_m": 1,
@@ -220,74 +228,80 @@ Tüm eşikler `config/mission.json`'dan okunur. Kodda sihirli sayı yazma. Başl
 }
 ```
 
-- O2 modeli `science/models.py` içinde. Demir import eder, kendi modelini yazmaz.
-- Varsayımların hepsi `docs/story/assumptions.md`'ye yazılır; sunumda açıkça gösterilecek.
+- The O2 and dose models are in `science/models.py`. Demir imports them and does not write a separate model.
+- Every assumption goes into `docs/story/assumptions.md`; it will be shown openly in the presentation.
 
-## Teknik yığın
+## Tech stack
 
-- **Python 3.11:** `rasterio`, `numpy`, `scikit-image` (`MCP_Geometric`, `route_through_array`), `pyproj`, `requests`, `python-dotenv`. GDAL CLI (`gdalwarp`, `gdal_viewshed`).
-- **Frontend:** Build adımı olmayan düz HTML + ES modules, Leaflet, Chart.js (CDN). GitHub Pages `web/` klasöründen yayınlanır.
-- **Mars Trek tile'ları:** Harita `crs: L.CRS.EPSG4326` ile kurulur. URL sırası `{z}/{y}/{x}` (TileMatrix/TileRow/TileCol, x ve y ters):
+- **Python 3.11:** `rasterio`, `numpy`, `scipy`, `scikit-image` (`MCP_Geometric`, `route_through_array`), `pyproj`, `requests`, `python-dotenv`, `matplotlib`, `Pillow`. GDAL CLI (`gdalwarp`, `gdal_viewshed`).
+- **Frontend:** plain HTML + ES modules with no build step, Leaflet, Chart.js (CDN). GitHub Pages publishes the `web/` folder.
+- **Mars Trek tiles:** the map uses the EPSG4326 tile scheme (with the Mars radius, so distances are right). URL order is `{z}/{y}/{x}` (TileMatrix/TileRow/TileCol, x and y swapped):
   ```
   https://trek.nasa.gov/tiles/Mars/EQ/<Layer>/1.0.0/default/default028mm/{z}/{y}/{x}.jpg
   ```
-  Uzantı katmana göre jpg ya da png. Bunun için `layers.json`'daki `format` alanını kullan.
+  The extension is jpg or png depending on the layer; use the `format` field in `layers.json`.
 
-## Yapılacaklar ve yapılmayacaklar
+## Do and don't
 
-- **Tarayıcıdan dış API çağırma.** Horizons, Curiosity ham görüntü API'si ve DONKI Python script'leriyle önceden çekilip `web/data/`'ya JSON olarak yazılır (CORS ve key güvenliği). İstisna sadece Mars Trek tile'ları ve fotoğraf URL'leri (img olarak).
-- **API key asla JS'e ya da repoya girmez.** Key `.env`'de durur, `.env.example` repoda olur. GitHub Pages statik olduğu için JS'teki her key herkese açıktır.
-- **Her script tekrar çalıştırılabilir olmalı:** `python -m pipeline.fetch.donki` gibi, girdi `area.json` ve `config/mission.json`, çıktı `web/data/`.
-- **Canlı veri boş gelebilir.** DONKI için her zaman `replay` modu (20 Mayıs 2024 olayı, Curiosity RAD 8.100 µGy) çalışır durumda olmalı.
-- **DEM'de NoData boşlukları** maliyet haritasında geçilmez (`inf`) sayılır, 0 değil.
-- **Fotoğraflar indirilmez,** URL ile gösterilir. Her fotoğrafta kredi görünür: "NASA/JPL-Caltech" (Mastcam için "NASA/JPL-Caltech/MSSS").
-- **Frontend her `web/data/` dosyası eksik ya da bozuk olsa da açılmalı.** Hatayı konsola yaz, arayüzü çökertme.
-- **Kod dondurmadan sonra** yeni özellik, yeni bağımlılık ya da şema değişikliği yok.
+- **Never call external APIs from the browser.** Horizons, the Curiosity raw image API and DONKI are fetched ahead of time by the Python scripts and written to `web/data/` as JSON (CORS and key safety). The only exceptions are Mars Trek tiles and photo URLs (as images).
+- **An API key never goes into JS or the repo.** The key lives in `.env`; `.env.example` is in the repo. GitHub Pages is static, so any key in JS is public.
+- **Every script must be re-runnable:** like `python -m pipeline.fetch.donki`, input `area.json` and `config/mission.json`, output `web/data/`.
+- **Live data can come back empty.** For DONKI, the `replay` mode (the 20 May 2024 event, Curiosity RAD 8,100 µGy) must always work.
+- **NoData gaps in the DEM** count as impassable (`inf`) in the cost map, never 0.
+- **Photos are never downloaded;** they are shown by URL. Every photo shows its credit: "NASA/JPL-Caltech" ("NASA/JPL-Caltech/MSSS" for Mastcam).
+- **The frontend must open even if any `web/data/` file is missing or broken.** Log the error to the console; never crash the UI.
+- **After the code freeze:** no new features, no new dependencies, no schema changes.
 
-## Komutlar
+## Commands
 
 ```bash
-# Python ortamı
-python -m venv .venv && source .venv/bin/activate
+# Python environment
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env   # NASA_API_KEY=...
 
-# Services (Utku)
+# Services and mocks (Utku)
 python -m pipeline.fetch.trek
 python -m pipeline.fetch.tiles
+python -m science.mocks.make_mocks     # writes only missing mock files
+python -m science.mocks.check_mocks
 
-# Veri (Egemen)
+# Data (Egemen)
 python -m pipeline.fetch.curiosity
 python -m pipeline.fetch.rems
 
-# Horizons ve EVA (Serdar)
+# Horizons, EVA and geology (Serdar)
 python -m pipeline.fetch.horizons
 python -m science.eva.build
 python -m pipeline.fetch.usgs
 
-# Arazi (Demir)
+# Terrain (Demir), in this order
 python -m arazi.fetch_dem
-python -m arazi.build_overlays
+python -m arazi.slope
+python -m arazi.cost
+python -m arazi.overlays
 python -m arazi.route
+python -m arazi.return_rings
 
-# Bilim (Utku)
+# Science (Utku)
+python -m science.models               # prints and checks the model values
 python -m pipeline.fetch.donki
-python -m science.safety.build    # dem_clip.tif + route.geojson gerekir
+python -m science.safety.build         # needs dem_clip.tif + route.geojson
 python -m science.build_all
 
-# Yerel önizleme: herkes kendi bilgisayarında, kendi branch'ini görür
+# Local preview: everyone sees their own branch on their own machine
 python -m http.server 8000 -d web      # → http://localhost:8000
 ```
 
-- `file://` ile açma: ES modules ve `fetch('data/...')` çalışmaz, yerel server şart.
-- Ortak ve güncel sürüm GitHub Pages'tir (`main`). Paylaşılan link her zaman Pages linkidir.
-- Merge öncesi entegrasyon kontrolü gerekirse Ege kendi makinesinde `python -m http.server 8000 -d web --bind 0.0.0.0` açar, diğerleri `http://<Ege'nin IP'si>:8000` ile bakar. Bu sadece geçici bakış içindir; hackathon Wi-Fi'ı cihazlar arası erişimi engelleyebilir.
+- Do not open the site with `file://`: ES modules and `fetch('data/...')` do not work without a local server.
+- The shared, current version is GitHub Pages (`main`). The link we share is always the Pages link.
+- If an integration check is needed before a merge, Ege runs `python -m http.server 8000 -d web --bind 0.0.0.0` on Ege's machine and the others open `http://<Ege's IP>:8000`. This is only for a quick look; the hackathon Wi-Fi may block device-to-device traffic.
 
-## Bağlantılar
+## Links
 
-- Challenge sayfası ve kaynaklar: Mars Trek (trek.nasa.gov/mars), USGS Planetary Geologic Mapping, Curiosity Raw Images
+- Challenge page and resources: Mars Trek (trek.nasa.gov/mars), USGS Planetary Geologic Mapping, Curiosity Raw Images
 - Mars Trek API: https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars
 - JPL Horizons API: https://ssd-api.jpl.nasa.gov/doc/horizons.html
-- DONKI: https://api.nasa.gov (DONKI bölümü)
+- DONKI: https://api.nasa.gov (DONKI section)
 - PDS Imaging: https://pds-imaging.jpl.nasa.gov
-- Ekip planı (görevler ve saatler): https://claude.ai/artifact/1wpy7V7LKhvZvTu8fTajC1
+- Team plan (tasks and times): https://claude.ai/artifact/1wpy7V7LKhvZvTu8fTajC1

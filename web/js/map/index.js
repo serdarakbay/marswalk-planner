@@ -104,6 +104,9 @@ function coordsControl(map) {
 // Lat/lon grid that picks a round step for the current zoom
 const GRID_STEPS = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005];
 
+// Pixel margins kept free of grid labels (see the control positions in initMap)
+const GRID_LABEL_MARGIN = { left: 48, right: 64, top: 28, bottom: 76 };
+
 function gridLayer(map) {
   const group = L.featureGroup();
   const style = { color: cssVar('--color-text-muted'), weight: 1, opacity: 0.35, interactive: false };
@@ -119,12 +122,20 @@ function gridLayer(map) {
       // Leaflet positions the icon with a CSS transform, so the offset goes on the inner span
       icon: L.divIcon({ className: `map-grid-label ${cls}`, html: `<span>${text}</span>`, iconSize: [0, 0] }),
     });
+    // Skip labels that would sit under a map control or collide in a corner:
+    // zoom buttons top-right, cursor coordinates and scale bottom-left.
+    const size = map.getSize();
+    const px = (latlng) => map.latLngToContainerPoint(latlng);
     for (let lon = Math.ceil(b.getWest() / step) * step; lon <= b.getEast(); lon += step) {
       group.addLayer(L.polyline([[b.getSouth(), lon], [b.getNorth(), lon]], style));
+      const { x } = px([b.getNorth(), lon]);
+      if (x < GRID_LABEL_MARGIN.left || x > size.x - GRID_LABEL_MARGIN.right) continue;
       group.addLayer(label(`${lon.toFixed(digits)}°E`, [b.getNorth(), lon], 'is-lon'));
     }
     for (let lat = Math.ceil(b.getSouth() / step) * step; lat <= b.getNorth(); lat += step) {
       group.addLayer(L.polyline([[lat, b.getWest()], [lat, b.getEast()]], style));
+      const { y } = px([lat, b.getWest()]);
+      if (y < GRID_LABEL_MARGIN.top || y > size.y - GRID_LABEL_MARGIN.bottom) continue;
       const ns = lat < 0 ? 'S' : 'N';
       group.addLayer(label(`${Math.abs(lat).toFixed(digits)}°${ns}`, [lat, b.getWest()], 'is-lat'));
     }
@@ -286,8 +297,11 @@ export function initMap(state, mapEl) {
     maxZoom: MAX_ZOOM,
     zoomSnap: 0.5,
     attributionControl: true,
+    zoomControl: false,
   });
   map.attributionControl.setPrefix(false);
+  // Zoom buttons top-right: the top and left edges carry the grid labels
+  L.control.zoom({ position: 'topright' }).addTo(map);
   L.control.scale({ imperial: false }).addTo(map);
   coordsControl(map);
 
