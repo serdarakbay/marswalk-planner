@@ -110,6 +110,36 @@ kbd {
 .app-header .subtitle { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
 .app-header .actions { margin-left: auto; display: flex; gap: var(--space-2); }
 
+/* Mission status chips in the header (main.js) */
+.status-strip {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+.status-chip {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 2px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.status-label { color: var(--color-text-muted); }
+.status-value { font-family: var(--font-mono); color: var(--color-text); }
+.status-chip.is-ok { border-color: var(--color-ok); }
+.status-chip.is-warn { border-color: var(--color-warn); }
+.status-chip.is-warn .status-value { color: var(--color-warn); }
+.status-chip.is-danger { border-color: var(--color-danger); }
+.status-chip.is-danger .status-value { color: var(--color-danger); }
+.status-chip .status-value { text-transform: capitalize; }
+.status-chip:not(.is-ok):not(.is-warn):not(.is-danger) .status-value { text-transform: none; }
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -213,6 +243,22 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
 
 /* ---- Layer panel (#panel, drawn by map/index.js) ---- */
 
+/* Collapsible panel groups */
+.panel-group { margin-bottom: var(--space-4); }
+.panel-group > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--space-2); }
+.panel-group > summary::-webkit-details-marker { display: none; }
+.panel-group > summary::before {
+  content: "";
+  width: 0; height: 0;
+  border-left: 5px solid var(--color-text-muted);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s;
+}
+.panel-group[open] > summary::before { transform: rotate(90deg); }
+.panel-group .layer-list { margin-bottom: 0; }
+.layer-opacity[hidden], .layer-legend[hidden] { display: none; }
+
 .panel-title {
   margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
@@ -270,6 +316,30 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
   color: var(--color-text) !important;
   border-color: var(--color-text-muted) !important;
 }
+/* Stop and habitat badges (map/index.js) */
+.stop-pin {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-sand);
+  color: var(--color-text-inverse);
+  border: 2px solid var(--color-bg);
+  box-shadow: var(--shadow);
+  font: 600 var(--text-xs)/1 var(--font-sans);
+  transition: transform 0.15s;
+}
+.stop-pin:hover, .stop-pin:focus-visible { transform: scale(1.15); }
+.stop-pin.is-selected { background: var(--color-accent); color: var(--color-text); transform: scale(1.25); }
+.habitat-pin {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-text);
+  border: 2px solid var(--color-text);
+  box-shadow: var(--shadow);
+}
+
 /* Storm replay: nearest shelter (map/index.js) */
 .shelter-alert { animation: shelter-pulse 1.2s ease-in-out infinite; }
 @keyframes shelter-pulse { 50% { stroke-opacity: 0.25; } }
@@ -332,6 +402,7 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
 @media (max-width: 900px) {
   .app { height: auto; min-height: 100%; }
   .app-header .subtitle { display: none; }
+  .status-strip { display: none; }
   .app-main { grid-template-columns: 1fr; }
   .map-wrap { grid-template-rows: 60vh var(--profile-h); }
   #panel { border-right: 0; border-bottom: 1px solid var(--color-border); }

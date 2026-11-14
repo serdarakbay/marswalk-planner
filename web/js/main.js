@@ -53,6 +53,45 @@ async function startModule(name, path, initName, el) {
 
 const state = await loadState();
 
+// Mission status chips in the header, from whatever data is available
+function fmtMin(min) {
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min`;
+}
+
+function renderStatus(s) {
+  const chips = [];
+  if (s.eva?.start_lmst && s.eva?.end_lmst) {
+    chips.push({ label: 'EVA window', value: `${s.eva.start_lmst}–${s.eva.end_lmst} LMST`, title: s.eva.reason });
+  }
+  if (Number.isFinite(s.summary?.distance_m) && Number.isFinite(s.summary?.duration_min)) {
+    chips.push({ label: 'Route', value: `${(s.summary.distance_m / 1000).toFixed(2)} km · ${fmtMin(s.summary.duration_min)}` });
+  }
+  if (Number.isFinite(s.summary?.o2_used_pct)) {
+    chips.push({ label: 'O2 used', value: `${s.summary.o2_used_pct.toFixed(1)}%` });
+  }
+  if (s.radiation?.status) {
+    const level = { nominal: 'ok', elevated: 'warn', storm: 'danger' }[s.radiation.status] || 'info';
+    chips.push({ label: 'Radiation', value: s.radiation.status, title: s.radiation.message, level });
+  }
+  const list = document.getElementById('mission-status');
+  list.replaceChildren(...chips.map(({ label, value, title, level }) => {
+    const li = document.createElement('li');
+    li.className = `status-chip${level ? ` is-${level}` : ''}`;
+    if (title) li.title = title;
+    const k = document.createElement('span');
+    k.className = 'status-label';
+    k.textContent = label;
+    const v = document.createElement('span');
+    v.className = 'status-value';
+    v.textContent = value;
+    li.append(k, v);
+    return li;
+  }));
+}
+renderStatus(state);
+
 document.getElementById('hud-toggle').addEventListener('click', () => {
   document.dispatchEvent(new CustomEvent('hud:toggle'));
 });

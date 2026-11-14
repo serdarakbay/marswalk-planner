@@ -232,12 +232,12 @@ function el(tag, attrs = {}, ...children) {
     else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v);
   }
-  node.append(...children);
+  node.append(...children.filter((c) => c !== null && c !== undefined && c !== ''));
   return node;
 }
 
 function legendEl(legend) {
-  if (!legend?.length) return '';
+  if (!legend?.length) return null;
   return el('ul', { class: 'layer-legend' },
     ...legend.map((item) => {
       const swatch = el('span', { class: 'swatch' });
@@ -246,12 +246,41 @@ function legendEl(legend) {
     }));
 }
 
+// Habitat badge icon (simple house outline; colours come from base.css via currentColor)
+const HABITAT_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">'
+  + '<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z" fill="currentColor"/></svg>';
+
+// Panel groups, in display order. Each overlay carries its group from where it was added.
+const PANEL_GROUPS = ['Imagery', 'Terrain', 'Safety', 'Science', 'Mission'];
+
+function overlayItem(map, { meta, layer, on }) {
+  const box = el('input', { type: 'checkbox', value: meta.id });
+  box.checked = Boolean(on);
+  const opacity = el('input', {
+    type: 'range', min: '0', max: '1', step: '0.05', value: String(layer.options.opacity ?? 1),
+    'aria-label': `${meta.name} opacity`, class: 'layer-opacity',
+  });
+  const legend = legendEl(meta.legend);
+  // Opacity and legend only show while the layer is on, so the panel stays short
+  const sync = () => {
+    opacity.hidden = !box.checked;
+    if (legend) legend.hidden = !box.checked;
+  };
+  box.addEventListener('change', () => {
+    if (box.checked) layer.addTo(map); else map.removeLayer(layer);
+    sync();
+  });
+  opacity.addEventListener('input', () => setLayerOpacity(layer, Number(opacity.value)));
+  sync();
+  return el('div', { class: 'layer-item' },
+    el('label', { class: 'layer-row' }, box, el('span', {}, meta.name)), opacity, legend);
+}
+
 function buildPanel(panel, map, bases, overlays) {
-  // overlays: [{meta, layer, on}] — layers with on=true start switched on
+  // overlays: [{meta, layer, on, group}] — layers with on=true start switched on
   panel.replaceChildren();
 
   if (bases.length) {
-    panel.append(el('h2', { class: 'panel-title' }, 'Base map'));
     const list = el('div', { class: 'layer-list', role: 'radiogroup', 'aria-label': 'Base map' });
     bases.forEach(({ meta, layer }, i) => {
       const input = el('input', { type: 'radio', name: 'base', value: meta.id });
@@ -262,31 +291,20 @@ function buildPanel(panel, map, bases, overlays) {
       });
       list.append(el('label', { class: 'layer-row' }, input, el('span', {}, meta.name)));
     });
-    panel.append(list);
+    const section = el('details', { class: 'panel-group' }, el('summary', { class: 'panel-title' }, 'Base map'), list);
+    section.open = true;
+    panel.append(section);
   }
 
-  if (overlays.length) {
-    panel.append(el('h2', { class: 'panel-title' }, 'Layers'));
-    const list = el('div', { class: 'layer-list' });
-    for (const { meta, layer, on } of overlays) {
-      const box = el('input', { type: 'checkbox', value: meta.id });
-      box.checked = Boolean(on);
-      const opacity = el('input', {
-        type: 'range', min: '0', max: '1', step: '0.05', value: String(layer.options.opacity ?? 1),
-        'aria-label': `${meta.name} opacity`, class: 'layer-opacity',
-      });
-      opacity.disabled = !box.checked;
-      box.addEventListener('change', () => {
-        if (box.checked) layer.addTo(map); else map.removeLayer(layer);
-        opacity.disabled = !box.checked;
-      });
-      opacity.addEventListener('input', () => setLayerOpacity(layer, Number(opacity.value)));
-      list.append(el('div', { class: 'layer-item' },
-        el('label', { class: 'layer-row' }, box, el('span', {}, meta.name)),
-        opacity,
-        legendEl(meta.legend)));
-    }
-    panel.append(list);
+  const groups = [...PANEL_GROUPS, ...new Set(overlays.map((o) => o.group).filter((g) => !PANEL_GROUPS.includes(g)))];
+  for (const name of groups) {
+    const items = overlays.filter((o) => (o.group || 'Mission') === name);
+    if (!items.length) continue;
+    const section = el('details', { class: 'panel-group' },
+      el('summary', { class: 'panel-title' }, name),
+      el('div', { class: 'layer-list' }, ...items.map((o) => overlayItem(map, o))));
+    section.open = true;
+    panel.append(section);
   }
 }
 
@@ -308,13 +326,17 @@ export function initMap(state, mapEl) {
   // Base layers and tile overlays (layers.json)
   const layers = state.layers || [];
   const bases = layers.filter((l) => l.type === 'base').map((meta) => ({ meta, layer: tileLayer(meta) }));
-  const overlays = layers.filter((l) => l.type === 'overlay').map((meta) => ({ meta, layer: tileLayer(meta) }));
+  const overlays = layers.filter((l) => l.type === 'overlay')
+    .map((meta) => ({ meta, layer: tileLayer(meta), group: 'Imagery' }));
   bases[0]?.layer.addTo(map);
   overlays.forEach((o) => o.layer.setOpacity(0.6));
 
   // PNG overlays (overlays.json + safety.json), same schema
-  for (const ov of [...(state.overlays || []), ...(state.safety?.overlays || [])]) {
-    if (ov?.png && ov?.bounds) overlays.push({ meta: ov, layer: imageLayer(ov) });
+  for (const ov of state.overlays || []) {
+    if (ov?.png && ov?.bounds) overlays.push({ meta: ov, layer: imageLayer(ov), group: 'Terrain' });
+  }
+  for (const ov of state.safety?.overlays || []) {
+    if (ov?.png && ov?.bounds) overlays.push({ meta: ov, layer: imageLayer(ov), group: 'Safety' });
   }
 
   // Vector layers are built first and added after the view is set: Leaflet circle
@@ -331,7 +353,7 @@ export function initMap(state, mapEl) {
     });
     extent.extend(traverse.getBounds());
     vectors.push(traverse);
-    overlays.push({ meta: { id: 'traverse', name: 'Curiosity traverse' }, layer: traverse, on: true });
+    overlays.push({ meta: { id: 'traverse', name: 'Curiosity traverse' }, layer: traverse, on: true, group: 'Mission' });
   }
 
   // Geologic map (geology.geojson), off by default
@@ -339,14 +361,14 @@ export function initMap(state, mapEl) {
     // Own pane under the route and stops so the polygons never block stop clicks
     map.createPane('geology').style.zIndex = 350;
     const { layer, legend } = geologyLayer(state.geology, 'geology');
-    overlays.push({ meta: { id: 'geology', name: 'Geologic units', legend }, layer });
+    overlays.push({ meta: { id: 'geology', name: 'Geologic units', legend }, layer, group: 'Science' });
   }
 
   // Shelters from safety.json, on by default
   if (Array.isArray(state.safety?.shelters) && state.safety.shelters.length) {
     const shelters = shelterLayer(state.safety.shelters);
     vectors.push(shelters);
-    overlays.push({ meta: { id: 'shelters', name: 'Shelters' }, layer: shelters, on: true });
+    overlays.push({ meta: { id: 'shelters', name: 'Shelters' }, layer: shelters, on: true, group: 'Safety' });
   }
 
   // Planned Marswalk route (Demir)
@@ -359,27 +381,27 @@ export function initMap(state, mapEl) {
     vectors.push(route);
   }
 
-  // Habitat
+  // Habitat: house badge
   if (Array.isArray(state.area?.habitat)) {
-    vectors.push(L.circleMarker(toLatLng(state.area.habitat), {
-      radius: 7, color: cssVar('--color-text'), weight: 2,
-      fillColor: cssVar('--color-accent'), fillOpacity: 1,
-    }).bindTooltip('Habitat'));
+    vectors.push(L.marker(toLatLng(state.area.habitat), {
+      icon: L.divIcon({ className: 'habitat-pin', html: HABITAT_SVG, iconSize: [28, 28], iconAnchor: [14, 14] }),
+      title: 'Habitat', alt: 'Habitat', zIndexOffset: 500,
+    }).bindTooltip('Habitat', { direction: 'top', offset: [0, -14] }));
   }
 
-  // Stops: click dispatches 'stop:select'
+  // Stops: numbered badges in route order; click or Enter dispatches 'stop:select'
   if (Array.isArray(state.stops)) {
-    const sand = cssVar('--color-sand');
-    const accent = cssVar('--color-accent');
     const markers = [];
     state.stops.forEach((stop, i) => {
       if (!Array.isArray(stop.coord)) return;
-      const m = L.circleMarker(toLatLng(stop.coord), {
-        radius: 6, color: cssVar('--color-bg'), weight: 2, fillColor: sand, fillOpacity: 1,
-      }).bindTooltip(`${i + 1}. ${stop.name ?? stop.id}`);
+      const name = stop.name ?? stop.id;
+      const m = L.marker(toLatLng(stop.coord), {
+        icon: L.divIcon({ className: 'stop-pin', html: `<span>${i + 1}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] }),
+        title: `Stop ${i + 1}: ${name}`, alt: `Stop ${i + 1}: ${name}`, zIndexOffset: 1000,
+      }).bindTooltip(`${i + 1}. ${name}`, { direction: 'top', offset: [0, -12] });
       m.on('click', () => {
-        markers.forEach((x) => x.setStyle({ fillColor: sand, radius: 6 }));
-        m.setStyle({ fillColor: accent, radius: 8 });
+        markers.forEach((x) => x.getElement()?.classList.remove('is-selected'));
+        m.getElement()?.classList.add('is-selected');
         document.dispatchEvent(new CustomEvent('stop:select', { detail: stop }));
       });
       markers.push(m);
@@ -402,7 +424,7 @@ export function initMap(state, mapEl) {
 
   // Lat/lon grid, switchable from the layer panel
   const grid = gridLayer(map);
-  overlays.push({ meta: { id: 'grid', name: 'Lat/lon grid' }, layer: grid, on: true });
+  overlays.push({ meta: { id: 'grid', name: 'Lat/lon grid' }, layer: grid, on: true, group: 'Mission' });
   grid.addTo(map);
 
   const panel = document.getElementById('panel');
