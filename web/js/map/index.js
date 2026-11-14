@@ -140,15 +140,20 @@ export function initMap(state, mapEl) {
     if (ov?.png && ov?.bounds) overlays.push({ meta: ov, layer: imageLayer(ov) });
   }
 
-  // Curiosity's actual traverse
+  // Vector layers are built first and added after the view is set: Leaflet circle
+  // markers throw if they are added to a map that has no center/zoom yet.
   const extent = L.latLngBounds([]);
+  const vectors = [];
+
+  // Curiosity's actual traverse
   if (state.traverse) {
     const traverse = L.geoJSON(state.traverse, {
       coordsToLatLng,
       style: { color: cssVar('--color-info'), weight: 2, opacity: 0.9, dashArray: '4 4' },
       interactive: false,
-    }).addTo(map);
+    });
     extent.extend(traverse.getBounds());
+    vectors.push(traverse);
     overlays.push({ meta: { id: 'traverse', name: 'Curiosity traverse' }, layer: traverse, on: true });
   }
 
@@ -157,16 +162,17 @@ export function initMap(state, mapEl) {
     const route = L.geoJSON(state.route, {
       coordsToLatLng,
       style: { color: cssVar('--color-accent'), weight: 4, opacity: 0.95 },
-    }).addTo(map);
+    });
     extent.extend(route.getBounds());
+    vectors.push(route);
   }
 
   // Habitat
   if (Array.isArray(state.area?.habitat)) {
-    L.circleMarker(toLatLng(state.area.habitat), {
+    vectors.push(L.circleMarker(toLatLng(state.area.habitat), {
       radius: 7, color: cssVar('--color-text'), weight: 2,
       fillColor: cssVar('--color-accent'), fillOpacity: 1,
-    }).bindTooltip('Habitat').addTo(map);
+    }).bindTooltip('Habitat'));
   }
 
   // Stops: click dispatches 'stop:select'
@@ -178,7 +184,7 @@ export function initMap(state, mapEl) {
       if (!Array.isArray(stop.coord)) return;
       const m = L.circleMarker(toLatLng(stop.coord), {
         radius: 6, color: cssVar('--color-bg'), weight: 2, fillColor: sand, fillOpacity: 1,
-      }).bindTooltip(`${i + 1}. ${stop.name ?? stop.id}`).addTo(map);
+      }).bindTooltip(`${i + 1}. ${stop.name ?? stop.id}`);
       m.on('click', () => {
         markers.forEach((x) => x.setStyle({ fillColor: sand, radius: 6 }));
         m.setStyle({ fillColor: accent, radius: 8 });
@@ -187,11 +193,13 @@ export function initMap(state, mapEl) {
       markers.push(m);
       extent.extend(m.getLatLng());
     });
+    vectors.push(...markers);
   }
 
   const bounds = initialBounds(state, extent);
   if (bounds) map.fitBounds(bounds, { padding: [16, 16] });
   else map.setView([0, 0], 3);
+  vectors.forEach((v) => v.addTo(map));
 
   const panel = document.getElementById('panel');
   if (panel) buildPanel(panel, map, bases, overlays);
