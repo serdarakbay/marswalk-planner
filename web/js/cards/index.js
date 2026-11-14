@@ -300,7 +300,8 @@ export function initCards(state, el) {
     const coord = fmtCoord(stop.coord);
     let arrival = null;
     try { arrival = arrivalInfo(stop, st); } catch (err) { console.error('[cards] arrival failed', err); }
-    card.replaceChildren(
+    // replaceChildren() would print "null" for missing blocks, so drop them first
+    card.replaceChildren(...[
       h('header', { class: 'mm-card__head' },
         h('div', {},
           h('p', { class: 'mm-card__kicker' }, stop.id != null ? `Stop ${stop.id}` : 'Stop'),
@@ -313,7 +314,7 @@ export function initCards(state, el) {
         h('span', { class: 'mm-card__label' }, 'Science'),
         h('p', {}, stop.science)) : null,
       weatherChart(st.weather, st.eva, arrival?.lmst_h ?? null),
-    );
+    ].filter(Boolean));
   }
 
   function show(stop) {
