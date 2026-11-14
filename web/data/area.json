@@ -1,0 +1,5 @@
+{
+ "bbox": {"west": 137.36, "south": -4.77, "east": 137.40, "north": -4.73},
+ "habitat": [137.396, -4.7655],
+ "crs": "+proj=longlat +R=3396190 +no_defs"
+}
