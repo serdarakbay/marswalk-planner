@@ -23,7 +23,7 @@ import {
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
-import { bestRefuge, isOutside, missionLog, refugeOptions, SCENARIO, simulate } from './scenario.js';
+import { bestRefuge, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
@@ -336,8 +336,9 @@ export function initHUD(state, el) {
       shelter_min: Number.isFinite(safe1?.shelter_min) ? safe1.shelter_min : null,
       eva_state: status?.state ?? null,
       at_habitat: atHabitat,
-      // "go to the shelter" rules make no sense once sheltered or inside
-      radiation_status: resting ? null : rad?.status ?? null,
+      // "go to the shelter" rules make no sense once sheltered or inside, and while the HUD
+      // already points to a specific refuge (scenario alert: "Take shelter S4: ...")
+      radiation_status: resting || (p && refugeGuided(p.mode)) ? null : rad?.status ?? null,
       radiation_message: rad?.message ?? null,
     };
     const alertBox = h('div', 'hud-alerts');

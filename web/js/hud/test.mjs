@@ -12,7 +12,7 @@ import {
   distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
-import { bestRefuge, missionLog, refugeOptions, simulate } from './scenario.js';
+import { bestRefuge, missionLog, refugeGuided, refugeOptions, simulate } from './scenario.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(here, '../../data');
@@ -152,6 +152,14 @@ test('storm: goes to the recommended refuge unless the crew picks another', () =
   assert.equal(sw.at(6.5).refuge.id, 'S1', 'heads to S1 after the switch');
   const modes = new Set(Array.from({ length: 480 }, (_, i) => sw.at(i * 0.25).mode));
   for (const m of ['sheltered', 'return', 'done']) assert.ok(modes.has(m), `mode ${m} seen`);
+});
+
+test('storm alert: generic rule hidden while the HUD guides to a refuge', () => {
+  const rules = { rules: [{ id: 'storm', metric: 'radiation_status', op: '==', value: 'storm', level: 'danger', text: 'Go to the nearest shelter' }] };
+  const shown = (mode) => evalAlerts(rules, { radiation_status: refugeGuided(mode) ? null : 'storm' }).length > 0;
+  assert.ok(shown('route'), 'shown while still on the route');
+  assert.ok(!shown('to_refuge'), 'hidden while heading to the refuge');
+  assert.ok(!shown('sheltered'), 'hidden while sheltered');
 });
 
 test('dust devil: hold position, then resume with a delay', () => {

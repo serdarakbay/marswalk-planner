@@ -34,6 +34,9 @@ export const SCENARIO = {
 
 const OUTSIDE = new Set(['route', 'hold', 'to_refuge', 'sheltered', 'return']);
 export const isOutside = (mode) => OUTSIDE.has(mode);
+// Heading to or waiting in a storm refuge: the HUD gives the exact refuge, so the generic
+// "go to the nearest shelter" storm alert (alerts.json) is not shown then.
+export const refugeGuided = (mode) => mode === 'to_refuge' || mode === 'sheltered';
 
 // Move `from` by `meters` on a bearing (degrees from north). Small distances: flat approximation.
 export function offset(from, bearing, meters, radiusM = 3396190) {
