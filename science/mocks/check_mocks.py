@@ -78,12 +78,54 @@ def overlay_list(lst, where):
         bbox_obj(ov["bounds"], f"{where}[{i}].bounds")
 
 
-def ring_ok(ring, where):
+def ring_ok(ring, where, real=False):
+    """Mocks: CCW and inside the bbox, or error. Real files: both are warnings only."""
     check(len(ring) >= 4 and ring[0] == ring[-1], f"{where}: ring not closed")
     area2 = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(ring, ring[1:]))
-    check(area2 > 0, f"{where}: exterior ring is not counter-clockwise (RFC 7946)")
-    for p in ring:
-        point(p, where)
+    msg = f"{where}: exterior ring is not counter-clockwise (RFC 7946)"
+    if real:
+        if area2 <= 0:
+            warnings.append(msg)
+        outside = sum(not inside_bbox(p) for p in ring)
+        if outside:
+            warnings.append(f"{where}: {outside} of {len(ring)} vertices outside the bbox")
+    else:
+        check(area2 > 0, msg)
+        for p in ring:
+            point(p, where)
+
+
+def inside_bbox(p):
+    return BBOX["west"] <= p[0] <= BBOX["east"] and BBOX["south"] <= p[1] <= BBOX["north"]
+
+
+def in_ring(p, ring):
+    """Point in polygon (ray casting)."""
+    x, y, hit = p[0], p[1], False
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
+
+
+def _cross(a, b, c, d):
+    def orient(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    return (orient(a, b, c) * orient(a, b, d) < 0) and (orient(c, d, a) * orient(c, d, b) < 0)
+
+
+def polygon_hits_bbox(rings):
+    """True if the polygon (outer ring minus holes) intersects the bbox."""
+    w, s, e, n = BBOX["west"], BBOX["south"], BBOX["east"], BBOX["north"]
+    box = [[w, s], [e, s], [e, n], [w, n], [w, s]]
+    outer, holes = rings[0], rings[1:]
+    if any(inside_bbox(p) for p in outer):
+        return True
+    if any(_cross(a, b, c, d) for a, b in zip(outer, outer[1:]) for c, d in zip(box, box[1:])):
+        return True
+    # bbox entirely inside the outer ring: intersects unless it sits entirely in a hole
+    corners_in = all(in_ring(c, outer) for c in box[:4])
+    return corners_in and not any(all(in_ring(c, h) for c in box[:4]) for h in holes)
 
 
 # area.json (real file, not a mock)
@@ -173,10 +215,18 @@ if all(nearest(st["coord"], coords)[1] <= NEAR_M for st in stops):
 geo = load("geology.geojson")
 marked(geo, "geology.geojson")
 check(geo.get("type") == "FeatureCollection", "geology: not a FeatureCollection")
+geo_real = not (geo.get("mock") is True or geo.get("source") == "MOCK")
+hits = []
 for i, f in enumerate(geo["features"]):
     check(f["geometry"]["type"] == "Polygon", f"geology[{i}]: not a Polygon")
     keys(f["properties"], ["unit", "name", "note"], f"geology[{i}].properties")
-    ring_ok(f["geometry"]["coordinates"][0], f"geology[{i}]")
+    ring_ok(f["geometry"]["coordinates"][0], f"geology[{i}]", real=geo_real)
+    hit = polygon_hits_bbox(f["geometry"]["coordinates"])
+    hits.append(hit)
+    if not hit:
+        warnings.append(f"geology[{i}] ({f['properties'].get('unit')}): does not intersect the bbox")
+check(any(hits), "geology: no polygon intersects the bbox")
+print(f"  geology: {sum(hits)} of {len(hits)} polygons intersect the bbox")
 
 # donki.json
 d = load("donki.json")
@@ -207,7 +257,7 @@ print("ERRORS:" if errors else "All files are valid JSON and match docs/contract
 for e in errors:
     print(" -", e)
 if warnings:
-    print("WARNINGS (mock vs real file mismatch):")
+    print("WARNINGS:")
 for w in warnings:
     print(" -", w)
 print(f"route: {len(coords)} vertices, {s['distance_m']} m, {s['duration_min']} min, "
