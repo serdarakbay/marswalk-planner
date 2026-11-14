@@ -165,3 +165,28 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
+
+/* nearby photos + arrival */
+#cards .mm-card__note {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+#cards .mm-card__dist { flex-basis: 100%; color: var(--color-sand); }
+#cards .mm-card__arrival { margin-bottom: var(--space-4); }
+#cards .mm-card__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+#cards .mm-card__stat {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+#cards .mm-card__stat-value { font-family: var(--font-mono); font-size: var(--text-md); font-weight: 600; white-space: nowrap; }
+#cards .mm-card__stat-label { font-size: var(--text-xs); color: var(--color-text-muted); }
+#cards .mm-card__chart-arrival { stroke: var(--color-info); stroke-width: 2; stroke-dasharray: 3 3; }

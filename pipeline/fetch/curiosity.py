@@ -8,6 +8,7 @@ Out:   web/data/traverse.geojson   Curiosity's path inside the bbox
        web/data/images.json        [{url, sol, camera, utc, site, drive, credit}]
                                    camera = instrument code (MAST_LEFT, MAHLI, ...)
                                    camera_name = display name (extra field)
+                                   coord = rover [lon, lat] that sol (extra field)
 
 Sources (no API key needed):
   - MSL traverse / waypoints : mars.nasa.gov MMGIS layers (GeoJSON)
@@ -237,6 +238,7 @@ def to_record(cam: str, it: dict, wps_sorted: list[dict]) -> dict:
         "camera": inst,
         "camera_name": cam,
         "utc": utc,
+        "coord": [rnd(pos["lon"]), rnd(pos["lat"])] if pos else None,
         "site": pos["site"] if pos else None,
         "drive": pos["drive"] if pos else None,
         "credit": credit,

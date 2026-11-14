@@ -5,11 +5,20 @@
 //   export function initCards(state, el)
 //   listens to document 'stop:select' (detail = stop from stops.json)
 //   stop = {id, name, coord[lon,lat], science, photos[{url, sol, camera, credit}]}
-// Uses state.weather (weather.json) and state.eva (eva_window.json) when present.
+// Reads (never writes) when present:
+//   state.images  (images.json, coord = rover position)  -> nearby photos if stop.photos is empty
+//   state.route   (route.geojson, properties.t_min[])    -> arrival time at the stop
+//   state.eva     (eva_window.json, start_lmst)          -> arrival LMST, EVA band on the chart
+//   state.weather (weather.json rows)                    -> temperature at arrival
 // Every input may be null/missing: the card degrades, it never throws.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DEFAULT_CREDIT = 'NASA/JPL-Caltech';
+const MARS_RADIUS_M = 3396190;          // same sphere as the project CRS
+const SOL_PER_DAY = 1.0274912517;        // 1 LMST hour = 1.0275 Earth hours
+const NEARBY_MAX_M = 300;                // Curiosity photos within this distance count as "near the stop"
+const NEARBY_MAX_PHOTOS = 6;
+const ROUTE_SNAP_MAX_M = 150;            // stop must be this close to the route to get an arrival time
 
 function h(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -36,6 +45,90 @@ const lmstToH = (str) => {
   const m = /^(\d{1,2}):(\d{2})/.exec(str || '');
   return m ? Number(m[1]) + Number(m[2]) / 60 : null;
 };
+
+function validCoord(c) {
+  return Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1]));
+}
+
+// Great-circle distance in metres between two [lon, lat] points on the Mars sphere.
+function distM(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * rad, dLon = (b[0] - a[0]) * rad;
+  const q = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * MARS_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(q)));
+}
+
+const hToLmst = (hr) => {
+  const m = Math.round((((hr % 24) + 24) % 24) * 60);
+  return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
+// Linear interpolation of weather rows at LMST hour t (wraps around midnight).
+function tempAt(weather, t) {
+  const rows = (weather?.rows || [])
+    .map((r) => ({ t: lmstToH(r.lmst), c: Number(r.temp_c) }))
+    .filter((r) => r.t != null && Number.isFinite(r.c))
+    .sort((a, b) => a.t - b.t);
+  if (!rows.length || t == null) return null;
+  const ring = [...rows, { t: rows[0].t + 24, c: rows[0].c }]; // close the day
+  let tt = ((t % 24) + 24) % 24;
+  if (tt < rows[0].t) tt += 24;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const a = ring[i], b = ring[i + 1];
+    if (tt >= a.t && tt <= b.t) return b.t === a.t ? a.c : a.c + ((b.c - a.c) * (tt - a.t)) / (b.t - a.t);
+  }
+  return rows[rows.length - 1].c;
+}
+
+// Photos taken by Curiosity near the stop (images.json coord), closest first.
+function nearbyPhotos(stop, images) {
+  if (!validCoord(stop.coord) || !Array.isArray(images)) return [];
+  return images
+    .filter((im) => im && im.url && validCoord(im.coord))
+    .map((im) => ({ ...im, distance_m: distM(stop.coord, im.coord) }))
+    .filter((im) => im.distance_m <= NEARBY_MAX_M)
+    .sort((a, b) => a.distance_m - b.distance_m)
+    .slice(0, NEARBY_MAX_PHOTOS);
+}
+
+// First LineString with t_min[] in route.geojson (Feature or FeatureCollection).
+function routeLine(route) {
+  const feats = route?.type === 'FeatureCollection' ? route.features : [route];
+  for (const f of feats || []) {
+    const c = f?.geometry?.type === 'LineString' ? f.geometry.coordinates : null;
+    const t = f?.properties?.t_min;
+    if (Array.isArray(c) && Array.isArray(t) && c.length === t.length) return { coords: c, tMin: t, props: f.properties };
+  }
+  return null;
+}
+
+// Arrival at the stop along the planned route: minutes after EVA start, LMST, air temperature.
+function arrivalInfo(stop, st) {
+  const line = routeLine(st.route);
+  if (!line || !validCoord(stop.coord)) return null;
+  let best = -1, bestD = Infinity;
+  line.coords.forEach((c, i) => {
+    const d = distM(stop.coord, c);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  if (best < 0 || bestD > ROUTE_SNAP_MAX_M) return null;
+  const tMin = Number(line.tMin[best]);
+  if (!Number.isFinite(tMin)) return null;
+  const start = lmstToH(st.eva?.start_lmst);
+  const lmstH = start != null ? start + tMin / 60 / SOL_PER_DAY : null;
+  const slope = Number(line.props?.slope_deg?.[best]);
+  return {
+    t_min: tMin,
+    lmst_h: lmstH,
+    temp_c: lmstH != null ? tempAt(st.weather, lmstH) : null,
+    slope_deg: Number.isFinite(slope) ? slope : null,
+  };
+}
+
+function fmtDuration(min) {
+  const m = Math.round(min);
+  return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min` : `${m} min`;
+}
 
 function fmtCoord(coord) {
   if (!Array.isArray(coord) || coord.length < 2) return null;
@@ -67,7 +160,7 @@ function photoMeta(photo) {
 }
 
 // ------------------------------------------------------------ weather chart
-function weatherChart(weather, eva) {
+function weatherChart(weather, eva, arrivalH = null) {
   const rows = (weather?.rows || [])
     .map((r) => ({ t: lmstToH(r.lmst), c: Number(r.temp_c) }))
     .filter((r) => r.t != null && Number.isFinite(r.c));
@@ -91,6 +184,11 @@ function weatherChart(weather, eva) {
     const lab = s('text', { x: (x(e0) + x(e1)) / 2, y: T + 12, class: 'mm-card__chart-evalabel', 'text-anchor': 'middle' });
     lab.textContent = 'EVA';
     svg.append(lab);
+  }
+  // arrival marker
+  if (arrivalH != null) {
+    const ax = x(((arrivalH % 24) + 24) % 24);
+    svg.append(s('line', { x1: ax, x2: ax, y1: T, y2: H - B, class: 'mm-card__chart-arrival' }));
   }
   // grid + labels
   for (const c of [lo, (lo + hi) / 2, hi]) {
@@ -174,17 +272,34 @@ export function initCards(state, el) {
       }, h('img', { src: q.url, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' })))) : null;
 
     return h('figure', { class: 'mm-card__figure' },
+      current.nearby ? h('p', { class: 'mm-card__note' }, 'Photos Curiosity took near this stop') : null,
       h('div', { class: 'mm-card__stage' }, frame, ...nav),
       h('figcaption', { class: 'mm-card__caption' },
         h('span', { class: 'mm-card__meta' }, photoMeta(p), photos.length > 1 ? `  ${index + 1}/${photos.length}` : ''),
+        p.distance_m != null ? h('span', { class: 'mm-card__dist' }, `≈${Math.round(p.distance_m)} m from this stop`) : null,
         h('span', { class: 'mm-card__credit' }, `Image: ${creditFor(p)}`)),
       thumbs);
+  }
+
+  function arrivalBlock(a) {
+    if (!a) return null;
+    const stat = (value, label) => h('div', { class: 'mm-card__stat' },
+      h('span', { class: 'mm-card__stat-value' }, value), h('span', { class: 'mm-card__stat-label' }, label));
+    return h('section', { class: 'mm-card__arrival', 'aria-label': 'Arrival at this stop' },
+      h('span', { class: 'mm-card__label' }, 'Arrival on the planned route'),
+      h('div', { class: 'mm-card__stats' },
+        stat(a.t_min < 0.5 ? 'Start' : `+${fmtDuration(a.t_min)}`, 'after EVA start'),
+        a.lmst_h != null ? stat(hToLmst(a.lmst_h), 'LMST') : null,
+        a.temp_c != null ? stat(`${Math.round(a.temp_c)} °C`, 'air temp.') : null,
+        a.slope_deg != null ? stat(`${Math.round(a.slope_deg)}°`, 'slope') : null));
   }
 
   function render() {
     if (!current) return;
     const { stop } = current;
     const coord = fmtCoord(stop.coord);
+    let arrival = null;
+    try { arrival = arrivalInfo(stop, st); } catch (err) { console.error('[cards] arrival failed', err); }
     card.replaceChildren(
       h('header', { class: 'mm-card__head' },
         h('div', {},
@@ -192,11 +307,12 @@ export function initCards(state, el) {
           h('h2', { class: 'mm-card__title' }, stop.name || 'Unnamed stop'),
           coord ? h('p', { class: 'mm-card__coord' }, coord) : null),
         h('button', { class: 'mm-card__close', type: 'button', 'aria-label': 'Close card', onclick: hide }, '×')),
+      arrivalBlock(arrival),
       photoBlock(),
       stop.science ? h('section', { class: 'mm-card__science' },
         h('span', { class: 'mm-card__label' }, 'Science'),
         h('p', {}, stop.science)) : null,
-      weatherChart(st.weather, st.eva),
+      weatherChart(st.weather, st.eva, arrival?.lmst_h ?? null),
     );
   }
 
@@ -205,9 +321,14 @@ export function initCards(state, el) {
       console.error('[cards] stop:select without a stop object', stop);
       return;
     }
-    const photos = (Array.isArray(stop.photos) ? stop.photos : []).filter((p) => p && p.url);
+    let photos = (Array.isArray(stop.photos) ? stop.photos : []).filter((p) => p && p.url);
+    let nearby = false;
+    if (!photos.length) {
+      photos = nearbyPhotos(stop, st.images);
+      nearby = photos.length > 0;
+    }
     const sameStop = current && current.stop.id === stop.id && stop.id != null;
-    current = { stop, photos, index: sameStop ? current.index : 0 };
+    current = { stop, photos, nearby, index: sameStop ? Math.min(current.index, Math.max(0, photos.length - 1)) : 0 };
     try {
       render();
       if (!isOpen()) el.append(card);

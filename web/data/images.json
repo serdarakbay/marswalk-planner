@@ -5,6 +5,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2019-07-29T08:12:02Z",
+  "coord": [
+   137.383529,
+   -4.730405
+  ],
   "site": 76,
   "drive": 2930,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -15,6 +19,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2019-07-30T09:16:18Z",
+  "coord": [
+   137.383541,
+   -4.730309
+  ],
   "site": 76,
   "drive": 3002,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -25,6 +33,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2019-07-30T09:23:14Z",
+  "coord": [
+   137.383541,
+   -4.730309
+  ],
   "site": 76,
   "drive": 3002,
   "credit": "NASA/JPL-Caltech"
@@ -35,6 +47,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2019-12-01T17:27:26Z",
+  "coord": [
+   137.381425,
+   -4.733652
+  ],
   "site": 77,
   "drive": 2954,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -45,6 +61,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2019-12-01T19:35:45Z",
+  "coord": [
+   137.381425,
+   -4.733652
+  ],
   "site": 77,
   "drive": 2954,
   "credit": "NASA/JPL-Caltech"
@@ -55,6 +75,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2019-12-01T19:55:58Z",
+  "coord": [
+   137.381425,
+   -4.733652
+  ],
   "site": 77,
   "drive": 2954,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -65,6 +89,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2020-01-30T20:58:56Z",
+  "coord": [
+   137.380853,
+   -4.736616
+  ],
   "site": 78,
   "drive": 2858,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -75,6 +103,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2020-01-31T07:16:00Z",
+  "coord": [
+   137.380853,
+   -4.736616
+  ],
   "site": 78,
   "drive": 2858,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -85,6 +117,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2020-01-31T07:23:17Z",
+  "coord": [
+   137.380853,
+   -4.736616
+  ],
   "site": 78,
   "drive": 2858,
   "credit": "NASA/JPL-Caltech"
@@ -95,6 +131,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2020-05-30T17:11:15Z",
+  "coord": [
+   137.381058,
+   -4.735237
+  ],
   "site": 79,
   "drive": 2008,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -105,6 +145,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2020-06-02T17:37:13Z",
+  "coord": [
+   137.382562,
+   -4.735159
+  ],
   "site": 79,
   "drive": 2640,
   "credit": "NASA/JPL-Caltech"
@@ -115,6 +159,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2020-06-02T17:39:36Z",
+  "coord": [
+   137.382562,
+   -4.735159
+  ],
   "site": 79,
   "drive": 2640,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -125,6 +173,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2020-06-14T11:45:43Z",
+  "coord": [
+   137.386911,
+   -4.732442
+  ],
   "site": 80,
   "drive": 1708,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -135,6 +187,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2020-06-19T02:51:11Z",
+  "coord": [
+   137.388191,
+   -4.733663
+  ],
   "site": 80,
   "drive": 2388,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -145,6 +201,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2020-06-19T03:01:18Z",
+  "coord": [
+   137.388191,
+   -4.733663
+  ],
   "site": 80,
   "drive": 2388,
   "credit": "NASA/JPL-Caltech"
@@ -155,6 +215,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2020-06-26T05:33:04Z",
+  "coord": [
+   137.389022,
+   -4.733033
+  ],
   "site": 81,
   "drive": 628,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -165,6 +229,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2020-06-26T06:14:07Z",
+  "coord": [
+   137.389022,
+   -4.733033
+  ],
   "site": 81,
   "drive": 628,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -175,6 +243,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2020-06-26T06:26:10Z",
+  "coord": [
+   137.389022,
+   -4.733033
+  ],
   "site": 81,
   "drive": 628,
   "credit": "NASA/JPL-Caltech"
@@ -185,6 +257,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2020-10-25T11:32:02Z",
+  "coord": [
+   137.391143,
+   -4.72932
+  ],
   "site": 82,
   "drive": 2188,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -195,6 +271,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2020-10-26T13:24:25Z",
+  "coord": [
+   137.391525,
+   -4.730126
+  ],
   "site": 82,
   "drive": 2638,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -205,6 +285,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2020-10-26T13:32:41Z",
+  "coord": [
+   137.391525,
+   -4.730126
+  ],
   "site": 82,
   "drive": 2638,
   "credit": "NASA/JPL-Caltech"
@@ -215,6 +299,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2020-11-24T07:29:30Z",
+  "coord": [
+   137.394145,
+   -4.731556
+  ],
   "site": 83,
   "drive": 2796,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -225,6 +313,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2020-11-24T10:42:22Z",
+  "coord": [
+   137.394145,
+   -4.731556
+  ],
   "site": 83,
   "drive": 2796,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -235,6 +327,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2020-11-24T10:44:15Z",
+  "coord": [
+   137.394145,
+   -4.731556
+  ],
   "site": 83,
   "drive": 2796,
   "credit": "NASA/JPL-Caltech"
@@ -245,6 +341,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2021-01-08T12:46:17Z",
+  "coord": [
+   137.398459,
+   -4.734068
+  ],
   "site": 84,
   "drive": 2352,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -255,6 +355,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2021-01-08T14:31:01Z",
+  "coord": [
+   137.398459,
+   -4.734068
+  ],
   "site": 84,
   "drive": 2352,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -265,6 +369,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2021-01-08T14:40:20Z",
+  "coord": [
+   137.398459,
+   -4.734068
+  ],
   "site": 84,
   "drive": 2352,
   "credit": "NASA/JPL-Caltech"
@@ -275,6 +383,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2021-01-18T21:47:53Z",
+  "coord": [
+   137.399779,
+   -4.733262
+  ],
   "site": 85,
   "drive": 538,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -285,6 +397,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2021-01-18T22:12:49Z",
+  "coord": [
+   137.399779,
+   -4.733262
+  ],
   "site": 85,
   "drive": 538,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -295,6 +411,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2021-01-18T22:18:15Z",
+  "coord": [
+   137.399779,
+   -4.733262
+  ],
   "site": 85,
   "drive": 538,
   "credit": "NASA/JPL-Caltech"
@@ -305,6 +425,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2021-08-23T12:56:27Z",
+  "coord": [
+   137.397664,
+   -4.744593
+  ],
   "site": 90,
   "drive": 2990,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -315,6 +439,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2021-08-23T14:05:00Z",
+  "coord": [
+   137.397664,
+   -4.744593
+  ],
   "site": 90,
   "drive": 2990,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -325,6 +453,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2021-08-23T14:17:38Z",
+  "coord": [
+   137.397664,
+   -4.744593
+  ],
   "site": 90,
   "drive": 2990,
   "credit": "NASA/JPL-Caltech"
@@ -335,6 +467,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2021-12-07T09:47:57Z",
+  "coord": [
+   137.394605,
+   -4.747486
+  ],
   "site": 91,
   "drive": 3204,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -345,6 +481,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2021-12-07T10:49:34Z",
+  "coord": [
+   137.394605,
+   -4.747486
+  ],
   "site": 91,
   "drive": 3204,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -355,6 +495,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2021-12-07T11:04:16Z",
+  "coord": [
+   137.394605,
+   -4.747486
+  ],
   "site": 91,
   "drive": 3204,
   "credit": "NASA/JPL-Caltech"
@@ -365,6 +509,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2022-01-27T20:41:54Z",
+  "coord": [
+   137.393687,
+   -4.751182
+  ],
   "site": 92,
   "drive": 3072,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -375,6 +523,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2022-01-27T21:10:30Z",
+  "coord": [
+   137.393687,
+   -4.751182
+  ],
   "site": 92,
   "drive": 3072,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -385,6 +537,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2022-01-27T21:17:23Z",
+  "coord": [
+   137.393687,
+   -4.751182
+  ],
   "site": 92,
   "drive": 3072,
   "credit": "NASA/JPL-Caltech"
@@ -395,6 +551,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2022-03-21T02:26:46Z",
+  "coord": [
+   137.390954,
+   -4.748673
+  ],
   "site": 93,
   "drive": 3408,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -405,6 +565,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2022-03-21T02:32:06Z",
+  "coord": [
+   137.390954,
+   -4.748673
+  ],
   "site": 93,
   "drive": 3408,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -415,6 +579,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2022-03-21T02:36:01Z",
+  "coord": [
+   137.390954,
+   -4.748673
+  ],
   "site": 93,
   "drive": 3408,
   "credit": "NASA/JPL-Caltech"
@@ -425,6 +593,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2022-05-06T10:58:44Z",
+  "coord": [
+   137.394901,
+   -4.751527
+  ],
   "site": 94,
   "drive": 3386,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -435,6 +607,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2022-05-06T11:07:58Z",
+  "coord": [
+   137.394901,
+   -4.751527
+  ],
   "site": 94,
   "drive": 3386,
   "credit": "NASA/JPL-Caltech"
@@ -445,6 +621,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2022-05-06T11:20:42Z",
+  "coord": [
+   137.394901,
+   -4.751527
+  ],
   "site": 94,
   "drive": 3386,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -455,6 +635,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2022-06-19T19:29:50Z",
+  "coord": [
+   137.396739,
+   -4.755509
+  ],
   "site": 95,
   "drive": 3020,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -465,6 +649,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2022-06-20T17:28:13Z",
+  "coord": [
+   137.396825,
+   -4.755617
+  ],
   "site": 95,
   "drive": 3152,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -475,6 +663,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2022-06-20T17:31:52Z",
+  "coord": [
+   137.396825,
+   -4.755617
+  ],
   "site": 95,
   "drive": 3152,
   "credit": "NASA/JPL-Caltech"
@@ -485,6 +677,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2022-08-16T04:19:34Z",
+  "coord": [
+   137.398859,
+   -4.759045
+  ],
   "site": 96,
   "drive": 3096,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -495,6 +691,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2022-08-17T04:51:55Z",
+  "coord": [
+   137.398889,
+   -4.759097
+  ],
   "site": 96,
   "drive": 3150,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -505,6 +705,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2022-08-17T05:08:03Z",
+  "coord": [
+   137.398889,
+   -4.759097
+  ],
   "site": 96,
   "drive": 3150,
   "credit": "NASA/JPL-Caltech"
@@ -515,6 +719,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2022-10-28T03:43:24Z",
+  "coord": [
+   137.396842,
+   -4.761405
+  ],
   "site": 97,
   "drive": 3110,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -525,6 +733,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2022-10-28T04:47:05Z",
+  "coord": [
+   137.396842,
+   -4.761405
+  ],
   "site": 97,
   "drive": 3110,
   "credit": "NASA/JPL-Caltech"
@@ -535,6 +747,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2022-10-28T04:50:05Z",
+  "coord": [
+   137.396842,
+   -4.761405
+  ],
   "site": 97,
   "drive": 3110,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -545,6 +761,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2022-12-05T02:52:52Z",
+  "coord": [
+   137.396469,
+   -4.761346
+  ],
   "site": 98,
   "drive": 2704,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -555,6 +775,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2022-12-05T03:41:29Z",
+  "coord": [
+   137.396469,
+   -4.761346
+  ],
   "site": 98,
   "drive": 2704,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -565,6 +789,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2022-12-05T07:10:03Z",
+  "coord": [
+   137.396469,
+   -4.761346
+  ],
   "site": 98,
   "drive": 2704,
   "credit": "NASA/JPL-Caltech"
@@ -575,6 +803,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2023-02-02T17:15:05Z",
+  "coord": [
+   137.398119,
+   -4.764981
+  ],
   "site": 99,
   "drive": 2414,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -585,6 +817,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2023-02-02T17:46:33Z",
+  "coord": [
+   137.398119,
+   -4.764981
+  ],
   "site": 99,
   "drive": 2414,
   "credit": "NASA/JPL-Caltech"
@@ -595,6 +831,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2023-02-02T22:20:47Z",
+  "coord": [
+   137.398119,
+   -4.764981
+  ],
   "site": 99,
   "drive": 2414,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -605,6 +845,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2023-04-14T14:59:51Z",
+  "coord": [
+   137.398292,
+   -4.767249
+  ],
   "site": 100,
   "drive": 2712,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -615,6 +859,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2023-04-14T15:05:19Z",
+  "coord": [
+   137.398292,
+   -4.767249
+  ],
   "site": 100,
   "drive": 2712,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -625,6 +873,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2023-04-14T15:05:22Z",
+  "coord": [
+   137.398292,
+   -4.767249
+  ],
   "site": 100,
   "drive": 2712,
   "credit": "NASA/JPL-Caltech"
@@ -635,6 +887,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2023-06-20T07:58:27Z",
+  "coord": [
+   137.399829,
+   -4.768632
+  ],
   "site": 101,
   "drive": 2294,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -645,6 +901,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2023-06-20T09:23:18Z",
+  "coord": [
+   137.399829,
+   -4.768632
+  ],
   "site": 101,
   "drive": 2294,
   "credit": "NASA/JPL-Caltech"
@@ -655,6 +915,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2023-06-20T11:18:37Z",
+  "coord": [
+   137.399829,
+   -4.768632
+  ],
   "site": 101,
   "drive": 2294,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -665,6 +929,10 @@
   "camera": "MAHLI",
   "camera_name": "MAHLI",
   "utc": "2023-07-24T06:55:39Z",
+  "coord": [
+   137.399153,
+   -4.769908
+  ],
   "site": 102,
   "drive": 2032,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -675,6 +943,10 @@
   "camera": "MAST_LEFT",
   "camera_name": "Mastcam",
   "utc": "2023-07-24T07:42:05Z",
+  "coord": [
+   137.399153,
+   -4.769908
+  ],
   "site": 102,
   "drive": 2032,
   "credit": "NASA/JPL-Caltech/MSSS"
@@ -685,6 +957,10 @@
   "camera": "NAV_LEFT_B",
   "camera_name": "Navcam",
   "utc": "2023-07-24T07:57:25Z",
+  "coord": [
+   137.399153,
+   -4.769908
+  ],
   "site": 102,
   "drive": 2032,
   "credit": "NASA/JPL-Caltech"
