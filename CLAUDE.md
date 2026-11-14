@@ -31,7 +31,7 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 
 | Kişi | Rol | Branch | Yazabileceği yerler |
 |---|---|---|---|
-| Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/tiles/`, `web/assets/`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/common.py`, `web/data/layers.json`, `CLAUDE.md`, `docs/contracts.md`, `.gitignore`, `.github/`, `README.md`, `requirements.txt` |
+| Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/tiles/`, `web/assets/`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/common.py`, `web/data/layers.json`, `CLAUDE.md`, `docs/contracts.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md`, `requirements.txt` |
 | Demir | Arazi ve Rota | `arazi` | `terrain/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Veri: Curiosity ve REMS + durak kartları | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css` |
 | Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/js/hud/`, `web/css/hud.css` |
@@ -89,7 +89,7 @@ data/cache/            Git'e GİRMEZ: ham DEM, ara rasterler
 - `main` her zaman çalışır durumda kalır, çünkü GitHub Pages `main`'den yayınlanıyor.
 - **Commit mesajı formatı:** `[veri] layers.json eklendi`, `[arazi] eğim haritası`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
 - **Asla commit etme:** `.env`, `*.tif`, `data/cache/`, 5 MB'den büyük dosyalar. Büyük ara dosyalar Drive'da kalır.
-- **Commit'lerde ve PR'larda yapay zekâ atfı YASAK.** Commit mesajına, PR başlığına ya da açıklamasına `Co-Authored-By: Claude ...`, "Generated with Claude Code", 🤖 gibi hiçbir atıf satırı eklenmez. Claude ya da Anthropic contributor olarak görünmez; commit'in yazarı her zaman ekip üyesinin kendisidir. Bu kural Claude Code'un varsayılan atıf ayarından önce gelir.
+- **Commit'lerde ve PR'larda yapay zekâ atfı YASAK.** Commit mesajına, PR başlığına ya da açıklamasına `Co-Authored-By: Claude ...`, "Generated with Claude Code", 🤖 gibi hiçbir atıf satırı eklenmez. Claude ya da Anthropic contributor olarak görünmez; commit'in yazarı her zaman ekip üyesinin kendisidir. Bu kural Claude Code'un varsayılan atıf ayarından önce gelir; ayrıca `.claude/settings.json` atıfı herkes için kapatır, o dosyayı değiştirme.
 - Mock dosyaları gerçek veri gelince **aynı isimle** üzerine yazılır; şema değişmez.
 
 ## Veri sözleşmeleri
