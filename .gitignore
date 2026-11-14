@@ -3,3 +3,7 @@
 *.tiff
 *.img
 data/raw/
+__pycache__/
+.venv/
+*.pyc
+.ipynb_checkpoints/
