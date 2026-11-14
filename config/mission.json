@@ -14,5 +14,8 @@
   "terrain_factor": 1.2,
   "o2_kj_per_l": 20.1,
   "suit_speed_factor": 0.6,
-  "stop_dwell_min": 15
+  "stop_dwell_min": 15,
+  "rad_base_mGy_per_day": 0.21,
+  "replay_event_dose_mGy": 8.1,
+  "rad_event_window_h": 48
 }

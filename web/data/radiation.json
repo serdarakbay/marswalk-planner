@@ -1,8 +1,28 @@
 {
  "base_mSv_per_day": 0.64,
  "event_multiplier": 1.0,
- "status": "nominal",
- "message": "Background GCR only.",
- "mock": true,
- "source": "MOCK"
+ "status": "elevated",
+ "message": "CME arrived at Mars 13 Nov 12:00 UTC (WSA-ENLIL). Dose not quantified; background rate shown.",
+ "mode": "live",
+ "source": "config/mission.json + web/data/donki.json",
+ "mars_arrivals_in_window": [
+  {
+   "utc": "2026-11-13T12:00:00Z",
+   "cme": "2026-11-09T18:15:00-CME-001"
+  }
+ ],
+ "replay": {
+  "date": "2024-05-20",
+  "status": "storm",
+  "event_multiplier": 38.6,
+  "message": "Replay of the 20 May 2024 solar storm: dose rate x38.6. Stay close to shelter.",
+  "event_dose_mGy": 8.1,
+  "background_mGy_per_day": 0.21,
+  "mars_arrivals_wsa_enlil": [
+   "2024-05-20T07:52:00Z",
+   "2024-05-21T18:00:00Z",
+   "2024-05-28T11:30:00Z"
+  ],
+  "basis": "event absorbed dose / mean daily absorbed dose (both mGy, Curiosity RAD); event spread over one day, same quality factor as background (conservative)"
+ }
 }

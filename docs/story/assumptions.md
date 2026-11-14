@@ -44,7 +44,21 @@ Because the tank is calibrated with the same `o2_kj_per_l`, that value cancels o
 - **0.64 mSv/day on the surface** (Source). Dose equivalent rate measured by Curiosity's RAD at Gale crater. The same paper gives an absorbed dose rate of about 0.21 mGy/day.
   Hassler, D. M., et al. (2014). Mars' surface radiation environment measured with the Mars Science Laboratory's Curiosity rover. *Science*, 343(6169), 1244797.
 - **Dose during the walk** (Assumption). Dose = `0.64 × event_multiplier × duration_min / 1440` mSv. The rate is constant through the day. Terrain shielding (crater walls, cliffs) is not counted, so this is conservative. The HUD uses the same formula.
-- **Gy and Sv are never mixed.** mGy is absorbed dose; mSv is dose equivalent, which also weights the type of radiation. The 20 May 2024 solar event measured by RAD (8,100 µGy) is an absorbed dose. Turning it into mSv needs a quality factor; the models do not do this yet.
+- **Gy and Sv are never mixed.** mGy is absorbed dose; mSv is dose equivalent, which also weights the type of radiation. The 20 May 2024 solar event measured by RAD (8,100 µGy) is an absorbed dose. We never add Gy values to Sv values.
+
+## Space weather (DONKI) and the radiation status
+
+- **Event data** (Source). Flares (FLR), coronal mass ejections (CME) and solar energetic particle events (SEP) come from NASA's DONKI database via api.nasa.gov (`pipeline/fetch/donki.py`).
+- **Mars impact** (Source, with a rule we chose). A CME counts as reaching Mars only if a WSA-ENLIL simulation in DONKI lists "Mars" in its impactList. A flare or SEP counts only if it is linked in DONKI to such a CME. Everything else is `false`. WSA-ENLIL is a model forecast, not a measurement at Mars.
+- **Missing flares** (Data limitation). The DONKI flare endpoint returned HTTP 404 on api.nasa.gov when we built this. Flares are then taken from the links in CME and SEP records: the start time comes from the DONKI activity ID and the peak time is unknown (`null`). For the replay window, DONKI has no SEP records and no Mars-impacting run for the 20 May 2024 CME.
+- **Replay event dose 8,100 µGy = 8.1 mGy** (Source). Absorbed dose measured by Curiosity's RAD during the May 2024 solar storm, as reported in NASA/JPL's news release on that storm (June 2024).
+- **Background absorbed dose 0.21 mGy/day** (Source). Hassler et al. (2014), the same paper as the 0.64 mSv/day dose equivalent above.
+- **Replay dose multiplier ≈ 38.6** (Assumption). `event_multiplier = 8.1 mGy / 0.21 mGy per day`. Both values are absorbed doses, so the ratio has no unit. Using it as a dose-rate multiplier means two simplifications:
+  1. The whole event dose arrives within one day.
+  2. The event's radiation has the same quality factor (mSv per mGy) as the background. Solar particles are mostly protons, which have a lower quality factor than the galactic cosmic ray background, so this probably **overestimates** the dose equivalent. That makes it a conservative value.
+
+  With it, a 4 h EVA during the replay storm gets about 4.1 mSv instead of 0.11 mSv.
+- **Live status** (Assumption). In live mode the dose is not quantified: `event_multiplier` stays 1.0. The status is `elevated` when a WSA-ENLIL Mars arrival falls within ±48 h (`rad_event_window_h`) of now, otherwise `nominal`. The 48 h window is our choice.
 
 ## Route and stops
 
