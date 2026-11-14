@@ -1,11 +1,11 @@
-/* HUD mode (Serdar). Plain/modern look for now.
+/* HUD mode (Serdar). Default look: plain/modern. Optional visor look at the end of
+   this file, switched on with ?hud=visor in the page URL (#hud-root[data-look="visor"]).
    Rules (CLAUDE.md, page layout section):
    - every selector starts with #hud-root
    - colours, fonts, spacing, radii and z-index come only from base.css variables
    - loaded by web/js/hud/index.js itself (not linked in index.html)
    #hud-root itself (fixed, inset 0, z-index --z-hud, [hidden]) is positioned by base.css.
-   To restyle later (e.g. sci-fi visor using --color-hud*), change only the
-   --hud-* aliases below. */
+   Looks are defined through the --hud-* aliases below. */
 #hud-root {
   --hud-fg: var(--color-text);
   --hud-muted: var(--color-text-muted);
@@ -205,3 +205,36 @@
   #hud-root .hud-sim__range { order: 3; flex-basis: 100%; }
   #hud-root .hud-sim__label { margin-left: auto; }
 }
+
+/* ---- Optional visor look (?hud=visor): base.css --color-hud* palette, mono type, corner marks ---- */
+#hud-root[data-look="visor"] {
+  --hud-fg: var(--color-hud);
+  --hud-muted: var(--color-hud-dim);
+  --hud-panel-border: var(--color-hud-dim);
+  --hud-accent: var(--color-hud);
+  --hud-radius: var(--radius-sm);
+}
+#hud-root[data-look="visor"] .hud { font-family: var(--font-mono); }
+#hud-root[data-look="visor"] .hud-bar,
+#hud-root[data-look="visor"] .hud-panel,
+#hud-root[data-look="visor"] .hud-sim { position: relative; box-shadow: none; }
+#hud-root[data-look="visor"] .hud-panel::before,
+#hud-root[data-look="visor"] .hud-panel::after,
+#hud-root[data-look="visor"] .hud-bar::before,
+#hud-root[data-look="visor"] .hud-bar::after {
+  content: "";
+  position: absolute;
+  width: var(--space-3);
+  height: var(--space-3);
+  border: 0 solid var(--hud-accent);
+  pointer-events: none;
+}
+#hud-root[data-look="visor"] .hud-panel::before,
+#hud-root[data-look="visor"] .hud-bar::before { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; }
+#hud-root[data-look="visor"] .hud-panel::after,
+#hud-root[data-look="visor"] .hud-bar::after { right: -1px; bottom: -1px; border-right-width: 2px; border-bottom-width: 2px; }
+#hud-root[data-look="visor"] .hud-panel__title { letter-spacing: 0.2em; color: var(--hud-fg); }
+#hud-root[data-look="visor"] .hud-bar__title { letter-spacing: 0.2em; }
+#hud-root[data-look="visor"] .hud-stop__name { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; }
+#hud-root[data-look="visor"] .hud-sim__play,
+#hud-root[data-look="visor"] .hud-sim__speed { background: var(--hud-panel-bg); font-family: var(--font-mono); }

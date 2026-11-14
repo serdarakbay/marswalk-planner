@@ -113,6 +113,12 @@ export function initHUD(state, el) {
   const evaStart = parseUtc(state.eva?.start_utc);
   const activeMin = timeline?.total_min ?? state.eva?.duration_min ?? null;
 
+  // Optional look: ?hud=visor in the page URL switches hud.css to the visor palette.
+  // The default (no parameter) stays plain/modern.
+  try {
+    if (new URLSearchParams(location.search).get('hud') === 'visor') el.dataset.look = 'visor';
+  } catch { /* no location (tests) */ }
+
   // el is the #hud-root box (fixed overlay from base.css); we only fill it.
   const root = h('div', 'hud');
   root.setAttribute('role', 'region');
@@ -139,9 +145,12 @@ export function initHUD(state, el) {
     const dose = evaDose(state.radiation, eva, timeline?.total_min, state.summary);
     const doseNow = doseAt(dose, frac);
     const o2 = o2At(state.summary, frac);
-    const rs = routeState(timeline, elapsed);
+    // Inside the habitat before the EVA starts and after the route ends (known only with route timing).
+    const atHabitat = timeline && frac != null ? frac >= 1 || elapsed < 0 : null;
+    const rs = atHabitat ? null : routeState(timeline, elapsed);
     const pos = rs?.coord ?? null;
-    const safe1 = safetyAt(state.safety, rs?.d_m);
+    // Shelter / radio-shadow info only matters while outside.
+    const safe1 = atHabitat ? null : safetyAt(state.safety, rs?.d_m);
 
     // --- top bar
     const bar = h('header', 'hud-bar');
@@ -182,7 +191,7 @@ export function initHUD(state, el) {
       shelter_min: Number.isFinite(safe1?.shelter_min) ? safe1.shelter_min : null,
       eva_state: status?.state ?? null,
       // back inside once the planned route is done (only known with route timing)
-      at_habitat: timeline && frac != null ? frac >= 1 || elapsed < 0 : null,
+      at_habitat: atHabitat,
       radiation_status: state.radiation?.status ?? null,
       radiation_message: state.radiation?.message ?? null,
     };
