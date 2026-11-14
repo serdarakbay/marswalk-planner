@@ -27,6 +27,7 @@ export const SCENARIO = {
   DUST_APPROACH_M: 400,        // warning distance
   DUST_HOLD_M: 120,            // hold position inside this distance while it approaches
   DUST_CLEAR_M: 160,           // resume once it is this far and moving away
+  O2_RESERVE_PCT: 25,          // o2_reserve_pct in config/mission.json: never plan to dip below it
 };
 
 const OUTSIDE = new Set(['route', 'hold', 'to_refuge', 'sheltered', 'return']);
@@ -93,6 +94,16 @@ export function simulate(p) {
         const d = distanceM(coord, o.coord);
         return !best || d < best.d ? { ...o, d } : best;
       }, null);
+      // Waiting out the storm at a terrain shelter must fit in the O2 above the reserve
+      // (walk there, wait, walk back home); otherwise go back to the habitat (Utku's rule).
+      if (refuge && !refuge.habitat && habitat) {
+        const left = storm.t0 + storm.duration - t;
+        const home = distanceM(refuge.coord, habitat);
+        const need = o2PerMin * ((refuge.d + home) / SCENARIO.WALK_M_PER_MIN + left);
+        if (o2 + need > 100 - SCENARIO.O2_RESERVE_PCT) {
+          refuge = { coord: habitat, factor: storm.habitatFactor, habitat: true, d: distanceM(coord, habitat), o2Short: true };
+        }
+      }
       resume = { coord, tau };
       mode = 'to_refuge';
     }

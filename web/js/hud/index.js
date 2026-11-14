@@ -302,7 +302,7 @@ export function initHUD(state, el) {
       if (p.mode === 'to_refuge' && refuge) {
         const mins = distanceM(p.coord, refuge.coord) / SCENARIO.WALK_M_PER_MIN;
         scen.push({ level: 'danger', text: refuge.habitat
-          ? `Return to the habitat: ${mins.toFixed(1)} min, ${where(refuge.coord)}`
+          ? `Return to the habitat${refuge.o2Short ? ' (not enough O2 to wait out the storm)' : ''}: ${mins.toFixed(1)} min, ${where(refuge.coord)}`
           : `Take shelter: ${mins.toFixed(1)} min, ${where(refuge.coord)}` });
       } else if (p.mode === 'sheltered') {
         scen.push({ level: 'warn', text: `Sheltered (sky-view ${fmtNum(refuge?.svf, 2)}): storm ends in ${fmtDuration(stormLeft)}` });
