@@ -15,7 +15,7 @@ Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, where Cur
 - **Radio relay:** a mast on the ridge that cuts the time without a link to the habitat; the map and the landing page show the time before and after.
 - **Stop cards:** what to look at at each stop, with nearby Curiosity photos and the arrival time on the route.
 - **3D view:** the HiRISE image draped over the real terrain, with the route, stops, habitat, Sun shadows and the HUD astronaut. Press the **3D** button.
-- **HUD mode:** a visor view with the next stop, O2, dose, Sun and Earth position and alerts, a simulation clock, and two replayable emergencies: a solar storm and a dust devil ([details](web/js/hud/README.md)). Press **H**.
+- **HUD mode:** a visor view with the next stop, O2, dose, Sun and Earth position and alerts, a simulation clock, and two replayable emergencies: a solar storm (shelters ranked by dose, a path around steep ground to the chosen one) and dust devils (hold position or step aside) ([details](web/js/hud/README.md)). Press **H**.
 - **Backup map tiles:** if Mars Trek cannot be reached, the map, the minimap and the landing 3D block fall back to cached tiles of the study area in `web/tiles/`.
 - **Landing page:** the site root introduces the walk, the safety layers, the storm and the models, with a 3D block diagram of the study area; every number on it is read from the data files. The planner itself is `planner.html`.
 

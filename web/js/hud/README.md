@@ -59,7 +59,7 @@ Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) 
 node web/js/hud/test.mjs
 ```
 
-No dependencies. Part 1 checks the logic on small made-up inputs (stop order, storm and dust devil plans, shelter options, paths around a wall, O2 and dose, radio shadows, radiation, alerts, missing data). Part 2 checks the real files in `web/data/` (sun.json, EVA window, stop order on the real route, O2 against summary.json, safety.json); a missing file is skipped. Exits with code 1 if anything fails.
+No dependencies. Part 1 checks the logic on small made-up inputs (stop order, storm and dust devil plans (hold and step aside), shelter options, paths around a wall, O2 and dose, radio shadows, radiation, alerts, missing data). Part 2 checks the real files in `web/data/` (sun.json, EVA window, stop order on the real route, O2 against summary.json, safety.json); a missing file is skipped. Exits with code 1 if anything fails.
 
 ## Events
 
