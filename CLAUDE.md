@@ -35,15 +35,15 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 | Demir | Arazi ve Rota | `arazi` | `terrain/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Veri: Curiosity ve REMS + durak kartları | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css` |
 | Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/js/hud/`, `web/css/hud.css` |
-| Utku | Bilim, Radyasyon, Hikâye | `bilim` | `science/` (`science/eva/` hariç), `config/`, `docs/story/`, `pipeline/fetch/donki.py`, `web/data/` içinde: `area.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
+| Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `pipeline/fetch/donki.py`, `pipeline/fetch/usgs.py`, `web/data/safety/`, `web/data/` içinde: `area.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json`, `geology.geojson` |
 
-**Veri sahipliği kuralı:** Her dış veri setini sadece sahibi indirir. Veri işi dört kişiye dağıldı ama hiçbir veri seti bölünmedi. Başka biri o veriye ihtiyaç duyarsa, sahibin ürettiği `web/data/` dosyasını okur, API'yi kendisi çağırmaz.
+**Veri sahipliği kuralı:** Ham veriyi tek kişi indirir; aynı verinin farklı ürünlerini iki kişi üretebilir, ama her çıktı dosyasının tek yazarı vardır. Başka biri o veriye ihtiyaç duyarsa sahibin ara çıktısını ya da `web/data/` dosyasını okur, API'yi kendisi çağırmaz.
 
-- USGS DEM → sadece Demir
+- USGS DEM → sadece Demir indirir. Kestiği `data/cache/dem_clip.tif`'i Drive'dan Utku'yla paylaşır. Demir bu DEM'den eğim, maliyet ve rota; Utku radyo gölgesi, sığınak ve `safety.json` üretir. Overlay PNG'lerini ikisi de `terrain/geo.py` içindeki `to_overlay_png()` ile üretir (Utku sadece import eder, değiştirmez); böylece katmanlar birebir hizalanır.
 - Mars Trek WMTS ve tile önbelleği → sadece Ege
 - Curiosity ham görüntüleri, MSL traverse, REMS → sadece Egemen
 - JPL Horizons → sadece Serdar
-- DONKI → sadece Utku
+- DONKI ve USGS jeolojik harita → sadece Utku
 
 Repo kökündeki `requirements.txt` ve `pipeline/common.py` (`area.json`'u okuyan ortak yardımcılar) Ege'nindir. Yeni bir Python paketi gerekiyorsa Ege'ye söyle.
 
@@ -60,8 +60,11 @@ pipeline/
   fetch/rems.py        Egemen: sıcaklık eğrisi
   fetch/horizons.py    Serdar: Güneş/Dünya açıları, LMST
   fetch/donki.py       Utku: güneş olayları (live + replay)
-terrain/               Demir: DEM işleme, eğim, maliyet, rota, ek modüller
+  fetch/usgs.py        Utku: USGS jeolojik birimleri → geology.geojson
+terrain/               Demir: DEM işleme, eğim, maliyet, rota, geri dönüş halkaları
+terrain/geo.py         Demir: to_overlay_png() — Utku da import eder
 science/               Utku: models.py (O2, doz), radyasyon, duraklar, uyarılar
+science/safety/        Utku: radyo gölgesi (viewshed), sığınak (sky-view), safety.json
 science/eva/           Serdar: EVA penceresi
 config/mission.json    Utku: tüm eşik ve sabitler (tek kaynak)
 web/
@@ -70,7 +73,7 @@ web/
   js/map/              Ege: Leaflet, katman paneli, rota, profil
   js/hud/              Serdar: HUD modu
   js/cards/            Egemen: durak kartları
-  css/base.css         Ege   (hud.css → Serdar, cards.css → Egemen)
+  css/base.css         Ege: renk paleti ve CSS değişkenleri (hud.css → Serdar, cards.css → Egemen; ikisi de base.css değişkenlerini kullanır)
   data/                Üretilen JSON/PNG; her dosyanın tek yazarı var (tabloya bak)
   tiles/               Ege: yedek tile önbelleği
 docs/contracts.md      Ege: tüm JSON şemaları
@@ -99,7 +102,9 @@ Tam şemalar `docs/contracts.md`'de. Özet:
 | `overlays.json` | Demir | `[{id,name,png,bounds{west,south,east,north},legend}]` |
 | `route.geojson` | Demir | LineString; properties: `slope_deg[]`, `t_min[]` |
 | `summary.json` | Demir | `distance_m`, `duration_min`, `o2_used_pct`, `dose_mSv`, `max_slope_deg`, `profile[{d,z,slope}]` |
+| `safety.json` | Utku | `overlays[]` (`overlays.json` ile aynı şema; katman paneli ikisini birlikte okur), `shelters[{coord,svf}]`, `route[{d,comm_ok,shelter_min}]`, `offline_min` |
 | `stops.json` | Utku | `[{id,name,coord[lon,lat],science,photos[{url,sol,camera,credit}]}]` |
+| `geology.geojson` | Utku | Polygon'lar; properties: `unit`, `name`, `note` |
 | `images.json` | Egemen | `[{url,sol,camera,utc,site,drive,credit}]` |
 | `traverse.geojson` | Egemen | Curiosity'nin bbox içindeki rotası (LineString) |
 | `weather.json` | Egemen | `rows[{lmst,temp_c}]` |
@@ -108,6 +113,35 @@ Tam şemalar `docs/contracts.md`'de. Özet:
 | `donki.json` | Utku | `mode` (`live`/`replay`), `events[{type,start,peak,mars_impact}]` |
 | `radiation.json` | Utku | `base_mSv_per_day`, `event_multiplier`, `status`, `message` |
 | `alerts.json` | Utku | `rules[{id,metric,op,value,level,text}]` |
+
+## Parçalar arası JS arayüzü
+
+Harita, kartlar ve HUD birbirinin dosyasını import etmez; sadece şu arayüz üzerinden konuşur:
+
+- `web/js/main.js` (Ege) tüm `web/data/` dosyalarını bir kez yükler ve tek bir `state` nesnesine koyar: `{area, layers, overlays, route, summary, safety, stops, geology, images, traverse, weather, sun, eva, donki, radiation, alerts}`. Eksik ya da bozuk dosya `null` kalır, uygulama çökmez.
+- Harita (Ege) duraka tıklanınca: `document.dispatchEvent(new CustomEvent('stop:select', {detail: stop}))`
+- Kartlar (Egemen): `web/js/cards/index.js` → `export function initCards(state, el)`; `stop:select` olayını dinler.
+- HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; H tuşu HUD'u açıp kapatır, `stop:select` ile sıradaki durağı günceller.
+- `main.js` bu iki fonksiyonu çağırır. Başka global değişken yok.
+
+## Karar saatleri (yarım kalmasın)
+
+Riskli her işin bir karar saati var; o saatte çalışmıyorsa B planına geçilir. Tam liste ekip planında, özet:
+
+| İş | Sahibi | Karar | B planı |
+|---|---|---|---|
+| 1 m DEM kapsaması | Demir | Cmt 13:30 | HiRISE DTM ya da bbox kaydırma |
+| MSL traverse | Egemen | Cmt 13:30 | Mars Trek'ten elle 10–15 nokta |
+| Curiosity görüntü API'si | Egemen | Cmt 14:30 | Raw Images sitesinden elle 8–10 URL |
+| Horizons Mars yüzeyi | Serdar | Cmt 14:30 | Mars24 algoritmasıyla analitik Güneş açısı |
+| USGS GeoJSON | Utku | Cmt 16:00 | Bırakılır, Trek jeoloji katmanı kalır |
+| REMS | Egemen | Cmt 16:30 | Tipik günlük eğri, "yaklaşık" etiketli |
+| Rota | Demir | Cmt 19:30 | 2 m DEM; olmazsa düz çizgi + eğim uyarısı |
+| `gdal_viewshed` / rvt-py | Utku | Cmt 19:30 | numpy ile 8 yönde ufuk açısı ve basit görüş hattı; olmazsa sadece radyo gölgesi |
+| Uçtan uca demo | Ege | Cmt 23:30 | Ek modüller iptal, herkes entegrasyona |
+| HUD tamamı | Serdar | Paz 03:00 | 23:00'teki HUD MVP |
+
+30 dakikadan fazla aynı sorunda takılırsan gruba yaz. Claude olarak, kullanıcı karar saatini geçmiş bir işte takılıyorsa B planını hatırlat.
 
 ## Koordinat ve birim kuralları
 
@@ -188,6 +222,8 @@ python -m terrain.route
 
 # Bilim (Utku)
 python -m pipeline.fetch.donki
+python -m pipeline.fetch.usgs
+python -m science.safety.build    # dem_clip.tif + route.geojson gerekir
 python -m science.build_all
 
 # Yerel önizleme: herkes kendi bilgisayarında, kendi branch'ini görür
