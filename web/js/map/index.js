@@ -196,6 +196,24 @@ export function initMap(state, mapEl) {
   const panel = document.getElementById('panel');
   if (panel) buildPanel(panel, map, bases, overlays);
 
+  // Astronaut position from the HUD simulation clock ('hud:time').
+  // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
+  const astronaut = L.circleMarker([0, 0], {
+    radius: 7, color: cssVar('--color-bg'), weight: 2,
+    fillColor: cssVar('--color-hud'), fillOpacity: 1, interactive: false,
+  });
+  document.addEventListener('hud:time', (e) => {
+    const { active, coord, elapsed_min: elapsed } = e.detail || {};
+    if (!active || !Array.isArray(coord)) {
+      astronaut.remove();
+      return;
+    }
+    astronaut.setLatLng(toLatLng(coord));
+    if (!map.hasLayer(astronaut)) astronaut.addTo(map);
+    const label = Number.isFinite(elapsed) ? `Astronaut · T+${Math.round(elapsed)} min` : 'Astronaut';
+    astronaut.bindTooltip(label, { direction: 'top', offset: [0, -8] });
+  });
+
   // Re-measure the map when HUD mode changes the layout
   new MutationObserver(() => map.invalidateSize())
     .observe(document.body, { attributes: true, attributeFilter: ['data-mode'] });
