@@ -13,7 +13,7 @@ from scipy.ndimage import distance_transform_edt
 from skimage.graph import MCP_Geometric
 
 from arazi.geo import CACHE, MARS_GEO, ROOT, WEB, load_area
-from arazi.walk import STOP_DWELL_MIN, dose_mSv, o2_used_pct, speed_m_min
+from arazi.walk import STOP_DWELL_MIN, dose_mSv, o2_rest_pct, o2_walk_pct, speed_m_min
 
 # Used only until Utku's stops.json exists: two placeholder stops near the habitat
 _DEFAULT_STOPS = [[137.375, -4.745], [137.392, -4.741]]
@@ -117,11 +117,13 @@ route = {
 prof_idx = np.searchsorted(d, np.arange(0, d[-1], PROFILE_EVERY_M))
 prof_idx = np.unique(np.append(prof_idx, len(d) - 1))
 duration = float(t[-1])
+# O2: each segment at its own grade (uphill costs more), plus standing at the stops
+o2_used = float(o2_walk_pct(seg_min, grade).sum() + o2_rest_pct(STOP_DWELL_MIN * len(stop_index)))
 summary = {
     "distance_m": round(float(d[-1])),
     "duration_min": round(duration),
-    "o2_used_pct": round(float(o2_used_pct(duration)), 1),
-    "dose_mSv": round(dose_mSv(duration), 3),
+    "o2_used_pct": round(o2_used, 1),
+    "dose_mSv": round(float(dose_mSv(duration)), 3),
     "max_slope_deg": round(float(slopes.max()), 1),
     "profile": [{"d": round(float(d[i])), "z": round(float(zs[i]), 1),
                  "slope": round(float(slopes[i]), 1)} for i in prof_idx],
