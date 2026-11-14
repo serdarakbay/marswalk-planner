@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HUD dev</title>
+  <style>
+    html, body { margin: 0; height: 100%; }
+    body {
+      font: 14px system-ui, sans-serif;
+      color: #ddd;
+      /* stand-in for the map */
+      background: radial-gradient(circle at 30% 40%, #9a5b3c, #5a2f1f 60%, #2b1810);
+    }
+    .dev-bar {
+      position: fixed; left: 16px; bottom: 16px; z-index: 1;
+      display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 140px);
+    }
+    .dev-bar button, .dev-bar label {
+      padding: 6px 10px; border-radius: 6px; border: 1px solid #555;
+      background: #1c1f25; color: #ddd; font: inherit; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Dev harness for the HUD only. Real data: sun.json, eva_window.json.
+       Everything else: MOCK (mock-state.js). ?mock=0 sets them to null. -->
+  <div class="dev-bar" id="dev"></div>
+  <div id="hud-root"></div>
+  <script type="module">
+    import { initHUD } from './index.js';
+    import { MOCK_STATE } from './mock-state.js';
+
+    async function load(path) {
+      try {
+        const r = await fetch(path);
+        if (!r.ok) throw new Error(r.status);
+        return await r.json();
+      } catch (err) {
+        console.error(`[dev] could not load ${path}`, err);
+        return null;
+      }
+    }
+
+    const useMock = new URLSearchParams(location.search).get('mock') !== '0';
+    const keys = ['area', 'layers', 'overlays', 'route', 'summary', 'safety', 'stops', 'geology',
+      'images', 'traverse', 'weather', 'sun', 'eva', 'donki', 'radiation', 'alerts'];
+    const state = Object.fromEntries(keys.map((k) => [k, null]));
+    state.sun = await load('../../data/sun.json');
+    state.eva = await load('../../data/eva_window.json');
+    if (useMock) Object.assign(state, MOCK_STATE);
+
+    const hud = initHUD(state, document.getElementById('hud-root'));
+    window.__hud = hud; // dev only
+    hud.toggle(true);
+
+    const bar = document.getElementById('dev');
+    for (const stop of state.stops ?? []) {
+      const b = document.createElement('button');
+      b.textContent = `stop:select ${stop.id}`;
+      b.onclick = () => document.dispatchEvent(new CustomEvent('stop:select', { detail: stop }));
+      bar.append(b);
+    }
+    const m = document.createElement('button');
+    m.textContent = useMock ? 'Reload without MOCK' : 'Reload with MOCK';
+    m.onclick = () => { location.search = useMock ? '?mock=0' : ''; };
+    bar.append(m);
+  </script>
+</body>
+</html>
