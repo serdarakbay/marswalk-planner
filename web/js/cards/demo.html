@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- Dev-only preview of the stop cards (Egemen). Not linked from the app.
+     Open: python -m http.server 8000 -d web  ->  http://localhost:8000/js/cards/demo.html -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stop cards demo</title>
+  <link rel="stylesheet" href="../../css/cards.css">
+  <style>
+    body { margin: 0; background: #0d0907; color: #f2e8e0; font: 14px system-ui, sans-serif; }
+    .wrap { display: grid; grid-template-columns: 1fr minmax(280px, 380px); gap: 16px; padding: 16px; min-height: 100vh; box-sizing: border-box; }
+    .side { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); display: flex; }
+    button.stop { display: block; margin: 6px 0; padding: 8px 12px; background: #221915; color: inherit; border: 1px solid #3a2c25; border-radius: 6px; cursor: pointer; }
+    button.stop:hover { border-color: #e2703a; }
+    code { color: #e2703a; }
+    @media (max-width: 720px) { .wrap { grid-template-columns: 1fr; } .side { position: static; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main>
+      <h1>Stop cards demo</h1>
+      <p>Dispatches <code>stop:select</code> like the map will. Mock stops are built from
+        <code>data/images.json</code> until Utku's <code>stops.json</code> exists.</p>
+      <div id="stops"></div>
+    </main>
+    <aside class="side" id="cards"></aside>
+  </div>
+  <script type="module">
+    import { initCards } from './index.js';
+
+    const load = (p) => fetch(p).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const [images, weather, realStops] = await Promise.all([
+      load('../../data/images.json'), load('../../data/weather.json'), load('../../data/stops.json'),
+    ]);
+    const eva = (await load('../../data/eva_window.json')) || { start_lmst: '09:30', end_lmst: '15:30', reason: 'mock' };
+
+    const bySite = {};
+    for (const im of images || []) (bySite[im.site] ??= []).push(im);
+    const sites = Object.keys(bySite);
+    const pick = (i) => (bySite[sites[i]] || []).map(({ url, sol, camera, credit }) => ({ url, sol, camera, credit }));
+
+    const mockStops = [
+      { id: 1, name: 'Mock stop A', coord: [137.381, -4.733], science: 'Clay-bearing unit. Placeholder text until stops.json arrives.', photos: pick(0) },
+      { id: 2, name: 'Mock stop B', coord: [137.405, -4.745], science: 'Sulfate transition. Placeholder text.', photos: [...pick(Math.floor(sites.length / 2)), ...pick(Math.floor(sites.length / 2) + 1)] },
+      { id: 3, name: 'Stop with no photos', coord: null, science: null, photos: [] },
+    ];
+    const stops = Array.isArray(realStops) && realStops.length ? realStops : mockStops;
+
+    initCards({ weather, eva, images }, document.getElementById('cards'));
+
+    const list = document.getElementById('stops');
+    for (const stop of stops) {
+      const b = document.createElement('button');
+      b.className = 'stop';
+      b.textContent = `${stop.id}: ${stop.name}`;
+      b.onclick = () => document.dispatchEvent(new CustomEvent('stop:select', { detail: stop }));
+      list.append(b);
+    }
+    document.dispatchEvent(new CustomEvent('stop:select', { detail: stops[0] }));
+  </script>
+</body>
+</html>
