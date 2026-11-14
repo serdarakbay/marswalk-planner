@@ -128,6 +128,7 @@ Harita, kartlar ve HUD birbirinin dosyasını import etmez; sadece şu arayüz �
 - Harita (Ege) duraka tıklanınca: `document.dispatchEvent(new CustomEvent('stop:select', {detail: stop}))`
 - Kartlar (Egemen): `web/js/cards/index.js` → `export function initCards(state, el)`; `stop:select` olayını dinler.
 - HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; H tuşu HUD'u açıp kapatır, `stop:select` ile sıradaki durağı günceller.
+- HUD (Serdar) emits `document.dispatchEvent(new CustomEvent('hud:time', {detail}))` on every simulated clock step: `detail = {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}`. `coord` is null when there is no route. The map (Ege) listens and shows the astronaut marker; it hides the marker when `active` is false.
 - `main.js` bu iki fonksiyonu çağırır. Başka global değişken yok.
 
 ### Sayfa yerleşimi: kimin kutusu nerede
