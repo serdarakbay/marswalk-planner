@@ -1,4 +1,5 @@
-// Stop cards: photo + science note for the selected Marswalk stop.
+// Stop cards: photo + science note for the selected Marswalk stop, and a
+// mission briefing shown while no stop is selected (first-time visitors).
 // Owner: Egemen (branch `veri`)
 //
 // Contract (project rules + docs/contracts.md):
@@ -10,6 +11,9 @@
 //   state.route   (route.geojson, properties.t_min[])    -> arrival time at the stop
 //   state.eva     (eva_window.json, start_lmst)          -> arrival LMST, EVA band on the chart
 //   state.weather (weather.json rows)                    -> temperature at arrival
+//   state.summary, state.radiation                       -> briefing: distance, time, O2, radiation
+// Dispatches (same events as the header buttons / the map):
+//   stop:select (tour buttons), view3d:toggle, hud:toggle (briefing shortcuts)
 // Every input may be null/missing: the card degrades, it never throws.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -111,27 +115,38 @@ function arrivalInfo(stop, st) {
   const ds = line.coords.map((c) => distM(stop.coord, c));
   const bestD = Math.min(...ds);
   if (!(bestD <= ROUTE_SNAP_MAX_M)) return null;
-  // Out-and-back routes pass the stop twice: among the vertices about as close
-  // as the nearest one, take the first visit (smallest t_min), not the return leg.
-  let best = -1;
-  ds.forEach((d, i) => {
-    if (d <= bestD + ROUTE_REVISIT_TOL_M && (best < 0 || Number(line.tMin[i]) < Number(line.tMin[best]))) best = i;
-  });
-  if (best < 0) return null;
-  // The route's t_min jumps at a stop by the dwell time (arrive -> leave).
-  // Walk the contiguous vertices around the stop: earliest t = arrival, latest t = departure.
-  const near = (i) => i >= 0 && i < ds.length && ds[i] <= bestD + ROUTE_REVISIT_TOL_M;
-  let lo = best, hi = best;
-  while (near(lo - 1)) lo--;
-  while (near(hi + 1)) hi++;
-  // Largest single step inside that run = the dwell (arrive just before it, leave just after).
+  // A route can pass a stop more than once (e.g. walks past it on the way out and
+  // stops there on the way back). Split the vertices about as close as the nearest
+  // one into passes (contiguous runs). The visit is the earliest pass that contains
+  // the dwell (t_min jumps by the stop time); with no dwell anywhere, the first pass.
+  const near = (i) => ds[i] <= bestD + ROUTE_REVISIT_TOL_M;
   const tAt = (i) => Number(line.tMin[i]);
-  let jump = lo;
-  for (let i = lo + 1; i <= hi; i++) if (tAt(i) - tAt(i - 1) > tAt(jump) - tAt(jump - 1 < lo ? jump : jump - 1)) jump = i;
-  const dwellRaw = jump > lo ? tAt(jump) - tAt(jump - 1) : 0;
-  const hasDwell = Number.isFinite(dwellRaw) && dwellRaw >= DWELL_MIN_SHOWN;
-  const tArrive = hasDwell ? tAt(jump - 1) : tAt(best);
-  const tLeave = hasDwell ? tAt(jump) : tArrive;
+  const passes = [];
+  for (let i = 0; i < ds.length; i++) {
+    if (!near(i)) continue;
+    const run = passes[passes.length - 1];
+    if (run && run.hi === i - 1) run.hi = i;
+    else passes.push({ lo: i, hi: i });
+  }
+  if (!passes.length) return null;
+  for (const run of passes) {
+    // largest single step inside the pass = the dwell (arrive just before it, leave just after)
+    run.jump = run.lo;
+    run.step = 0;
+    for (let i = run.lo + 1; i <= run.hi; i++) {
+      const step = tAt(i) - tAt(i - 1);
+      if (step > run.step) { run.step = step; run.jump = i; }
+    }
+    // the vertex nearest to the stop in this pass
+    run.best = run.lo;
+    for (let i = run.lo; i <= run.hi; i++) if (ds[i] < ds[run.best]) run.best = i;
+  }
+  passes.sort((a, b) => tAt(a.lo) - tAt(b.lo));
+  const visit = passes.find((r) => r.step >= DWELL_MIN_SHOWN) || passes[0];
+  const hasDwell = visit.step >= DWELL_MIN_SHOWN;
+  const best = visit.best;
+  const tArrive = hasDwell ? tAt(visit.jump - 1) : tAt(best);
+  const tLeave = hasDwell ? tAt(visit.jump) : tArrive;
   if (!Number.isFinite(tArrive)) return null;
   const dwell = hasDwell ? tLeave - tArrive : 0;
   const start = lmstToH(st.eva?.start_lmst);
@@ -237,12 +252,98 @@ function weatherChart(weather, eva, arrivalH = null) {
   const maxC = weather.max_c ?? Math.max(...cs);
   return h('section', { class: 'mm-card__weather' },
     h('div', { class: 'mm-card__weather-head' },
-      h('span', { class: 'mm-card__label' }, 'Air temperature, one sol (LMST)'),
+      h('span', { class: 'mm-card__label' }, 'Air temperature over one Mars day'),
       weather.approximate ? h('span', { class: 'mm-card__tag', title: weather.method || '' }, 'approximate') : null),
     svg,
     h('p', { class: 'mm-card__weather-foot' },
+      e0 != null && e1 != null ? 'Shaded: walk window. Dashed line: you arrive. ' : '',
       `${Math.round(minC)} °C to ${Math.round(maxC)} °C`,
       weather.source ? ` · ${weather.source}` : ''));
+}
+
+// ------------------------------------------------------------ briefing
+const RADIATION_TEXT = {
+  nominal: ['Normal', 'Background radiation only'],
+  elevated: ['Elevated', 'A solar event reached Mars recently'],
+  storm: ['Storm', 'Solar storm: stay near a shelter'],
+};
+
+const selectStop = (stop) => document.dispatchEvent(new CustomEvent('stop:select', { detail: stop }));
+
+function briefingStat(value, label) {
+  return h('div', { class: 'mm-card__stat' },
+    h('span', { class: 'mm-card__stat-value' }, value), h('span', { class: 'mm-card__stat-label' }, label));
+}
+
+// Map symbols, drawn with the same base.css colours as the map (map/index.js, base.css).
+function legendBlock(st) {
+  const row = (cls, label, inner = null) => h('li', {}, h('span', { class: `mm-key mm-key--${cls}`, 'aria-hidden': 'true' }, inner), label);
+  return h('section', { class: 'mm-brief__legend', 'aria-label': 'Map symbols' },
+    h('span', { class: 'mm-card__label' }, 'On the map'),
+    h('ul', {},
+      Array.isArray(st.area?.habitat) ? row('habitat', 'Habitat: start and finish') : null,
+      st.route ? row('route', 'Planned walking route') : null,
+      Array.isArray(st.stops) && st.stops.length ? row('stop', 'Science stop (click it)', '1') : null,
+      st.safety?.shelters?.length ? row('shelter', 'Shelter from radiation') : null,
+      st.traverse ? row('traverse', "Curiosity rover's real path") : null));
+}
+
+function briefingView(st) {
+  const sum = st.summary || {};
+  const stops = Array.isArray(st.stops) ? st.stops.filter((x) => x && typeof x === 'object') : [];
+  const rad = RADIATION_TEXT[st.radiation?.status] || null;
+  const km = Number.isFinite(sum.distance_m) ? `${(sum.distance_m / 1000).toFixed(1)} km` : null;
+
+  const stats = [
+    km ? briefingStat(km, 'walking distance') : null,
+    Number.isFinite(sum.duration_min) ? briefingStat(fmtDuration(sum.duration_min), 'outside, stops included') : null,
+    Number.isFinite(sum.o2_used_pct) ? briefingStat(`${Math.round(sum.o2_used_pct)} %`, 'of the oxygen tank') : null,
+    rad ? briefingStat(rad[0], 'radiation today') : null,
+  ].filter(Boolean);
+
+  const steps = [
+    h('li', { class: 'mm-brief__step mm-brief__step--home' },
+      h('span', { class: 'mm-key mm-key--habitat', 'aria-hidden': 'true' }),
+      h('span', {}, h('b', {}, 'Leave the habitat'),
+        st.eva?.start_lmst ? h('small', {}, `${st.eva.start_lmst} Mars local time`) : null)),
+    ...stops.map((stop, i) => {
+      let a = null;
+      try { a = arrivalInfo(stop, st); } catch { /* no route: no time */ }
+      return h('li', { class: 'mm-brief__step' },
+        h('button', { class: 'mm-brief__stop', type: 'button', onclick: () => selectStop(stop) },
+          h('span', { class: 'mm-key mm-key--stop', 'aria-hidden': 'true' }, String(i + 1)),
+          h('span', {}, h('b', {}, stop.name || `Stop ${i + 1}`),
+            a ? h('small', {}, `+${fmtDuration(a.t_min)} after leaving`) : null),
+          h('span', { class: 'mm-brief__go', 'aria-hidden': 'true' }, '›')));
+    }),
+    h('li', { class: 'mm-brief__step mm-brief__step--home' },
+      h('span', { class: 'mm-key mm-key--habitat', 'aria-hidden': 'true' }),
+      h('span', {}, h('b', {}, 'Back home before the window closes'),
+        st.eva?.end_lmst ? h('small', {}, `by ${st.eva.end_lmst} Mars local time`) : null)),
+  ];
+
+  const has3d = !document.getElementById('view3d-toggle')?.hidden;
+  const tools = h('section', { class: 'mm-brief__tools', 'aria-label': 'Other views' },
+    h('span', { class: 'mm-card__label' }, 'See it another way'),
+    h('button', { class: 'mm-brief__tool', type: 'button', onclick: () => document.dispatchEvent(new CustomEvent('hud:toggle')) },
+      h('b', {}, "Astronaut's visor"), h('small', {}, 'Live oxygen, dose and next stop. Press Play to walk; key H')),
+    has3d ? h('button', { class: 'mm-brief__tool', type: 'button', onclick: () => document.dispatchEvent(new CustomEvent('view3d:toggle')) },
+      h('b', {}, '3D terrain'), h('small', {}, 'Fly along the route over the real Mount Sharp terrain')) : null);
+
+  return h('article', { class: 'mm-brief', 'aria-label': 'Mission briefing' },
+    h('p', { class: 'mm-card__kicker' }, 'Mission briefing'),
+    h('h2', { class: 'mm-card__title' }, 'Plan a safe walk on Mars'),
+    h('p', { class: 'mm-brief__lead' },
+      'An astronaut leaves the habitat in Gale crater, visits ', String(stops.length || 'a few'),
+      ' science stops where the Curiosity rover has been, and must be back before oxygen, daylight or radiation run out.'),
+    stats.length ? h('div', { class: 'mm-card__stats' }, stats) : null,
+    rad && st.radiation?.status !== 'nominal' ? h('p', { class: 'mm-card__note' }, rad[1]) : null,
+    stops.length ? h('button', { class: 'mm-brief__start', type: 'button', onclick: () => selectStop(stops[0]) }, 'Start the tour  →') : null,
+    h('section', { class: 'mm-brief__walk', 'aria-label': 'The walk, step by step' },
+      h('span', { class: 'mm-card__label' }, 'The walk, step by step'),
+      h('ol', {}, steps)),
+    legendBlock(st),
+    tools);
 }
 
 // ------------------------------------------------------------ card
@@ -255,13 +356,46 @@ export function initCards(state, el) {
 
   let current = null; // {stop, photos, index}
 
-  // Not attached while closed: an empty #cards shows base.css's "Select a stop" hint.
+  // While no stop is open, #cards shows the mission briefing instead of the card.
   const card = h('article', { class: 'mm-card', 'aria-live': 'polite', tabindex: '-1' });
   const isOpen = () => card.isConnected;
+  const stops = () => (Array.isArray(st.stops) ? st.stops : []);
+  let brief = null;
+
+  function showBriefing() {
+    try {
+      brief = briefingView(st);
+      el.replaceChildren(brief);
+      el.scrollTop = 0;
+    } catch (err) {
+      console.error('[cards] briefing failed', err);
+      el.replaceChildren(); // falls back to base.css's "Select a stop" hint
+    }
+  }
 
   function hide() {
     card.remove();
     current = null;
+    showBriefing();
+  }
+
+  // index of the open stop in stops.json order (= the number on the map)
+  function stopIndex(stop) {
+    return stops().findIndex((x) => x === stop || (x?.id != null && x.id === stop?.id));
+  }
+
+  function tourNav() {
+    const i = stopIndex(current.stop);
+    if (i < 0) return null;
+    const next = stops()[i + 1];
+    return h('nav', { class: 'mm-card__tour', 'aria-label': 'Tour' },
+      i > 0 ? h('button', { class: 'mm-card__tour-btn', type: 'button', onclick: () => selectStop(stops()[i - 1]) },
+        h('small', {}, '‹ Previous'), h('b', {}, stops()[i - 1].name || `Stop ${i}`)) : h('span'),
+      next
+        ? h('button', { class: 'mm-card__tour-btn mm-card__tour-btn--next', type: 'button', onclick: () => selectStop(next) },
+          h('small', {}, 'Next stop ›'), h('b', {}, next.name || `Stop ${i + 2}`))
+        : h('button', { class: 'mm-card__tour-btn mm-card__tour-btn--next', type: 'button', onclick: hide },
+          h('small', {}, 'Tour done ›'), h('b', {}, 'Back to the briefing')));
   }
 
   function setPhoto(i) {
@@ -314,12 +448,12 @@ export function initCards(state, el) {
     const stat = (value, label) => h('div', { class: 'mm-card__stat' },
       h('span', { class: 'mm-card__stat-value' }, value), h('span', { class: 'mm-card__stat-label' }, label));
     return h('section', { class: 'mm-card__arrival', 'aria-label': 'Arrival at this stop' },
-      h('span', { class: 'mm-card__label' }, 'Arrival on the planned route'),
+      h('span', { class: 'mm-card__label' }, 'When you get here'),
       h('div', { class: 'mm-card__stats' },
-        stat(a.t_min < 0.5 ? 'Start' : `+${fmtDuration(a.t_min)}`, 'after EVA start'),
-        a.lmst_h != null ? stat(hToLmst(a.lmst_h), 'LMST') : null,
-        a.temp_c != null ? stat(`${Math.round(a.temp_c)} °C`, 'air temp.') : null,
-        a.slope_deg != null ? stat(`${Math.round(a.slope_deg)}°`, 'slope') : null),
+        stat(a.t_min < 0.5 ? 'Start' : `+${fmtDuration(a.t_min)}`, 'after leaving the habitat'),
+        a.lmst_h != null ? stat(hToLmst(a.lmst_h), 'Mars local time (LMST)') : null,
+        a.temp_c != null ? stat(`${Math.round(a.temp_c)} °C`, 'air temperature') : null,
+        a.slope_deg != null ? stat(`${Math.round(a.slope_deg)}°`, 'ground slope') : null),
       a.dwell_min ? h('p', { class: 'mm-card__note mm-card__dwell' },
         `${fmtDuration(a.dwell_min)} at this stop, leave at +${fmtDuration(a.leave_t_min)}`) : null);
   }
@@ -331,19 +465,22 @@ export function initCards(state, el) {
     let arrival = null;
     try { arrival = arrivalInfo(stop, st); } catch (err) { console.error('[cards] arrival failed', err); }
     // replaceChildren() would print "null" for missing blocks, so drop them first
+    const idx = stopIndex(stop);
     card.replaceChildren(...[
+      h('button', { class: 'mm-card__back', type: 'button', onclick: hide }, '‹ Mission briefing'),
       h('header', { class: 'mm-card__head' },
         h('div', {},
-          h('p', { class: 'mm-card__kicker' }, stop.id != null ? `Stop ${stop.id}` : 'Stop'),
+          h('p', { class: 'mm-card__kicker' }, idx >= 0 ? `Stop ${idx + 1} of ${stops().length}` : 'Stop'),
           h('h2', { class: 'mm-card__title' }, stop.name || 'Unnamed stop'),
           coord ? h('p', { class: 'mm-card__coord' }, coord) : null),
-        h('button', { class: 'mm-card__close', type: 'button', 'aria-label': 'Close card', onclick: hide }, '×')),
+        h('button', { class: 'mm-card__close', type: 'button', 'aria-label': 'Close card and show the briefing', onclick: hide }, '×')),
       arrivalBlock(arrival),
       photoBlock(),
       stop.science ? h('section', { class: 'mm-card__science' },
         h('span', { class: 'mm-card__label' }, 'Science'),
         h('p', {}, stop.science)) : null,
       weatherChart(st.weather, st.eva, arrival?.lmst_h ?? null),
+      tourNav(),
     ].filter(Boolean));
   }
 
@@ -362,11 +499,17 @@ export function initCards(state, el) {
     current = { stop, photos, nearby, index: sameStop ? Math.min(current.index, Math.max(0, photos.length - 1)) : 0 };
     try {
       render();
-      if (!isOpen()) el.append(card);
+      if (!isOpen()) el.replaceChildren(card);
+      el.scrollTop = 0;
     } catch (err) {
       console.error('[cards] render failed', err);
     }
   }
+
+  showBriefing();
+  // the 3D button appears only once that module has started: refresh the shortcuts then
+  const b3d = document.getElementById('view3d-toggle');
+  if (b3d) new MutationObserver(() => { if (!isOpen()) showBriefing(); }).observe(b3d, { attributes: true, attributeFilter: ['hidden'] });
 
   document.addEventListener('stop:select', (ev) => show(ev.detail));
   document.addEventListener('keydown', (ev) => {
