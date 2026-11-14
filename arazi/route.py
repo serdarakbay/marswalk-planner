@@ -12,18 +12,15 @@ from rasterio.warp import transform as warp_coords
 from scipy.ndimage import distance_transform_edt
 from skimage.graph import MCP_Geometric
 
-from arazi.geo import CACHE, MARS_GEO, ROOT, WEB, load_area, load_mission
+from arazi.geo import CACHE, MARS_GEO, ROOT, WEB, load_area
+from arazi.walk import STOP_DWELL_MIN, dose_mSv, o2_used_pct, speed_m_min
 
 # Used only until Utku's stops.json exists: two placeholder stops near the habitat
 _DEFAULT_STOPS = [[137.375, -4.745], [137.392, -4.741]]
 
-# --- Walking model (placeholders until science/models.py lands; see assumptions) ---
 SAMPLE_EVERY_M = 5          # keep one route vertex every ~5 m
 PROFILE_EVERY_M = 10        # summary.profile spacing
-SUIT_SPEED_FACTOR = 0.6     # suited astronaut walks at 60% of Tobler's hiking speed
-STOP_DWELL_MIN = 15         # time spent at each science stop
 
-mission = load_mission()
 area = load_area()
 
 
@@ -33,26 +30,6 @@ def load_stops():
         return [s["coord"] for s in json.loads(path.read_text(encoding="utf-8"))]
     print("WARNING: web/data/stops.json not found, using placeholder stops")
     return _DEFAULT_STOPS
-
-
-def tobler_speed_m_min(grade):
-    """Tobler's hiking function (km/h -> m/min), scaled for a suited astronaut."""
-    kmh = 6 * np.exp(-3.5 * np.abs(grade + 0.05))
-    return kmh * 1000 / 60 * SUIT_SPEED_FACTOR
-
-
-def o2_used_pct(duration_min):
-    """Placeholder: a nominal-length EVA uses all O2 above the reserve."""
-    try:
-        from science.models import o2_used_pct as model   # Utku's model, when available
-        return float(model(duration_min))
-    except ImportError:
-        usable = 100 - mission["o2_reserve_pct"]
-        return usable * duration_min / (mission["eva_nominal_hours"] * 60)
-
-
-def dose_mSv(duration_min):
-    return mission["rad_base_mSv_per_day"] * duration_min / (24 * 60)
 
 
 # --- Load rasters (metric grid, 1 m pixels) ---
@@ -115,7 +92,7 @@ slopes = slope[rows, cols]
 # Time: walking speed from the grade of each segment, plus dwell at stops
 seg_len = np.diff(d)
 grade = np.divide(np.diff(zs), seg_len, out=np.zeros_like(seg_len), where=seg_len > 0)
-seg_min = seg_len / tobler_speed_m_min(grade)
+seg_min = seg_len / speed_m_min(grade)
 t = np.concatenate([[0], np.cumsum(seg_min)])
 for si in stop_index:
     t[np.array(keep) >= si] += STOP_DWELL_MIN
@@ -143,7 +120,7 @@ duration = float(t[-1])
 summary = {
     "distance_m": round(float(d[-1])),
     "duration_min": round(duration),
-    "o2_used_pct": round(o2_used_pct(duration), 1),
+    "o2_used_pct": round(float(o2_used_pct(duration)), 1),
     "dose_mSv": round(dose_mSv(duration), 3),
     "max_slope_deg": round(float(slopes.max()), 1),
     "profile": [{"d": round(float(d[i])), "z": round(float(zs[i]), 1),

@@ -48,5 +48,46 @@
         "label": "Impassable (> 25°)"
       }
     ]
+  },
+  {
+    "id": "return_time",
+    "name": "Return time to habitat",
+    "png": "data/overlays/return_time.png",
+    "bounds": {
+      "west": 137.36,
+      "south": -4.77,
+      "east": 137.4,
+      "north": -4.73
+    },
+    "legend": [
+      {
+        "color": "#2e9e5b",
+        "label": "0–10 min (O2 ≤ 2%)"
+      },
+      {
+        "color": "#7cc35a",
+        "label": "10–20 min (O2 ≤ 3%)"
+      },
+      {
+        "color": "#e8c547",
+        "label": "20–30 min (O2 ≤ 5%)"
+      },
+      {
+        "color": "#ef8a3a",
+        "label": "30–40 min (O2 ≤ 6%)"
+      },
+      {
+        "color": "#d64545",
+        "label": "40–50 min (O2 ≤ 8%)"
+      },
+      {
+        "color": "#8e2c6e",
+        "label": "> 50 min"
+      },
+      {
+        "color": "#555555",
+        "label": "Unreachable"
+      }
+    ]
   }
 ]
