@@ -23,7 +23,7 @@ import {
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
-import { isOutside, SCENARIO, simulate } from './scenario.js';
+import { isOutside, missionLog, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
@@ -68,6 +68,8 @@ function row(body, label, value, note) {
 function fmtNum(v, digits = 0, unit = '') {
   return Number.isFinite(v) ? `${v.toFixed(digits)}${unit}` : '—';
 }
+
+const LOG_ROWS = 6;   // mission log entries shown (newest first)
 
 // '2024-05-20' -> '20 May 2024' (UI text is English)
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -187,6 +189,16 @@ export function initHUD(state, el) {
     }
   }
   rebuildPlan();
+  let log = [];
+  function rebuildLog() {
+    try {
+      log = missionLog(plan, schedule, shadows);
+    } catch (err) {
+      console.error('[hud] mission log failed', err);
+      log = [];
+    }
+  }
+  rebuildLog();
 
   // Look: visor by default (the challenge describes the HUD as projected on the helmet visor).
   // ?hud=plain in the page URL switches to the plain/modern look.
@@ -488,6 +500,22 @@ export function initHUD(state, el) {
     const colR = h('div', 'hud-col hud-col--right');
     colL.append(life.box);
     colR.append(stopP.box);
+    // --- mission log: latest events up to now
+    if (log.length && Number.isFinite(elapsed)) {
+      const seen = log.filter((x) => x.t <= elapsed + 1e-6);
+      if (seen.length) {
+        const logP = panel('Mission log');
+        const list = h('ol', 'hud-log');
+        list.setAttribute('aria-label', 'Mission log, newest first');
+        for (const x of seen.slice(-LOG_ROWS).reverse()) {
+          const li = h('li', `hud-log__item hud-log__item--${x.level}`);
+          li.append(h('span', 'hud-log__t', `T+${fmtDuration(x.t)}`), h('span', 'hud-log__text', x.text));
+          list.append(li);
+        }
+        logP.body.append(list);
+        colR.append(logP.box);
+      }
+    }
     const bottom = h('div', 'hud-bottom');
     bottom.append(sunP.box, comms.box);
     grid.append(colL, colR);
@@ -634,6 +662,7 @@ export function initHUD(state, el) {
       if (storm) stormT0 = Math.max(0, nowMin());
       stormBtn.setAttribute('aria-pressed', String(storm));
       rebuildPlan();
+      rebuildLog();
       renderEvents();
       emitTime();
       if (open) render();
@@ -643,6 +672,7 @@ export function initHUD(state, el) {
       if (dustOn) dustT0 = Math.max(SCENARIO.STEP_MIN, nowMin());
       dustBtn.setAttribute('aria-pressed', String(dustOn));
       rebuildPlan();
+      rebuildLog();
       renderEvents();
       emitTime();
       if (open) render();

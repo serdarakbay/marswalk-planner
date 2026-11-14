@@ -11,6 +11,7 @@ The astronaut's helmet-visor view. Opens with **H** or the HUD button in `planne
 - **Alerts:** rules from `web/data/alerts.json` (Utku) plus built-in ones (Earth below the horizon, outside the EVA window, scenario alerts).
 - **Radio shadow ahead:** from `safety.json` → `route[].comm_ok`, the HUD warns 10 min before a stretch without a link ("Radio shadow in 4 min, for 3 min: check in now") and counts down while in it.
 - **Point of no return:** "Turn back by T+…" = O2 above the 25 % reserve minus the O2 to walk home from here (straight line × 1.3, 50 m/min). Warns under 30 min, "Turn back now" at zero.
+- **Mission log:** the latest key events up to the current time, newest first (EVA start, stops, radio shadows of a minute or more, storm, shelter, dust devil, return). Built from the simulated plan, so it follows the time slider.
 - **Simulation clock:** play / pause, speed (real time to x1200), time slider with coloured event bands.
 
 ## URL parameters

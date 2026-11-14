@@ -199,7 +199,7 @@ export function simulate(p) {
   if (dust && devil) events.push({ kind: 'dust', a: devil.t0, b: devil.t0 + SCENARIO.DUST_TRACK_M / SCENARIO.DUST_SPEED_M_PER_MIN });
 
   return {
-    storm, dust, events,
+    storm, dust, events, steps,
     startMin, endMin,
     // O2 used by the time the astronaut is back inside (the whole simulated walk)
     finalO2: steps.length ? steps[steps.length - 1].o2 : 0,
@@ -224,3 +224,68 @@ export function simulate(p) {
 }
 
 export { bearingDeg };
+
+// ---------------------------------------------------------------------------
+// Mission log: the key events of the simulated walk, [{t, level, text}] sorted by time.
+// Built once per plan; the HUD shows the entries up to the current simulation time.
+export function missionLog(plan, schedule = [], shadows = []) {
+  const steps = plan?.steps;
+  if (!Array.isArray(steps) || !steps.length) return [];
+  const log = [];
+  const add = (t, level, text) => log.push({ t, level, text });
+  const arrived = new Set();
+  const left = new Set();
+  const inShadow = new Set();
+  let dustSeen = false;
+  let stormSeen = false;
+  let prev = steps[0];
+
+  for (const s of steps.slice(1)) {
+    if (plan.storm && !stormSeen && s.t >= plan.storm.t0) {
+      stormSeen = true;
+      add(s.t, 'danger', 'Solar storm alert (replay of 20 May 2024)');
+    }
+    if (prev.mode === 'pre' && s.mode === 'route') add(s.t, 'info', 'EVA start: left the habitat');
+    if (s.mode === 'to_refuge' && prev.mode !== 'to_refuge' && s.refuge) {
+      add(s.t, 'danger', s.refuge.habitat
+        ? `Heading back to the habitat${s.refuge.o2Short ? ' (O2 too low to wait out the storm)' : ''}`
+        : `Heading to shelter, ${Math.round(s.refuge.d)} m away`);
+    }
+    if (s.mode === 'sheltered' && prev.mode !== 'sheltered') {
+      add(s.t, 'warn', `In shelter (sky-view ${Number.isFinite(s.refuge?.svf) ? s.refuge.svf.toFixed(2) : '—'})`);
+    }
+    if (s.mode === 'return' && prev.mode !== 'return') add(s.t, 'info', 'Storm over: walking back to the route');
+    if (prev.mode === 'return' && s.mode === 'route') add(s.t, 'info', 'Back on the route');
+    if (s.devil && !dustSeen && s.devilDist < SCENARIO.DUST_APPROACH_M) {
+      dustSeen = true;
+      add(s.t, 'warn', 'Dust devil sighted');
+    }
+    if (s.mode === 'hold' && prev.mode !== 'hold') add(s.t, 'danger', 'Holding position: dust devil crossing');
+    if (prev.mode === 'hold' && s.mode === 'route') add(s.t, 'info', 'Dust devil passed: walk resumed');
+
+    if (s.mode === 'route' || s.mode === 'hold') {
+      for (const e of schedule) {
+        const id = e.stop.id ?? e.stop.name;
+        if (!arrived.has(id) && s.tau >= e.t_min) {
+          arrived.add(id);
+          add(s.t, 'info', `Arrived at ${e.stop.name || id}`);
+        }
+        if (arrived.has(id) && !left.has(id) && s.tau > (e.t_leave ?? e.t_min)) {
+          left.add(id);
+          add(s.t, 'info', `Left ${e.stop.name || id}`);
+        }
+      }
+      // One line per radio shadow (shorter than a minute: not worth a log line)
+      shadows.forEach((x, i) => {
+        if (!inShadow.has(i) && x.b - x.a >= 1 && s.tau >= x.a && s.tau < x.b) {
+          inShadow.add(i);
+          add(s.t, 'warn', `Radio shadow for ${Math.round(x.b - x.a)} min: no link to the habitat`);
+        }
+      });
+    }
+    if (s.mode === 'home' && prev.mode !== 'home') add(s.t, 'warn', 'Back in the habitat: EVA ended early');
+    if (s.mode === 'done' && prev.mode !== 'done') add(s.t, 'info', 'EVA complete: back in the habitat');
+    prev = s;
+  }
+  return log;
+}
