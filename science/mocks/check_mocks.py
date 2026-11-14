@@ -195,9 +195,11 @@ stops = load("stops.json")
 check(isinstance(stops, list) and stops, "stops: not a non-empty list")
 ids = [st["id"] for st in stops]
 check(len(set(ids)) == len(ids), "stops: duplicate ids")
+stop_mock = [st.get("mock") is True for st in stops]
+check(all(stop_mock) or not any(stop_mock), "stops: some stops are marked mock, some are not")
+print(f"  stops.json: {'mock' if all(stop_mock) else 'real'}")
 for i, st in enumerate(stops):
     keys(st, ["id", "name", "coord", "science", "photos"], f"stops[{i}]")
-    check(st.get("mock") is True, f"stops[{i}]: mock marker missing")
     point(st["coord"], f"stops[{i}].coord")
     cross(nearest(st["coord"], coords)[1] <= NEAR_M, f"stops[{i}]: not on the route (> {NEAR_M} m from a vertex)")
     for j, ph in enumerate(st["photos"]):

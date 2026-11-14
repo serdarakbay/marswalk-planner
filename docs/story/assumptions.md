@@ -67,6 +67,13 @@ Because the tank is calibrated with the same `o2_kj_per_l`, that value cancels o
 - **Route cost** (Assumption). Each 1 m DEM pixel costs `1 + (slope / 15°)^2 + roughness / 0.5 m`, where roughness is the standard deviation of elevation in a 5 × 5 m window. Pixels steeper than 25° and NoData pixels cannot be crossed. The route is the lowest-cost path on the 1 m DEM, found with scikit-image's `MCP_Geometric` (8 directions).
 - **Return rings** (Assumption). For every pixel, the time and O2 of the shortest safe walk back to the habitat. To be cautious, every step is counted as uphill, so the real way back can be shorter. The rings are drawn in 15-minute bands.
 
+## Science stops
+
+- **Stops on Curiosity's track** (Source). Each stop is a rover position where Curiosity took photos (`images.json`), so the stop lies on the real traverse and its photos show that place.
+- **Unit from the sol** (Assumption). The USGS map in `geology.geojson` (1:20,000,000) puts the whole walk in one unit (Htu), so it cannot separate the clay-bearing unit, the transition and the sulfate-bearing unit. We assign units by the sol of the photos instead. Clay-bearing: before sol 3100; inside our area Curiosity has no sols between 3005 and 3202, so any boundary in that gap gives the same result. Transition: sol 3100 to 3599. Sulfate-bearing: from sol 3600, about when NASA reported in October 2022 that the rover had reached the sulfate-bearing region. Both boundaries are approximate.
+- **Elevation check** (Derived). Mount Sharp's layers get younger upward, so the units should also rise in this order. The stop elevations do: clay -4081 m, transition -4021 m, sulfate -3859 m.
+- **Stop choice** (Assumption). Stops are at least 200 m apart. Among all valid triples we take the shortest loop from the habitat that, walked on Demir's cost grid with the same walking model, fits the EVA window and stays above the O2 reserve.
+
 ## Radio link and shelters
 
 - **Radio line of sight** (Assumption). The astronaut has a radio link only with a direct line of sight from an antenna 6 m above the habitat (`comm_antenna_height_m`) to a suit antenna 2 m above the ground (`comm_suit_antenna_height_m`). Both heights are our choice. There is no relay, and radio waves are not modelled as bending or reflecting around terrain, so any hill in between cuts the link.
