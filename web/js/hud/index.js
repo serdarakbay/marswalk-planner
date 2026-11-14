@@ -132,11 +132,13 @@ export function initHUD(state, el) {
   const evaStart = parseUtc(state.eva?.start_utc);
   const activeMin = timeline?.total_min ?? state.eva?.duration_min ?? null;
 
-  // Optional look: ?hud=visor in the page URL switches hud.css to the visor palette.
-  // The default (no parameter) stays plain/modern.
+  // Look: visor by default (the challenge describes the HUD as projected on the helmet visor).
+  // ?hud=plain in the page URL switches to the plain/modern look.
+  let look = 'visor';
   try {
-    if (new URLSearchParams(location.search).get('hud') === 'visor') el.dataset.look = 'visor';
+    if (new URLSearchParams(location.search).get('hud') === 'plain') look = 'plain';
   } catch { /* no location (tests) */ }
+  if (look === 'visor') el.dataset.look = 'visor';
 
   // el is the #hud-root box (fixed overlay from base.css); we only fill it.
   const root = h('div', 'hud');
