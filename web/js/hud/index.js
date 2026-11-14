@@ -3,16 +3,20 @@
 //   - H key and the 'hud:toggle' event (header button) toggle the HUD.
 //   - On open/close the HUD sets document.body.dataset.mode = 'hud' / 'map'.
 //   - 'stop:select' updates the next stop.
-//   - Emits 'hud:time' {active, playing, utc, elapsed_min, coord, d_m} on every simulated
-//     minute, seek, pause and open/close, so the map can move an astronaut marker.
+//   - Emits 'hud:time' {active, playing, utc, elapsed_min, coord, d_m, storm, shelter} on every
+//     simulated minute, seek, pause, open/close and storm toggle, so the map can move an
+//     astronaut marker (storm / shelter are extra fields the map may use to highlight a shelter).
+//   - "Storm replay" button (only when radiation.json has a replay block): applies the
+//     20 May 2024 storm scenario to the dose, raises a danger alert and shows the nearest shelter.
 //   - Any state field may be null; the HUD must never throw.
 //   - The HUD loads its own stylesheet (hud.css); every selector there starts with #hud-root.
 // Simulation clock: play / pause, speed and a time slider move the HUD through the EVA.
 // Returns a controller ({toggle, setTime, render, clock}).
 
 import {
-  activityFraction, compass, distanceM, doseAt, evaDose, evalAlerts, evaStatus, fmtDuration,
-  fmtLmst, nextStop, o2At, parseUtc, routeState, routeTimeline, safetyAt, stopSchedule, sunAt,
+  activityFraction, compass, distanceM, doseAt, effectiveRadiation, evaDose, evalAlerts, evaStatus,
+  fmtDuration, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState, routeTimeline, safetyAt,
+  stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
 
@@ -98,6 +102,9 @@ export function initHUD(state, el) {
   let time = range?.initial ?? null;
   // Manual pick from the map ('stop:select'); cleared when the clock starts playing.
   let pinnedStop = null;
+  // Demo: radiation.json "replay" scenario (20 May 2024 solar storm) switched on/off from the sim bar
+  let storm = false;
+  const hasReplay = Boolean(state.radiation?.replay);
   const fallbackStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
 
@@ -142,7 +149,8 @@ export function initHUD(state, el) {
     const status = evaStatus(eva, time);
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
     const frac = activityFraction(elapsed, activeMin);
-    const dose = evaDose(state.radiation, eva, timeline?.total_min, state.summary);
+    const rad = effectiveRadiation(state.radiation, storm);
+    const dose = evaDose(rad, eva, timeline?.total_min, state.summary);
     const doseNow = doseAt(dose, frac);
     const o2 = o2At(state.summary, frac);
     // Inside the habitat before the EVA starts and after the route ends (known only with route timing).
@@ -151,6 +159,9 @@ export function initHUD(state, el) {
     const pos = rs?.coord ?? null;
     // Shelter / radio-shadow info only matters while outside.
     const safe1 = atHabitat ? null : safetyAt(state.safety, rs?.d_m);
+    const isStorm = rad?.status === 'storm';
+    const shelter = isStorm && !atHabitat
+      ? nearestShelter(state.safety?.shelters, pos ?? state.area?.habitat) : null;
 
     // --- top bar
     const bar = h('header', 'hud-bar');
@@ -192,17 +203,26 @@ export function initHUD(state, el) {
       eva_state: status?.state ?? null,
       // back inside once the planned route is done (only known with route timing)
       at_habitat: atHabitat,
-      radiation_status: state.radiation?.status ?? null,
-      radiation_message: state.radiation?.message ?? null,
+      radiation_status: rad?.status ?? null,
+      radiation_message: rad?.message ?? null,
     };
     const alertBox = h('div', 'hud-alerts');
     alertBox.setAttribute('aria-live', 'polite');
-    for (const a of evalAlerts(state.alerts, metrics)) {
+    const alerts = evalAlerts(state.alerts, metrics);
+    if (shelter) {
+      const mins = Number.isFinite(safe1?.shelter_min) ? `${safe1.shelter_min.toFixed(1)} min, ` : '';
+      alerts.unshift({
+        id: 'hud-shelter', level: 'danger',
+        text: `Take shelter: ${mins}${fmtDist(shelter.d_m)} ${compass(shelter.bearing_deg)}`,
+      });
+    }
+    for (const a of alerts) {
       alertBox.append(h('div', `hud-alert hud-alert--${a.level}`, a.text));
     }
 
     // --- life support
     const life = panel('Life support');
+    if (isStorm) life.box.classList.add('hud-panel--danger');
     safe('life', () => {
       if (o2) {
         row(life.body, 'O₂ remaining', fmtNum(o2.remaining_pct, 0, '%'), 'est.');
@@ -219,8 +239,15 @@ export function initHUD(state, el) {
       row(life.body, 'Dose so far', Number.isFinite(doseNow) ? `${doseNow.toFixed(3)} mSv` : '—',
         dose?.estimated ? 'est.' : null);
       if (dose) row(life.body, 'Planned dose', `${dose.mSv.toFixed(3)} mSv`);
-      if (dose && dose.multiplier !== 1) row(life.body, 'Solar event', `×${dose.multiplier}`);
-      if (Number.isFinite(safe1?.shelter_min)) row(life.body, 'Nearest shelter', `${safe1.shelter_min.toFixed(1)} min`);
+      if (dose && dose.multiplier !== 1) {
+        row(life.body, 'Solar event', `×${dose.multiplier}`, rad?.replay_date ? 'replay' : null);
+      }
+      if (shelter) {
+        const mins = Number.isFinite(safe1?.shelter_min) ? `${safe1.shelter_min.toFixed(1)} min · ` : '';
+        row(life.body, 'Shelter', `${mins}${fmtDist(shelter.d_m)} ${compass(shelter.bearing_deg)}`);
+      } else if (Number.isFinite(safe1?.shelter_min)) {
+        row(life.body, 'Nearest shelter', `${safe1.shelter_min.toFixed(1)} min`);
+      }
       if (Number.isFinite(eva?.duration_min)) row(life.body, 'EVA length', fmtDuration(eva.duration_min));
     }, life.body);
 
@@ -307,6 +334,11 @@ export function initHUD(state, el) {
   slider.setAttribute('aria-label', 'Mission time');
   const simLabel = h('span', 'hud-sim__label');
   sim.append(playBtn, speedSel, slider, simLabel);
+  const stormBtn = h('button', 'hud-sim__storm', 'Storm replay');
+  stormBtn.type = 'button';
+  stormBtn.title = 'Replay the 20 May 2024 solar storm (radiation.json)';
+  stormBtn.setAttribute('aria-pressed', 'false');
+  if (hasReplay) sim.append(stormBtn);
 
   let lastMinute = null;
   let clock = null;
@@ -330,6 +362,9 @@ export function initHUD(state, el) {
         elapsed_min: Number.isFinite(elapsed) ? Math.round(elapsed * 10) / 10 : null,
         coord: rs?.coord ? rs.coord.map((v) => Math.round(v * 1e6) / 1e6) : null,
         d_m: Number.isFinite(rs?.d_m) ? Math.round(rs.d_m) : null,
+        storm,
+        shelter: storm && rs?.coord
+          ? nearestShelter(state.safety?.shelters, rs.coord)?.coord ?? null : null,
       },
     }));
   }
@@ -380,6 +415,12 @@ export function initHUD(state, el) {
       }
     });
     speedSel.addEventListener('change', () => clock.setSpeed(Number(speedSel.value)));
+    stormBtn.addEventListener('click', () => {
+      storm = !storm;
+      stormBtn.setAttribute('aria-pressed', String(storm));
+      emitTime();
+      if (open) render();
+    });
     slider.addEventListener('input', () => {
       clock.seek(clock.start.getTime() + Number(slider.value) * 60000);
     });

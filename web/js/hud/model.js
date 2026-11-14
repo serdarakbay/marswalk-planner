@@ -135,7 +135,11 @@ export function evalAlerts(alerts, metrics) {
     out.push({ id: 'hud-eva-closed', level: 'danger', text: 'Outside EVA window: return to habitat' });
   }
   if (metrics.radiation_status && metrics.radiation_status !== 'nominal') {
-    out.push({ id: 'hud-radiation', level: 'warn', text: metrics.radiation_message || `Radiation: ${metrics.radiation_status}` });
+    out.push({
+      id: 'hud-radiation',
+      level: metrics.radiation_status === 'storm' ? 'danger' : 'warn',
+      text: metrics.radiation_message || `Radiation: ${metrics.radiation_status}`,
+    });
   }
   const rank = { danger: 0, crit: 0, critical: 0, warn: 1, warning: 1, info: 2 };
   return out.sort((a, b) => (rank[a.level] ?? 3) - (rank[b.level] ?? 3));
@@ -248,4 +252,45 @@ export function o2At(summary, frac) {
 // Dose accumulated so far (mSv) for a given total EVA dose.
 export function doseAt(dose, frac) {
   return dose && frac != null ? dose.mSv * frac : null;
+}
+
+// ---------------------------------------------------------------------------
+// Solar storm replay (radiation.json "replay" block, Utku)
+
+// radiation.json with the replay scenario applied on top when `storm` is on.
+// The top-level fields stay the live values; replay only overrides status,
+// event_multiplier and message. Absorbed dose (mGy) is never mixed into mSv.
+export function effectiveRadiation(radiation, storm) {
+  const r = radiation?.replay;
+  if (!storm || !r) return radiation ?? null;
+  return {
+    ...radiation,
+    status: r.status ?? 'storm',
+    event_multiplier: Number.isFinite(r.event_multiplier) ? r.event_multiplier : radiation.event_multiplier,
+    message: r.message ?? radiation.message,
+    replay_date: r.date ?? null,
+  };
+}
+
+// Initial bearing from a to b, degrees clockwise from north ([lon, lat] in degrees).
+export function bearingDeg(a, b) {
+  const rad = Math.PI / 180;
+  const [lon1, lat1] = [a[0] * rad, a[1] * rad];
+  const [lon2, lat2] = [b[0] * rad, b[1] * rad];
+  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+  return ((Math.atan2(y, x) / rad) + 360) % 360;
+}
+
+// Closest shelter (safety.json shelters[{coord, svf}]) to `from`: {coord, svf, d_m, bearing_deg}.
+export function nearestShelter(shelters, from) {
+  if (!Array.isArray(shelters) || !Array.isArray(from)) return null;
+  let best = null;
+  for (const s of shelters) {
+    if (!Array.isArray(s?.coord)) continue;
+    const d = distanceM(from, s.coord);
+    if (!best || d < best.d_m) best = { coord: s.coord, svf: s.svf ?? null, d_m: d };
+  }
+  if (best) best.bearing_deg = bearingDeg(from, best.coord);
+  return best;
 }

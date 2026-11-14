@@ -37,7 +37,7 @@ export const MOCK_STATE = {
   // MOCK safety.json (Utku): route[].d in metres along the route
   safety: {
     overlays: [],
-    shelters: [{ coord: [137.385, -4.746], svf: 0.6 }],
+    shelters: [{ coord: [137.385, -4.746], svf: 0.6 }, { coord: [137.392, -4.739], svf: 0.45 }],
     route: [
       { d: 0, comm_ok: true, shelter_min: 2.0 },
       { d: 1800, comm_ok: false, shelter_min: 6.5 },
@@ -45,7 +45,15 @@ export const MOCK_STATE = {
     ],
     offline_min: 12,
   },
-  radiation: { base_mSv_per_day: 0.64, event_multiplier: 1, status: 'nominal', message: 'Quiet Sun' },
+  radiation: {
+    base_mSv_per_day: 0.64, event_multiplier: 1, status: 'nominal', message: 'Quiet Sun',
+    // MOCK of Utku's replay block (radiation.json, docs/contracts.md)
+    replay: {
+      date: '2024-05-20', status: 'storm', event_multiplier: 38.6,
+      message: 'Replay of the 20 May 2024 solar storm: dose rate x38.6. Stay close to shelter.',
+      event_dose_mGy: 8.1,
+    },
+  },
   // MOCK alerts.json (Utku): levels info / warn / danger as in docs/contracts.md
   alerts: {
     rules: [
