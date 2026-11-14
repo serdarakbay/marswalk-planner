@@ -256,6 +256,9 @@ if "replay" in r:   # optional
     keys(rp, ["status", "event_multiplier", "message", "event_dose_mGy", "duration_min"], "radiation.replay")
     check(rp.get("status") in ("nominal", "elevated", "storm"), "radiation.replay: bad status")
     check(num(rp.get("duration_min")) and rp["duration_min"] > 0, "radiation.replay.duration_min not > 0")
+    if "habitat_dose_factor" in rp:
+        check(num(rp["habitat_dose_factor"]) and 0 <= rp["habitat_dose_factor"] <= 1,
+              "radiation.replay.habitat_dose_factor not in 0-1")
 
 # alerts.json
 a = load("alerts.json")

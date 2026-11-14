@@ -18,6 +18,7 @@
   "message": "Replay of the 20 May 2024 solar storm: dose rate x38.6. Stay close to shelter.",
   "event_dose_mGy": 8.1,
   "duration_min": 120,
+  "habitat_dose_factor": 0.3,
   "background_mGy_per_day": 0.21,
   "mars_arrivals_wsa_enlil": [
    "2024-05-20T07:52:00Z",
