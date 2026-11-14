@@ -136,6 +136,39 @@
 #hud-root .hud-refuge__dose { font-family: var(--font-mono); text-align: right; }
 #hud-root .hud-refuge__where { grid-column: 1 / -1; color: var(--hud-muted); }
 #hud-root .hud-tag--ok { color: var(--hud-ok); }
+#hud-root .hud-tag--muted { color: var(--hud-muted); }
+
+/* science targets: unit filter chips, go / no verdict, Go button */
+#hud-root .hud-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
+#hud-root .hud-chip {
+  padding: 0 var(--space-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--hud-fg);
+  background: transparent;
+  border: 1px solid var(--hud-panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+#hud-root .hud-chip[aria-pressed="true"] { border-color: var(--hud-accent); color: var(--hud-accent); }
+#hud-root .hud-ok { color: var(--hud-ok); }
+#hud-root .hud-no { color: var(--hud-crit); }
+#hud-root .hud-go {
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text-inverse);
+  background: var(--hud-ok);
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+#hud-root .hud-go:focus-visible, #hud-root .hud-chip:focus-visible { outline: 2px solid var(--hud-accent); outline-offset: 2px; }
+#hud-root .hud-sim__targets { color: var(--hud-ok); border-color: var(--hud-ok); }
+#hud-root .hud-sim__targets[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-ok); }
+#hud-root .hud-sim__event--detour { background: var(--hud-ok); top: 100%; }
 
 /* top bar */
 #hud-root .hud-bar {
