@@ -1,5 +1,5 @@
-// main.js (Ege): uygulama girişi. web/data/ dosyalarını tek bir state nesnesine yükler,
-// sonra harita, kartlar ve HUD modüllerini başlatır. Eksik dosya ya da modül sayfayı çökertmez.
+// main.js (Ege): app entry point. Loads every web/data/ file into a single state object,
+// then starts the map, cards and HUD modules. A missing file or module never breaks the page.
 
 const DATA_FILES = {
   area: 'data/area.json',
@@ -26,7 +26,7 @@ async function loadJSON(key, url) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    console.warn(`[state] ${key}: ${url} yüklenemedi (${err.message}); null kalıyor`);
+    console.warn(`[state] ${key}: ${url} could not be loaded (${err.message}); staying null`);
     return null;
   }
 }
@@ -38,13 +38,13 @@ async function loadState() {
   return Object.fromEntries(entries);
 }
 
-// Modül yoksa ya da init hata atarsa konsola yazar, diğerleri çalışmaya devam eder
+// If a module is missing or its init throws, log it and keep the others running
 async function startModule(name, path, initName, el) {
   try {
     const mod = await import(path);
     await mod[initName](state, el);
   } catch (err) {
-    console.warn(`[${name}] başlatılamadı: ${err.message}`);
+    console.warn(`[${name}] failed to start: ${err.message}`);
   }
 }
 
@@ -54,13 +54,14 @@ document.getElementById('hud-toggle').addEventListener('click', () => {
   document.dispatchEvent(new CustomEvent('hud:toggle'));
 });
 
-// HUD açılıp kapanınca düğmenin durumunu body[data-mode]'dan güncelle
+// Keep the HUD button state in sync with body[data-mode]
 new MutationObserver(() => {
   document.getElementById('hud-toggle')
     .setAttribute('aria-pressed', String(document.body.dataset.mode === 'hud'));
 }).observe(document.body, { attributes: true, attributeFilter: ['data-mode'] });
 
 await Promise.all([
+  startModule('map', './map/index.js', 'initMap', document.getElementById('map')),
   startModule('cards', './cards/index.js', 'initCards', document.getElementById('cards')),
   startModule('hud', './hud/index.js', 'initHUD', document.getElementById('hud-root')),
 ]);

@@ -1,36 +1,36 @@
-/* base.css (Ege): renk paleti, CSS değişkenleri ve sayfa yerleşimi.
-   HUD CSS'i (#hud-root, HUD kendisi yükler) ve cards.css (#cards) sadece buradaki değişkenleri kullanır. */
+/* base.css (Ege): colour palette, CSS variables and page layout.
+   The HUD CSS (#hud-root, loaded by the HUD) and cards.css (#cards) use only these variables. */
 
 :root {
-  /* Zemin ve yüzeyler: gece Mars gökyüzü */
+  /* Background and surfaces: Martian night sky */
   --color-bg: #0e1117;
   --color-surface: #161b24;
   --color-surface-2: #1f2633;
   --color-border: #2d3545;
 
-  /* Metin */
+  /* Text */
   --color-text: #ebe6dd;
   --color-text-muted: #9ba3b1;
   --color-text-inverse: #0e1117;
 
-  /* Mars tonları */
-  --color-accent: #d4683a;        /* pas: ana vurgu, seçili öğe, rota */
+  /* Mars tones */
+  --color-accent: #d4683a;        /* rust: main accent, selection, route */
   --color-accent-hover: #e27c4f;
-  --color-sand: #e3b878;          /* kum: ikincil vurgu, duraklar */
-  --color-dust: #8a6a55;          /* toz: pasif çizgiler */
+  --color-sand: #e3b878;          /* sand: secondary accent, stops */
+  --color-dust: #8a6a55;          /* dust: passive lines */
 
-  /* Durum renkleri (uyarılar, eğim, O2, doz) */
+  /* Status colours (alerts, slope, O2, dose) */
   --color-ok: #4fb37a;
   --color-warn: #e8b43a;
   --color-danger: #e5484d;
   --color-info: #5aa9e6;
 
-  /* HUD: vizör üzerinde okunabilir, ince çizgili */
+  /* HUD: readable on the visor, thin lines */
   --color-hud: #8ef0e0;
   --color-hud-dim: rgba(142, 240, 224, 0.45);
   --color-hud-bg: rgba(8, 14, 18, 0.55);
 
-  /* Yazı */
+  /* Type */
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --text-xs: 0.75rem;
@@ -39,7 +39,7 @@
   --text-lg: 1.25rem;
   --text-xl: 1.75rem;
 
-  /* Boşluk, köşe, gölge */
+  /* Spacing, radius, shadow */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -51,13 +51,13 @@
   --radius-lg: 12px;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 
-  /* Katman sırası */
+  /* Stacking order */
   --z-map: 0;
-  --z-panel: 500;     /* Leaflet kontrolleri 400–1000 arasında */
+  --z-panel: 500;     /* Leaflet controls sit between 400 and 1000 */
   --z-cards: 1100;
   --z-hud: 2000;
 
-  /* Yerleşim ölçüleri */
+  /* Layout sizes */
   --header-h: 56px;
   --panel-w: 260px;
   --cards-w: 340px;
@@ -89,7 +89,7 @@ kbd {
   border-radius: var(--radius-sm);
 }
 
-/* ---- Yerleşim ---- */
+/* ---- Layout ---- */
 
 .app {
   display: grid;
@@ -149,7 +149,7 @@ kbd {
   padding: var(--space-2) var(--space-4);
 }
 
-/* Modül henüz bir şey çizmediyse kutu boş görünmesin */
+/* Placeholder text while a module has not drawn anything yet */
 #panel:empty::before,
 #cards:empty::before,
 #profile:empty::before {
@@ -175,7 +175,7 @@ kbd {
   border-top: 1px solid var(--color-border);
 }
 
-/* ---- HUD modu: haritadan başka her şey çekilir ---- */
+/* ---- HUD mode: everything except the map steps back ---- */
 
 body[data-mode="hud"] #panel,
 body[data-mode="hud"] #cards,
@@ -183,6 +183,45 @@ body[data-mode="hud"] #profile,
 body[data-mode="hud"] .app-footer { display: none; }
 body[data-mode="hud"] .app-main { grid-template-columns: 1fr; }
 body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
+
+/* ---- Layer panel (#panel, drawn by map/index.js) ---- */
+
+.panel-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.layer-list { display: grid; gap: var(--space-2); margin-bottom: var(--space-5); }
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.layer-row input { accent-color: var(--color-accent); margin: 0; }
+.layer-item { display: grid; gap: var(--space-1); }
+.layer-opacity { width: 100%; accent-color: var(--color-accent); }
+.layer-opacity:disabled { opacity: 0.35; }
+.layer-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--space-5);
+  display: grid;
+  gap: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.layer-legend li { display: flex; align-items: center; gap: var(--space-2); }
+.layer-legend .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
 
 /* ---- Leaflet ---- */
 
@@ -192,8 +231,26 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
   color: var(--color-text-muted) !important;
 }
 .leaflet-control-attribution a { color: var(--color-sand) !important; }
+.leaflet-bar { border: 1px solid var(--color-border) !important; box-shadow: var(--shadow) !important; }
+.leaflet-bar a {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border-bottom-color: var(--color-border) !important;
+}
+.leaflet-bar a:hover { background: var(--color-surface-2) !important; color: var(--color-accent) !important; }
+.leaflet-control-scale-line {
+  background: rgba(14, 17, 23, 0.7) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-text-muted) !important;
+}
+.leaflet-tooltip {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: var(--shadow) !important;
+}
 
-/* ---- Dar ekran: alt alta ---- */
+/* ---- Narrow screens: stacked ---- */
 
 @media (max-width: 900px) {
   .app { height: auto; min-height: 100%; }
