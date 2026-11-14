@@ -6,7 +6,7 @@
 
 ![Martian Map: HiRISE base map of the Gale crater study area with the planned Marswalk route, stops, shelters, Curiosity's traverse and the elevation profile](web/assets/screenshot.png)
 
-Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, in the boxwork area that the Curiosity rover studied. It brings together everything a crew needs on one page:
+Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, where Curiosity crossed from the clay-bearing unit into the sulfate-bearing unit of Mount Sharp between 2019 and 2023. The walk follows that clay-to-sulfate transition, a record of the climate drying out. It brings together everything a crew needs on one page:
 
 - **Layered map:** high-resolution orbital imagery (HiRISE, CTX, Viking), day and night thermal infrared, elevation shading, slope, traverse cost, return-time rings, geologic units and shelters.
 - **Safe route:** a least-cost walk from the habitat through the science stops and back, limited by slope, with oxygen use and radiation dose for the whole walk.

@@ -270,6 +270,18 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
   color: var(--color-text) !important;
   border-color: var(--color-text-muted) !important;
 }
+/* Storm replay: nearest shelter (map/index.js) */
+.shelter-alert { animation: shelter-pulse 1.2s ease-in-out infinite; }
+@keyframes shelter-pulse { 50% { stroke-opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .shelter-alert { animation: none; } }
+.leaflet-tooltip.shelter-alert-label {
+  background: var(--color-danger) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-danger) !important;
+  font-weight: 600;
+}
+.leaflet-tooltip.shelter-alert-label::before { display: none; }
+
 .leaflet-tooltip {
   background: var(--color-surface) !important;
   color: var(--color-text) !important;

@@ -409,19 +409,43 @@ export function initMap(state, mapEl) {
   if (panel) buildPanel(panel, map, bases, overlays);
 
   // Astronaut position from the HUD simulation clock ('hud:time').
-  // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
+  // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null,
+  //          storm, shelter: [lon, lat] | null}
   const astronaut = L.circleMarker([0, 0], {
     radius: 7, color: cssVar('--color-bg'), weight: 2,
     fillColor: cssVar('--color-hud'), fillOpacity: 1, interactive: false,
   });
+  // Storm replay: pulsing ring on the nearest shelter and a line from the astronaut to it
+  const danger = cssVar('--color-danger');
+  const shelterRing = L.circleMarker([0, 0], {
+    radius: 14, color: danger, weight: 3, fill: false, interactive: false, className: 'shelter-alert',
+  }).bindTooltip('Nearest shelter', { permanent: true, direction: 'right', offset: [14, 0], className: 'shelter-alert-label' });
+  const shelterLine = L.polyline([], { color: danger, weight: 2, dashArray: '6 6', interactive: false });
+  let stormShown = false;
+
   document.addEventListener('hud:time', (e) => {
-    const { active, coord, elapsed_min: elapsed } = e.detail || {};
+    const { active, coord, elapsed_min: elapsed, storm, shelter } = e.detail || {};
+    const showStorm = Boolean(active && storm && Array.isArray(coord) && Array.isArray(shelter));
+    if (showStorm) {
+      shelterRing.setLatLng(toLatLng(shelter));
+      shelterLine.setLatLngs([toLatLng(coord), toLatLng(shelter)]);
+      if (!map.hasLayer(shelterLine)) shelterLine.addTo(map);
+      if (!map.hasLayer(shelterRing)) shelterRing.addTo(map);
+      // When the storm starts, zoom to the astronaut and the shelter once
+      if (!stormShown) map.flyToBounds(shelterLine.getBounds(), { padding: [80, 80], maxZoom: 17, duration: 1 });
+    } else {
+      shelterRing.remove();
+      shelterLine.remove();
+    }
+    stormShown = showStorm;
+
     if (!active || !Array.isArray(coord)) {
       astronaut.remove();
       return;
     }
     astronaut.setLatLng(toLatLng(coord));
     if (!map.hasLayer(astronaut)) astronaut.addTo(map);
+    astronaut.bringToFront();
     const label = Number.isFinite(elapsed) ? `Astronaut · T+${Math.round(elapsed)} min` : 'Astronaut';
     astronaut.bindTooltip(label, { direction: 'top', offset: [0, -8] });
   });

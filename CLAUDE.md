@@ -4,7 +4,7 @@ This file is the single source of truth for everyone working in this repo and fo
 
 ## Project
 
-Challenge: **Interplanetary Survival Guide: Martian Map**. We are building a web app for an astronaut walk (a Marswalk) in Gale crater, in the boxwork area that Curiosity studied. It combines:
+Challenge: **Interplanetary Survival Guide: Martian Map**. We are building a web app for an astronaut walk (a Marswalk) in Gale crater, at the transition from the clay-bearing unit to the sulfate-bearing unit on Mount Sharp that Curiosity crossed between 2019 and 2023. The team decided to keep this study area (not the later boxwork area); the story is the clay-to-sulfate transition. It combines:
 
 - a layered map (optical, thermal, spectral, geology)
 - a safe route (slope, roughness, O2 and radiation budget)
@@ -134,7 +134,7 @@ The map, cards, HUD and 3D view never import each other's files; they talk only 
 - When a stop is clicked, the map (Ege) dispatches `document.dispatchEvent(new CustomEvent('stop:select', {detail: stop}))`.
 - Cards (Egemen): `web/js/cards/index.js` → `export function initCards(state, el)`; listens to `stop:select`.
 - HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; the H key opens and closes the HUD, and `stop:select` updates the next stop.
-- HUD (Serdar) emits `document.dispatchEvent(new CustomEvent('hud:time', {detail}))` on every simulated clock step: `detail = {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}`. `coord` is null when there is no route. The map (Ege) listens and shows the astronaut marker, and the elevation profile shows the same position; both hide it when `active` is false.
+- HUD (Serdar) emits `document.dispatchEvent(new CustomEvent('hud:time', {detail}))` on every simulated clock step: `detail = {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null, storm, shelter: [lon, lat] | null}`. `coord` is null when there is no route. `storm` is true while the storm replay is on, and `shelter` is then the nearest shelter. The map (Ege) listens and shows the astronaut marker, and the elevation profile shows the same position; both hide it when `active` is false. During a storm the map highlights the nearest shelter and draws a line to it.
 - 3D view (Egemen): `web/js/view3d/index.js` → `export function initView3D(state, el)`; listens to `view3d:toggle`, `stop:select` and `hud:time`.
 - `main.js` calls these init functions. There are no other globals.
 
