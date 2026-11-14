@@ -274,6 +274,20 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
 .map-grid-label.is-lon span { transform: translate(-50%, var(--space-1)); }
 .map-grid-label.is-lat span { transform: translate(var(--space-1), -50%); }
 
+/* Overview map (bottom-right, map/index.js) */
+.map-minimap {
+  width: calc(var(--panel-w) * 0.6);
+  height: calc(var(--panel-w) * 0.45);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .map-minimap { display: none; }
+}
+
 /* ---- Narrow screens: stacked ---- */
 
 @media (max-width: 900px) {

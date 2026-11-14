@@ -95,6 +95,51 @@ function gridLayer(map) {
   return group;
 }
 
+// Overview map (bottom-right): a global base layer around Gale crater, with the main
+// view drawn on it. Clicking it pans the main map there. Hidden on narrow screens (base.css).
+const MINIMAP_ZOOM = 5; // whole Gale crater (~150 km) fits in the box
+
+function miniMap(map, layers) {
+  const global = layers.find((l) => l.type === 'base' && l.bounds
+    && l.bounds.east - l.bounds.west >= 359);
+  if (!global) return null;
+
+  const ctl = L.control({ position: 'bottomright' });
+  ctl.onAdd = () => {
+    const box = L.DomUtil.create('div', 'leaflet-control map-minimap');
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', 'Overview map: location within Gale crater');
+    box.title = 'Click to move the map here';
+    L.DomEvent.disableClickPropagation(box);
+    L.DomEvent.disableScrollPropagation(box);
+    return box;
+  };
+  ctl.addTo(map);
+
+  const mini = L.map(ctl.getContainer(), {
+    crs: MARS_CRS,
+    attributionControl: false, zoomControl: false, dragging: false, scrollWheelZoom: false,
+    doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0,
+  });
+  L.tileLayer(global.url, { maxNativeZoom: global.maxNativeZoom, maxZoom: MAX_ZOOM, noWrap: true }).addTo(mini);
+  const accent = cssVar('--color-accent');
+  const view = L.rectangle(map.getBounds(), { color: accent, weight: 1, fillOpacity: 0.15, interactive: false }).addTo(mini);
+  const dot = L.circleMarker(map.getCenter(), {
+    radius: 3, color: accent, weight: 1, fillColor: accent, fillOpacity: 1, interactive: false,
+  }).addTo(mini);
+
+  function sync() {
+    view.setBounds(map.getBounds());
+    dot.setLatLng(map.getCenter());
+    mini.setView(map.getCenter(), Math.min(MINIMAP_ZOOM, map.getZoom()), { animate: false });
+  }
+  map.on('moveend zoomend resize', sync);
+  mini.on('click', (e) => map.panTo(e.latlng));
+  // The box gets its size from CSS after insertion; measure once laid out
+  requestAnimationFrame(() => { mini.invalidateSize(); sync(); });
+  return mini;
+}
+
 function imageLayer(ov) {
   return L.imageOverlay(ov.png, toBounds(ov.bounds), { opacity: 0.7, interactive: false });
 }
@@ -248,6 +293,13 @@ export function initMap(state, mapEl) {
   const bounds = initialBounds(state, extent);
   if (bounds) map.fitBounds(bounds, { padding: [16, 16] });
   else map.setView([0, 0], 3);
+
+  // Overview map (needs the main view set first)
+  try {
+    miniMap(map, layers);
+  } catch (err) {
+    console.warn('[map] overview map failed', err);
+  }
 
   // Lat/lon grid, switchable from the layer panel
   const grid = gridLayer(map);
