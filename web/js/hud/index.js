@@ -220,7 +220,11 @@ export function initHUD(state, el) {
     let o2 = null;
     if (p && Number.isFinite(state.summary?.o2_used_pct)) {
       const perMin = state.summary.o2_used_pct / timeline.total_min;
-      const atReturn = p.o2 + perMin * Math.max(0, timeline.total_min - p.tau);
+      // Once a storm or dust devil has started, the plan's final O2 includes the waits and detours;
+      // before that the HUD cannot know it is coming, so it shows the plain route estimate.
+      const nominal = p.o2 + perMin * Math.max(0, timeline.total_min - p.tau);
+      const started = (plan.storm && elapsed >= plan.storm.t0) || (plan.dust && elapsed >= plan.dust.t0);
+      const atReturn = started ? Math.max(plan.finalO2, nominal) : nominal;
       o2 = { used_pct: p.o2, remaining_pct: Math.max(0, 100 - p.o2), at_return_pct: Math.max(0, 100 - atReturn) };
     } else if (!p) {
       o2 = o2At(state.summary, frac);
@@ -315,8 +319,12 @@ export function initHUD(state, el) {
       }
       if (p.mode === 'hold' && p.devil) {
         scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing, ${where(p.devil)}` });
-      } else if (p.mode === 'route' && p.devil && p.approaching && p.devilDist < SCENARIO.DUST_APPROACH_M) {
-        scen.push({ level: 'warn', text: `Dust devil ${where(p.devil)}, crossing the route ahead` });
+      } else if (p.devil && p.approaching && p.devilDist < SCENARIO.DUST_APPROACH_M) {
+        scen.push(p.mode === 'route'
+          ? { level: 'warn', text: `Dust devil ${where(p.devil)}, crossing the route ahead` }
+          : p.mode === 'sheltered'
+            ? { level: 'info', text: `Dust devil passing ${where(p.devil)}: stay in the shelter` }
+            : { level: 'warn', text: `Dust devil ${where(p.devil)}: keep clear` });
       } else if (p.mode === 'route' && p.justCleared) {
         scen.push({ level: 'info', text: 'Dust devil passed. Resume the walk.' });
       }
@@ -459,7 +467,28 @@ export function initHUD(state, el) {
   slider.type = 'range';
   slider.setAttribute('aria-label', 'Mission time');
   const simLabel = h('span', 'hud-sim__label');
-  sim.append(playBtn, speedSel, slider, simLabel);
+  // Slider with a strip above it that marks the scenario events (storm, shelter, holds)
+  const track = h('div', 'hud-sim__track');
+  const eventsEl = h('div', 'hud-sim__events');
+  eventsEl.setAttribute('aria-hidden', 'true');
+  track.append(eventsEl, slider);
+  sim.append(playBtn, speedSel, track, simLabel);
+  const EVENT_LABELS = { storm: 'Solar storm', sheltered: 'In shelter', hold: 'Holding for dust devil', dust: 'Dust devil' };
+  function renderEvents() {
+    eventsEl.replaceChildren();
+    if (!plan?.events?.length) return;
+    const span = plan.endMin - plan.startMin;
+    for (const ev of plan.events) {
+      const a = Math.max(plan.startMin, ev.a);
+      const b = Math.min(plan.endMin, ev.b);
+      if (!(b > a)) continue;
+      const seg = h('span', `hud-sim__event hud-sim__event--${ev.kind}`);
+      seg.style.left = `${((a - plan.startMin) / span) * 100}%`;
+      seg.style.width = `${Math.max(0.6, ((b - a) / span) * 100)}%`;
+      seg.title = `${EVENT_LABELS[ev.kind] || ev.kind}: T+${Math.round(a)}–${Math.round(b)} min`;
+      eventsEl.append(seg);
+    }
+  }
   const stormBtn = h('button', 'hud-sim__storm', 'Storm replay');
   stormBtn.type = 'button';
   stormBtn.title = 'Replay the 20 May 2024 solar storm (radiation.json)';
@@ -562,6 +591,7 @@ export function initHUD(state, el) {
       if (storm) stormT0 = Math.max(0, nowMin());
       stormBtn.setAttribute('aria-pressed', String(storm));
       rebuildPlan();
+      renderEvents();
       emitTime();
       if (open) render();
     });
@@ -570,6 +600,7 @@ export function initHUD(state, el) {
       if (dustOn) dustT0 = Math.max(SCENARIO.STEP_MIN, nowMin());
       dustBtn.setAttribute('aria-pressed', String(dustOn));
       rebuildPlan();
+      renderEvents();
       emitTime();
       if (open) render();
     });
@@ -577,6 +608,7 @@ export function initHUD(state, el) {
       clock.seek(clock.start.getTime() + Number(slider.value) * 60000);
     });
     root.append(sim);
+    renderEvents();
     syncControls();
   }
 

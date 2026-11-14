@@ -108,10 +108,11 @@ export function simulate(p) {
       mode = 'to_refuge';
     }
 
-    // Dust devil appears upwind of where the astronaut will be in a few minutes
-    if (dust && !devil && t >= dust.t0 && mode === 'route') {
+    // Dust devil appears upwind of where the astronaut will be in a few minutes (or of where
+    // they are, if they are off the route: walking to / sitting in a shelter)
+    if (dust && !devil && t >= dust.t0 && isOutside(mode)) {
       const meetMin = SCENARIO.DUST_START_M / SCENARIO.DUST_SPEED_M_PER_MIN;
-      const q = routeState(tl, Math.min(total, tau + meetMin)).coord;
+      const q = mode === 'route' ? routeState(tl, Math.min(total, tau + meetMin)).coord : coord;
       devil = { t0: t, start: offset(q, SCENARIO.DUST_FROM_DEG, SCENARIO.DUST_START_M), bearing: (SCENARIO.DUST_FROM_DEG + 180) % 360 };
     }
     let devilNow = null;
@@ -176,8 +177,27 @@ export function simulate(p) {
     });
   }
 
+  // Intervals for the event strip on the time slider: [{kind, a, b}] in minutes
+  const events = [];
+  if (storm) events.push({ kind: 'storm', a: storm.t0, b: storm.t0 + storm.duration });
+  let runKind = null;
+  let runStart = null;
+  for (const s of steps) {
+    const kind = s.mode === 'hold' ? 'hold' : s.mode === 'sheltered' ? 'sheltered' : null;
+    if (kind !== runKind) {
+      if (runKind) events.push({ kind: runKind, a: runStart, b: s.t });
+      runKind = kind;
+      runStart = s.t;
+    }
+  }
+  if (runKind) events.push({ kind: runKind, a: runStart, b: steps[steps.length - 1].t });
+  if (dust && devil) events.push({ kind: 'dust', a: devil.t0, b: devil.t0 + SCENARIO.DUST_TRACK_M / SCENARIO.DUST_SPEED_M_PER_MIN });
+
   return {
-    storm, dust,
+    storm, dust, events,
+    startMin, endMin,
+    // O2 used by the time the astronaut is back inside (the whole simulated walk)
+    finalO2: steps.length ? steps[steps.length - 1].o2 : 0,
     at(e) {
       if (!Number.isFinite(e) || !steps.length) return null;
       const i = Math.round((e - startMin) / dt);

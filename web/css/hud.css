@@ -82,7 +82,15 @@
 #hud-root .hud-sim__play[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-accent); border-color: var(--hud-accent); }
 #hud-root .hud-sim__play:hover,
 #hud-root .hud-sim__speed:hover { border-color: var(--hud-accent); }
-#hud-root .hud-sim__range { flex: 1 1 auto; min-width: 0; accent-color: var(--hud-accent); cursor: pointer; }
+#hud-root .hud-sim__track { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
+#hud-root .hud-sim__range { width: 100%; margin: 0; accent-color: var(--hud-accent); cursor: pointer; }
+/* scenario events above the slider: storm (red), in shelter (amber), dust devil / hold (yellow) */
+#hud-root .hud-sim__events { position: absolute; left: 0; right: 0; top: calc(-1 * var(--space-1)); height: var(--space-1); pointer-events: none; }
+#hud-root .hud-sim__event { position: absolute; top: 0; height: 100%; border-radius: var(--radius-sm); opacity: 0.9; }
+#hud-root .hud-sim__event--storm { background: var(--hud-crit); }
+#hud-root .hud-sim__event--sheltered { background: var(--hud-info); top: 100%; }
+#hud-root .hud-sim__event--dust { background: var(--hud-warn); }
+#hud-root .hud-sim__event--hold { background: var(--hud-warn); top: 100%; }
 #hud-root .hud-sim__label { min-width: 6.5em; text-align: right; font-family: var(--font-mono); color: var(--hud-accent); }
 #hud-root .hud-sim :focus-visible { outline: 2px solid var(--hud-accent); outline-offset: 2px; }
 
@@ -221,7 +229,7 @@
   #hud-root .hud-bottom .hud-panel { width: 100%; }
   /* controls stay reachable while scrolling */
   #hud-root .hud-sim { position: sticky; bottom: 0; flex-wrap: wrap; }
-  #hud-root .hud-sim__range { order: 3; flex-basis: 100%; }
+  #hud-root .hud-sim__track { order: 3; flex-basis: 100%; }
   #hud-root .hud-sim__label { margin-left: auto; }
 }
 

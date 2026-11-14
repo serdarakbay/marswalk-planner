@@ -444,9 +444,21 @@ export function initMap(state, mapEl) {
   }).bindTooltip('Nearest shelter', { permanent: true, direction: 'right', offset: [14, 0], className: 'shelter-alert-label' });
   const shelterLine = L.polyline([], { color: danger, weight: 2, dashArray: '6 6', interactive: false });
   let stormShown = false;
+  // Dust devil scenario (HUD hud:time.hazard = {coord, radius_m}): a moving circle, sized in metres
+  const warnColor = cssVar('--color-warn');
+  const dustDevil = L.circle([0, 0], {
+    radius: 40, color: warnColor, weight: 2, dashArray: '4 4', fillColor: warnColor, fillOpacity: 0.35, interactive: false,
+  }).bindTooltip('Dust devil', { permanent: true, direction: 'right', offset: [10, 0] });
 
   document.addEventListener('hud:time', (e) => {
-    const { active, coord, elapsed_min: elapsed, storm, shelter } = e.detail || {};
+    const { active, coord, elapsed_min: elapsed, storm, shelter, hazard } = e.detail || {};
+    if (active && Array.isArray(hazard?.coord)) {
+      dustDevil.setLatLng(toLatLng(hazard.coord));
+      if (Number.isFinite(hazard.radius_m)) dustDevil.setRadius(hazard.radius_m);
+      if (!map.hasLayer(dustDevil)) dustDevil.addTo(map);
+    } else {
+      dustDevil.remove();
+    }
     const showStorm = Boolean(active && storm && Array.isArray(coord) && Array.isArray(shelter));
     if (showStorm) {
       shelterRing.setLatLng(toLatLng(shelter));

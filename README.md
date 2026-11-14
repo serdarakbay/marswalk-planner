@@ -14,7 +14,10 @@ Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, where Cur
 - **Elevation profile:** elevation and slope along the route, with radio-shadow stretches where the crew loses contact. Hovering the profile marks the same spot on the map.
 - **Stop cards:** what to look at at each stop, with nearby Curiosity photos and the arrival time on the route.
 - **Landing page:** the site root introduces the walk, the safety layers, the storm and the models, with a 3D block diagram of the study area; every number on it is read from the data files. The planner itself is `planner.html`.
-- **HUD mode:** a visor view with the next stop, remaining O2, dose, Sun and Earth position, and alerts. A simulation clock moves the astronaut along the route on the map and the profile. Press **H** or the HUD button. A **Storm replay** button (or `?radiation=replay` in the URL) replays the 20 May 2024 solar storm measured by Curiosity: dose rate x38.6, danger alerts, and the nearest shelter shown on the HUD and the map.
+- **HUD mode:** a visor view with the next stop, remaining O2, dose, Sun and Earth position, and alerts. A simulation clock moves the astronaut along the route on the map and the profile. Press **H** or the HUD button. Two emergency scenarios can be played on top of the walk:
+  - **Storm replay** (button, or `?radiation=replay` in the URL) replays the 20 May 2024 solar storm measured by Curiosity: dose rate x38.6. The astronaut walks to the nearest shelter, waits out the 2-hour storm and then resumes the route; if waiting would break the O2 reserve, they return to the habitat instead. The HUD compares the dose with and without the shelter.
+  - **Dust devil** (button, or `?hazard=dustdevil`): a dust devil crosses the route. The HUD warns as it approaches, the astronaut holds position until it has passed, and the delay carries over to the stop times, O2 and dose. The map shows it as a moving circle.
+  - Coloured bands above the time slider mark the storm, the time in the shelter and the dust devil. Both scenarios can run together: `?hazard=dustdevil&radiation=replay`.
 
 ## Study area
 
