@@ -1,23 +1,16 @@
-// HUD mode (Serdar). Contract (CLAUDE.md):
-//   export function initHUD(state, el)
-//   - H toggles the HUD; 'stop:select' updates the next stop.
+// HUD mode (Serdar). Contract (CLAUDE.md, "Sayfa yerleşimi"):
+//   export function initHUD(state, el)   // el = #hud from index.html, starts hidden
+//   - H key and the 'hud:toggle' event (header button) toggle the HUD.
+//   - On open/close the HUD sets document.body.dataset.mode = 'hud' / 'map'.
+//   - 'stop:select' updates the next stop.
 //   - Any state field may be null; the HUD must never throw.
+//   - Styles live in hud.css (linked by index.html), every selector starts with #hud.
 // Returns a small controller ({toggle, setTime, render}) for the later simulation clock.
 
 import {
   compass, distanceM, evaDose, evalAlerts, evaStatus, fmtDuration, fmtLmst,
   parseUtc, sunAt,
 } from './model.js';
-
-const CSS_URL = new URL('../../css/hud.css', import.meta.url).href;
-
-function ensureStylesheet() {
-  if (document.querySelector(`link[href="${CSS_URL}"]`)) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = CSS_URL;
-  document.head.appendChild(link);
-}
 
 function h(tag, cls, text) {
   const n = document.createElement(tag);
@@ -70,23 +63,17 @@ export function initHUD(state, el) {
     console.error('[hud] initHUD: no container element');
     return null;
   }
-  ensureStylesheet();
   state = state || {};
 
   let time = defaultTime(state);
   let selectedStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
-  let open = false;
+  let open = !el.hidden;
 
+  // el is the #hud box (fixed overlay from base.css); we only fill it.
   const root = h('div', 'hud');
-  root.hidden = true;
   root.setAttribute('role', 'region');
   root.setAttribute('aria-label', 'Astronaut HUD');
-
-  const toggleBtn = h('button', 'hud-toggle', 'HUD (H)');
-  toggleBtn.type = 'button';
-  toggleBtn.setAttribute('aria-pressed', 'false');
-
-  el.append(root, toggleBtn);
+  el.replaceChildren(root);
 
   function safe(name, fn, body) {
     try {
@@ -214,13 +201,12 @@ export function initHUD(state, el) {
 
   function toggle(force) {
     open = typeof force === 'boolean' ? force : !open;
-    root.hidden = !open;
-    toggleBtn.setAttribute('aria-pressed', String(open));
-    toggleBtn.classList.toggle('is-on', open);
+    el.hidden = !open;
+    document.body.dataset.mode = open ? 'hud' : 'map'; // only the HUD writes this
     if (open) render();
   }
 
-  toggleBtn.addEventListener('click', () => toggle());
+  document.addEventListener('hud:toggle', () => toggle());
   document.addEventListener('keydown', (e) => {
     const t = e.target;
     const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));

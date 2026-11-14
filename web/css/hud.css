@@ -1,86 +1,94 @@
 /* HUD mode (Serdar). Plain/modern look for now.
-   All look-and-feel lives in the variables below: to restyle (e.g. sci-fi visor),
-   change only this block. When Ege's base.css defines palette variables,
-   point these at them, e.g. --hud-fg: var(--color-text, #e8eaed). */
-:root {
-  --hud-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --hud-font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --hud-fg: #eef0f3;
-  --hud-muted: #a9b0ba;
-  --hud-panel-bg: rgba(18, 21, 27, 0.78);
-  --hud-panel-border: rgba(255, 255, 255, 0.12);
-  --hud-accent: #6cb4ff;
-  --hud-ok: #4cc38a;
-  --hud-warn: #f2b33d;
-  --hud-crit: #ff5d5d;
-  --hud-radius: 10px;
-  --hud-gap: 12px;
-  --hud-blur: 8px;
-  --hud-z: 2000; /* above Leaflet panes and controls (max 1000) */
+   Rules (CLAUDE.md, "Sayfa yerleşimi"):
+   - every selector starts with #hud
+   - colours, fonts, spacing, radii and z-index come only from base.css variables
+   #hud itself (fixed, inset 0, z-index --z-hud, [hidden]) is positioned by base.css.
+   To restyle later (e.g. sci-fi visor using --color-hud*), change only the
+   --hud-* aliases below. */
+#hud {
+  --hud-fg: var(--color-text);
+  --hud-muted: var(--color-text-muted);
+  --hud-panel-bg: var(--color-hud-bg);
+  --hud-panel-border: var(--color-border);
+  --hud-accent: var(--color-accent);
+  --hud-ok: var(--color-ok);
+  --hud-warn: var(--color-warn);
+  --hud-crit: var(--color-danger);
+  --hud-info: var(--color-info);
+  --hud-gap: var(--space-3);
+  --hud-radius: var(--radius-lg);
+  --hud-col-w: var(--panel-w);
+
+  /* keep the page header (and its HUD button) visible and clickable */
+  top: var(--header-h);
+  pointer-events: none; /* map stays usable between panels */
 }
 
-.hud {
-  position: fixed;
-  inset: 0;
-  z-index: var(--hud-z);
+#hud .hud {
   display: flex;
   flex-direction: column;
   gap: var(--hud-gap);
-  padding: var(--hud-gap);
-  font-family: var(--hud-font);
-  font-size: 14px;
+  height: 100%;
+  padding: var(--hud-gap) var(--space-4) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
   color: var(--hud-fg);
-  pointer-events: none; /* map stays usable between panels */
 }
-.hud[hidden] { display: none; }
-.hud > * { pointer-events: auto; }
-.hud-grid { pointer-events: none; }
+
+#hud .hud-bar,
+#hud .hud-alerts,
+#hud .hud-col,
+#hud .hud-bottom .hud-panel { pointer-events: auto; }
 
 /* top bar */
-.hud-bar {
+#hud .hud-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 8px 16px;
-  padding: 10px 14px;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   background: var(--hud-panel-bg);
   border: 1px solid var(--hud-panel-border);
   border-radius: var(--hud-radius);
-  backdrop-filter: blur(var(--hud-blur));
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
 }
-.hud-bar__group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.hud-bar__title { font-weight: 700; letter-spacing: 0.08em; font-size: 13px; }
-.hud-bar__clock { font-family: var(--hud-font-mono); font-size: 18px; color: var(--hud-accent); }
+#hud .hud-bar__group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+#hud .hud-bar__title { font-weight: 600; letter-spacing: 0.08em; font-size: var(--text-xs); }
+#hud .hud-bar__clock { font-family: var(--font-mono); font-size: var(--text-lg); color: var(--hud-accent); }
+#hud .hud-bar__snap { font-size: var(--text-xs); }
 
-.hud-pill {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 12px;
+#hud .hud-pill {
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-xs);
   font-weight: 600;
   border: 1px solid currentColor;
 }
-.hud-pill--open { color: var(--hud-ok); }
-.hud-pill--before { color: var(--hud-muted); }
-.hud-pill--closed { color: var(--hud-crit); }
+#hud .hud-pill--open { color: var(--hud-ok); }
+#hud .hud-pill--before { color: var(--hud-muted); }
+#hud .hud-pill--closed { color: var(--hud-crit); }
 
 /* alerts */
-.hud-alerts { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.hud-alerts:empty { display: none; }
-.hud-alert {
-  max-width: min(560px, 100%);
-  padding: 6px 14px;
-  border-radius: var(--hud-radius);
+#hud .hud-alerts { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+#hud .hud-alerts:empty { display: none; }
+#hud .hud-alert {
+  max-width: 100%;
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-md);
   background: var(--hud-panel-bg);
   border-left: 4px solid var(--hud-muted);
-  backdrop-filter: blur(var(--hud-blur));
+  backdrop-filter: blur(8px);
 }
-.hud-alert--warn, .hud-alert--warning { border-left-color: var(--hud-warn); }
-.hud-alert--crit, .hud-alert--critical { border-left-color: var(--hud-crit); font-weight: 600; }
-.hud-alert--info { border-left-color: var(--hud-accent); }
+#hud .hud-alert--warn,
+#hud .hud-alert--warning { border-left-color: var(--hud-warn); }
+#hud .hud-alert--crit,
+#hud .hud-alert--critical { border-left-color: var(--hud-crit); font-weight: 600; }
+#hud .hud-alert--info { border-left-color: var(--hud-info); }
 
 /* panels */
-.hud-grid {
+#hud .hud-grid {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -88,46 +96,47 @@
   flex: 1 1 auto;
   min-height: 0;
 }
-.hud-col { width: 260px; max-width: 100%; display: flex; flex-direction: column; gap: var(--hud-gap); pointer-events: auto; }
-.hud-bottom { display: flex; justify-content: center; align-items: stretch; flex-wrap: wrap; gap: var(--hud-gap); margin-bottom: 48px; /* clear the toggle button */ }
-.hud-bottom .hud-panel { width: 240px; max-width: 100%; }
+#hud .hud-col { width: var(--hud-col-w); max-width: 100%; display: flex; flex-direction: column; gap: var(--hud-gap); }
+#hud .hud-bottom { display: flex; justify-content: center; align-items: stretch; flex-wrap: wrap; gap: var(--hud-gap); }
+#hud .hud-bottom .hud-panel { width: var(--hud-col-w); max-width: 100%; }
 
-.hud-panel {
-  padding: 10px 14px 12px;
+#hud .hud-panel {
+  padding: var(--space-2) var(--space-4) var(--space-3);
   background: var(--hud-panel-bg);
   border: 1px solid var(--hud-panel-border);
   border-radius: var(--hud-radius);
-  backdrop-filter: blur(var(--hud-blur));
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
 }
-.hud-panel__title {
-  margin: 0 0 8px;
-  font-size: 11px;
+#hud .hud-panel__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--hud-muted);
 }
-.hud-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
-.hud-row__label { color: var(--hud-muted); }
-.hud-row__value { font-family: var(--hud-font-mono); text-align: right; }
-.hud-tag {
-  margin-left: 6px;
-  padding: 0 5px;
-  border-radius: 4px;
-  font-family: var(--hud-font);
-  font-size: 10px;
+#hud .hud-row { display: flex; justify-content: space-between; gap: var(--space-3); padding: 2px 0; }
+#hud .hud-row__label { color: var(--hud-muted); }
+#hud .hud-row__value { font-family: var(--font-mono); text-align: right; }
+#hud .hud-tag {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
   color: var(--hud-warn);
   border: 1px solid currentColor;
 }
-.hud-muted { color: var(--hud-muted); margin: 4px 0 0; font-size: 12px; }
+#hud .hud-muted { color: var(--hud-muted); margin: var(--space-1) 0 0; font-size: var(--text-xs); }
 
-.hud-meter { height: 6px; margin: 6px 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
-.hud-meter__fill { height: 100%; background: var(--hud-ok); }
+#hud .hud-meter { height: var(--space-2); margin: var(--space-2) 0 var(--space-1); border-radius: var(--radius-sm); background: var(--hud-panel-border); overflow: hidden; }
+#hud .hud-meter__fill { height: 100%; background: var(--hud-ok); }
 
-.hud-stop__name { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
-.hud-stop__note {
-  margin: 6px 0 0;
-  font-size: 12px;
+#hud .hud-stop__name { margin: 0 0 var(--space-2); font-size: var(--text-md); font-weight: 600; }
+#hud .hud-stop__note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
   line-height: 1.4;
   color: var(--hud-muted);
   display: -webkit-box;
@@ -136,29 +145,11 @@
   overflow: hidden;
 }
 
-.hud-bar__snap { font-size: 11px; }
-
-/* toggle button (always visible) */
-.hud-toggle {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: calc(var(--hud-z) + 1);
-  padding: 8px 14px;
-  font: 600 13px var(--hud-font);
-  color: var(--hud-fg);
-  background: var(--hud-panel-bg);
-  border: 1px solid var(--hud-panel-border);
-  border-radius: 999px;
-  cursor: pointer;
-}
-.hud-toggle.is-on { color: var(--hud-accent); border-color: var(--hud-accent); }
-.hud-toggle:focus-visible { outline: 2px solid var(--hud-accent); outline-offset: 2px; }
-
-/* phones: stack everything and let the HUD scroll */
-@media (max-width: 640px) {
-  .hud { display: flex; flex-direction: column; overflow-y: auto; padding: 12px 16px 64px; }
-  .hud-grid { flex-direction: column; }
-  .hud-col, .hud-bottom .hud-panel { width: 100%; }
-  .hud-bar__clock { font-size: 16px; }
+/* narrow screens (same breakpoint as base.css): stack and scroll */
+@media (max-width: 900px) {
+  #hud { pointer-events: auto; overflow-y: auto; }
+  #hud .hud { height: auto; min-height: 100%; }
+  #hud .hud-grid { flex-direction: column; flex: 0 0 auto; }
+  #hud .hud-col,
+  #hud .hud-bottom .hud-panel { width: 100%; }
 }
