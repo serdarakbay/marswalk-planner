@@ -3,49 +3,257 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Martian Map</title>
-  <meta name="description" content="Marswalk planner for an astronaut EVA in Gale crater: layered map, safe route, stop cards and HUD.">
+  <script>
+    // Old links carried app parameters on the site root (?radiation=replay, ?hud=plain, ...).
+    // Forward any query string to the planner so those links keep working.
+    if (location.search) location.replace('planner.html' + location.search + location.hash);
+  </script>
+  <title>Martian Map · Plan a walk on Mars</title>
+  <meta name="description" content="Martian Map plans a safe astronaut walk in Gale crater, along the clay-to-sulfate transition that Curiosity crossed between 2019 and 2023. NASA Space Apps 2026.">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/landing.css">
 
-  <!-- Order matters: base.css defines the variables, cards.css uses them. The HUD loads its own CSS. -->
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/cards.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+        "d3-contour": "https://cdn.jsdelivr.net/npm/d3-contour@4.0.2/+esm"
+      }
+    }
+  </script>
 </head>
-<body data-mode="map">
-  <div class="app">
-    <header class="app-header">
-      <h1>Martian Map</h1>
-      <p class="subtitle">Marswalk planner · Gale crater</p>
-      <ul id="mission-status" class="status-strip" aria-label="Mission status"></ul>
-      <div class="actions">
-        <button id="view3d-toggle" class="btn" type="button" aria-pressed="false" hidden>3D</button>
-        <button id="hud-toggle" class="btn" type="button" aria-pressed="false">HUD <kbd>H</kbd></button>
-      </div>
-    </header>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-    <main class="app-main">
-      <aside id="panel" aria-label="Map layers"></aside>          <!-- Ege -->
-      <section class="map-wrap">
-        <div id="map" aria-label="Map"></div>                     <!-- Ege -->
-        <div id="view3d-root" hidden></div>                       <!-- Egemen -->
-        <div id="profile" aria-label="Elevation profile"></div>   <!-- Ege -->
-      </section>
-      <aside id="cards" aria-label="Stop details"></aside>        <!-- Egemen -->
-    </main>
+  <!-- Faint contour lines from the study-area heightmap (js/landing/contours.js) -->
+  <svg class="contours" id="contours" aria-hidden="true" focusable="false"></svg>
 
-    <footer class="app-footer">
-      Imagery: NASA/JPL-Caltech, NASA Mars Trek, USGS. Built for NASA Space Apps 2026.
-    </footer>
+  <!-- Elevation ruler: scroll position as a climb from the clay- to the sulfate-bearing unit -->
+  <div class="ruler" id="ruler" aria-hidden="true" hidden>
+    <div class="ruler-track"><span class="ruler-marker" id="ruler-marker"></span></div>
   </div>
 
-  <div id="hud-root" hidden></div>                                     <!-- Serdar -->
+  <header class="site-header" id="site-header">
+    <div class="nav-row">
+      <a class="brand" href="#top" aria-label="Martian Map, back to top">
+        <svg class="brand-mark" viewBox="0 0 40 40" width="32" height="32" aria-hidden="true">
+          <circle cx="20" cy="20" r="17" fill="none" stroke="currentColor" stroke-width="2.2"/>
+          <circle cx="20" cy="20" r="11.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2.6"/>
+          <path d="M9 27 C 14 25, 15 18, 20 17 S 27 13, 31 11" fill="none" stroke="var(--oxide)" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="9" cy="27" r="2.2" fill="var(--oxide)"/>
+          <circle cx="20" cy="17" r="1.7" fill="currentColor"/>
+          <circle cx="31" cy="11" r="1.7" fill="currentColor"/>
+        </svg>
+        <span class="brand-word">Martian Map</span>
+      </a>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/main.js"></script>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+        <span class="visually-hidden">Menu</span>
+      </button>
+
+      <nav class="nav-links" id="nav-links" aria-label="Sections">
+        <ul>
+          <li><a href="#mission">Mission</a></li>
+          <li><a href="#walk">The Walk</a></li>
+          <li><a href="#safety">Safety</a></li>
+          <li><a href="#storm">Storm</a></li>
+          <li><a href="#science">Science</a></li>
+          <li><a href="#data">Data</a></li>
+          <li><a href="#team">Team</a></li>
+        </ul>
+        <div class="nav-actions">
+          <a class="link-quiet" href="planner.html?radiation=replay">Storm replay</a>
+          <a class="btn btn-primary" href="planner.html">Launch planner</a>
+        </div>
+      </nav>
+    </div>
+
+    <ul class="status-strip" id="status-strip" aria-label="Mission status"></ul>
+  </header>
+
+  <main id="main">
+    <!-- HERO -->
+    <section class="hero stratum" id="top" aria-labelledby="hero-title">
+      <div class="hero-text" id="mission">
+        <p class="eyebrow">NASA Space Apps 2026 · Interplanetary Survival Guide</p>
+        <h1 id="hero-title">Plan a walk on Mars before the first step.</h1>
+        <p class="lede">Martian Map plans a safe astronaut walk in Gale crater, along the layers where Curiosity crossed from clay-bearing into sulfate-bearing rock: a record of Mars drying out. Map, route, oxygen, radiation and a visor HUD, on one page.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="planner.html">Launch planner</a>
+          <a class="btn btn-secondary" href="#storm">Watch the storm</a>
+        </div>
+        <dl class="figures" id="hero-figures"></dl>
+      </div>
+
+      <figure class="hero-block" id="hero-block">
+        <div class="block-canvas" id="block-canvas"></div>
+        <img class="block-poster" id="block-poster" src="assets/landing/poster.jpg" width="900" height="700" alt="Block diagram of the study area: HiRISE image draped over the terrain, with the planned route, the three stops and the habitat, and clay and sulfate layers on the sides." hidden>
+        <figcaption class="coord-tag" id="coord-tag">Gale Crater · Mount Sharp foothills</figcaption>
+      </figure>
+    </section>
+
+    <!-- PLATE 01 -->
+    <section class="plate stratum" id="walk" aria-labelledby="walk-title">
+      <header class="plate-head">
+        <p class="plate-no">Plate 01</p>
+        <h2 id="walk-title">The Walk</h2>
+        <p class="plate-lede">Three stops, from the clay-bearing unit into the sulfate-bearing unit. Each one asks a different question about how long water stayed here.</p>
+      </header>
+
+      <div class="walk">
+        <div class="walk-band" aria-hidden="true">
+          <span>Clay-bearing</span><span>Transition</span><span>Sulfate-bearing</span>
+        </div>
+        <ol class="stops" id="stops"></ol>
+      </div>
+
+      <aside class="why">
+        <h3>Why a human?</h3>
+        <p>Curiosity waits for a new plan from Earth before each choice, usually once per sol. A geologist on foot can scan a whole outcrop, follow one layer along the slope, see where the rock type changes and take several samples on both sides of that change in a single walk.</p>
+      </aside>
+    </section>
+
+    <!-- PLATE 02 -->
+    <section class="plate stratum" id="safety" aria-labelledby="safety-title">
+      <header class="plate-head">
+        <p class="plate-no">Plate 02</p>
+        <h2 id="safety-title">Keeping the crew safe</h2>
+        <p class="plate-lede">Every layer on the planner map answers one question: can the crew get there, can they get back, can they talk to the habitat, and where do they hide.</p>
+      </header>
+      <dl class="legend" id="legend"></dl>
+    </section>
+
+    <!-- PLATE 03 -->
+    <section class="plate plate-storm" id="storm" aria-labelledby="storm-title">
+      <header class="plate-head">
+        <p class="plate-no">Plate 03</p>
+        <h2 id="storm-title">The Storm</h2>
+      </header>
+      <div class="storm-body" id="storm-body">
+        <p class="storm-date" id="storm-date"></p>
+        <p class="storm-text" id="storm-text">A real solar storm reached Mars and Curiosity's radiation detector, RAD, measured it. We replay that day on the walk: the HUD raises a danger alert and the map flies to the nearest shelter.</p>
+        <div class="gauge" id="gauge" role="img" aria-label="Absorbed dose: a normal day compared with the storm day">
+          <div class="gauge-row">
+            <span class="gauge-label">Normal day</span>
+            <span class="gauge-bar"><span class="gauge-fill gauge-fill-base" id="gauge-base"></span></span>
+            <span class="gauge-value" id="gauge-base-value"></span>
+          </div>
+          <div class="gauge-row">
+            <span class="gauge-label" id="gauge-event-label">Storm day</span>
+            <span class="gauge-bar"><span class="gauge-fill gauge-fill-event" id="gauge-event"></span></span>
+            <span class="gauge-value" id="gauge-event-value"></span>
+          </div>
+          <p class="gauge-note" id="gauge-note"></p>
+        </div>
+        <a class="btn btn-storm" href="planner.html?radiation=replay">Replay the storm in the planner</a>
+      </div>
+    </section>
+
+    <!-- PLATE 04 -->
+    <section class="plate stratum" id="visor" aria-labelledby="visor-title">
+      <header class="plate-head">
+        <p class="plate-no">Plate 04</p>
+        <h2 id="visor-title">The Visor</h2>
+        <p class="plate-lede">Press H in the planner and the page becomes a helmet visor. A simulation clock walks the astronaut along the route, on the map and on the elevation profile.</p>
+      </header>
+      <div class="visor-wrap">
+        <figure class="visor">
+          <div class="visor-glass">
+            <img id="hud-shot" src="assets/landing/hud.png" alt="The planner's HUD: helmet-visor view with the next stop, life support, Sun and Earth link panels." loading="lazy">
+            <p class="visor-placeholder" id="hud-placeholder" hidden>HUD screenshot coming soon</p>
+          </div>
+        </figure>
+        <div class="visor-lists">
+          <div>
+            <h3>Panels</h3>
+            <ul class="tick-list">
+              <li><strong>Next stop</strong> distance, time and what to look at</li>
+              <li><strong>Life support</strong> oxygen left and dose so far</li>
+              <li><strong>Sun</strong> elevation and direction</li>
+              <li><strong>Earth link</strong> one-way signal delay and Earth above the horizon</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Alerts</h3>
+            <ul class="tick-list tick-alert">
+              <li>O2 low</li>
+              <li>Dose over plan</li>
+              <li>Steep ground</li>
+              <li>Radio shadow</li>
+              <li>Shelter far</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLATE 05 -->
+    <section class="plate stratum" id="science" aria-labelledby="science-title">
+      <header class="plate-head">
+        <p class="plate-no">Plate 05</p>
+        <h2 id="science-title">Every number has a source</h2>
+        <p class="plate-lede">Each value in the models is tagged: <span class="tag tag-sourced">sourced</span> from a published reference, <span class="tag tag-assumed">assumed</span> by the team, or <span class="tag tag-derived">derived</span> from the others. We show the assumptions instead of hiding them.</p>
+      </header>
+      <ul class="sources" id="sources"></ul>
+    </section>
+
+    <!-- PLATE 06 -->
+    <section class="plate stratum" id="data" aria-labelledby="data-title">
+      <header class="plate-head">
+        <p class="plate-no">Plate 06</p>
+        <h2 id="data-title">Data &amp; credits</h2>
+      </header>
+      <div class="colophon">
+        <dl>
+          <dt>HiRISE</dt><dd>NASA/JPL-Caltech/University of Arizona</dd>
+          <dt>CTX</dt><dd>NASA/JPL-Caltech/MSSS</dd>
+          <dt>Viking color mosaic</dt><dd>NASA/JPL/USGS</dd>
+          <dt>THEMIS day and night IR</dt><dd>NASA/JPL-Caltech/Arizona State University</dd>
+          <dt>MOLA and HRSC color hillshade</dt><dd>NASA/JPL/GSFC, ESA/DLR/FU Berlin</dd>
+          <dt>Map tiles</dt><dd>All map tiles served by <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a></dd>
+          <dt>Gale crater DEM</dt><dd>MSL Gale DEM Mosaic, 1 m: USGS Astrogeology</dd>
+        </dl>
+        <dl>
+          <dt>Curiosity raw images</dt><dd>NASA/JPL-Caltech (Mastcam, MAHLI and MARDI: NASA/JPL-Caltech/MSSS)</dd>
+          <dt>Curiosity traverse</dt><dd>NASA/JPL-Caltech (MMGIS)</dd>
+          <dt>REMS temperature</dt><dd>Centro de Astrobiología (CSIC-INTA) / NASA/JPL-Caltech</dd>
+          <dt>Sun and Earth position</dt><dd><a href="https://ssd.jpl.nasa.gov/horizons/">JPL Horizons</a>; local time: Mars24 algorithm (Allison &amp; McEwen, 2000)</dd>
+          <dt>Solar events</dt><dd><a href="https://kauai.ccmc.gsfc.nasa.gov/DONKI/">NASA DONKI</a>; storm dose: Curiosity RAD</dd>
+          <dt>Geologic map</dt><dd>USGS SIM 3292, Tanaka et al. 2014, Geologic map of Mars</dd>
+          <dt>Software</dt><dd><a href="https://leafletjs.com/">Leaflet</a> (BSD-2-Clause), <a href="https://www.chartjs.org/">Chart.js</a> (MIT), <a href="https://threejs.org/">three.js</a> (MIT), <a href="https://github.com/d3/d3-contour">d3-contour</a> (ISC)</dd>
+        </dl>
+      </div>
+    </section>
+
+    <!-- TEAM -->
+    <section class="plate stratum" id="team" aria-labelledby="team-title">
+      <header class="plate-head">
+        <p class="plate-no">Crew</p>
+        <h2 id="team-title">Team</h2>
+      </header>
+      <ul class="team">
+        <li><span class="initial" aria-hidden="true">E</span><span class="who"><strong>Ege</strong> Map, integration, site</span></li>
+        <li><span class="initial" aria-hidden="true">D</span><span class="who"><strong>Demir</strong> Terrain and route</span></li>
+        <li><span class="initial" aria-hidden="true">E</span><span class="who"><strong>Egemen</strong> Curiosity and REMS data, stop cards, UI and 3D</span></li>
+        <li><span class="initial" aria-hidden="true">S</span><span class="who"><strong>Serdar</strong> Horizons, EVA window, HUD, geology</span></li>
+        <li><span class="initial" aria-hidden="true">U</span><span class="who"><strong>Utku</strong> Science models, safety layers, radiation, story</span></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Built for NASA Space Apps 2026, “Interplanetary Survival Guide: Martian Map”. Not affiliated with or endorsed by NASA.</p>
+    <ul>
+      <li><a href="planner.html">Planner</a></li>
+      <li><a href="https://github.com/serdarakbay/marswalk-planner">GitHub repository</a></li>
+      <li><a href="https://www.spaceappschallenge.org/">Space Apps Challenge</a></li>
+    </ul>
+  </footer>
+
+  <script type="module" src="js/landing/main.js"></script>
 </body>
 </html>

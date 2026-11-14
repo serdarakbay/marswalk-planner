@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Martian Map</title>
+  <meta name="description" content="Marswalk planner for an astronaut EVA in Gale crater: layered map, safe route, stop cards and HUD.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- Order matters: base.css defines the variables, cards.css uses them. The HUD loads its own CSS. -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/cards.css">
+</head>
+<body data-mode="map">
+  <div class="app">
+    <header class="app-header">
+      <h1>Martian Map</h1>
+      <p class="subtitle">Marswalk planner · Gale crater</p>
+      <ul id="mission-status" class="status-strip" aria-label="Mission status"></ul>
+      <div class="actions">
+        <button id="view3d-toggle" class="btn" type="button" aria-pressed="false" hidden>3D</button>
+        <button id="hud-toggle" class="btn" type="button" aria-pressed="false">HUD <kbd>H</kbd></button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <aside id="panel" aria-label="Map layers"></aside>          <!-- Ege -->
+      <section class="map-wrap">
+        <div id="map" aria-label="Map"></div>                     <!-- Ege -->
+        <div id="view3d-root" hidden></div>                       <!-- Egemen -->
+        <div id="profile" aria-label="Elevation profile"></div>   <!-- Ege -->
+      </section>
+      <aside id="cards" aria-label="Stop details"></aside>        <!-- Egemen -->
+    </main>
+
+    <footer class="app-footer">
+      Imagery: NASA/JPL-Caltech, NASA Mars Trek, USGS. Built for NASA Space Apps 2026.
+    </footer>
+  </div>
+
+  <div id="hud-root" hidden></div>                                     <!-- Serdar -->
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
