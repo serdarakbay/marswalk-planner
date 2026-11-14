@@ -6,6 +6,8 @@ Run:   python -m pipeline.fetch.curiosity [--refresh] [--per-site 3]
 Input: web/data/area.json (bbox)
 Out:   web/data/traverse.geojson   Curiosity's path inside the bbox
        web/data/images.json        [{url, sol, camera, utc, site, drive, credit}]
+                                   camera = instrument code (MAST_LEFT, MAHLI, ...)
+                                   camera_name = display name (extra field)
 
 Sources (no API key needed):
   - MSL traverse / waypoints : mars.nasa.gov MMGIS layers (GeoJSON)
@@ -46,7 +48,7 @@ CAMERAS = {
 }
 # One image per instrument per rover site, in this order (landscape first, then close-up, then context).
 QUERY_INSTRUMENTS = ["MAST_LEFT", "MAHLI", "NAV_LEFT_B", "CHEMCAM_RMI"]
-# MSSS-operated cameras need the MSSS credit (CLAUDE.md photo rule).
+# MSSS-operated cameras need the MSSS credit (project photo rule).
 MSSS_CAMERAS = {"Mastcam", "MAHLI", "MARDI"}
 
 COORD_DECIMALS = 6  # ~0.06 m on Mars, keeps the file small
@@ -105,9 +107,7 @@ def rnd(x: float) -> float:
 
 # ---------------------------------------------------------------- traverse
 def build_traverse(traverse_fc: dict, waypoints: list[dict], b: dict) -> dict:
-    """Clip MSL traverse to bbox. Each continuous visit becomes one LineString
-    feature (the rover leaves and re-enters the bbox, so a single line would
-    draw fake straight jumps)."""
+    """Clip MSL traverse to bbox -> single GeoJSON Feature (LineString)."""
     def nearest_sol(lon, lat):
         best = min(waypoints, key=lambda p: (p["lon"] - lon) ** 2 + (p["lat"] - lat) ** 2)
         return best["sol"]
@@ -130,18 +130,30 @@ def build_traverse(traverse_fc: dict, waypoints: list[dict], b: dict) -> dict:
     if current:
         segments.append(current)
 
-    features = []
+    # contracts.md: one Feature with a LineString. The rover leaves and re-enters
+    # the bbox, so the visits are joined; `breaks` (extra field) lists the index
+    # of the first point of every re-entry, so the map can skip those jumps.
+    segments = [seg for seg in segments if len(seg) >= 2]
+    coords: list[list[float]] = []
+    breaks: list[int] = []
+    visits = []
     for seg in segments:
-        if len(seg) < 2:
-            continue
+        if coords:
+            breaks.append(len(coords))
+        coords.extend(seg)
         s0, s1 = nearest_sol(*seg[0]), nearest_sol(*seg[-1])
-        features.append({
-            "type": "Feature",
-            "properties": {"sol_start": min(s0, s1), "sol_end": max(s0, s1),
-                           "source": "MSL traverse, NASA/JPL-Caltech (MMGIS)"},
-            "geometry": {"type": "LineString", "coordinates": seg},
-        })
-    return {"type": "FeatureCollection", "features": features}
+        visits.append({"sol_start": min(s0, s1), "sol_end": max(s0, s1)})
+    return {
+        "type": "Feature",
+        "geometry": {"type": "LineString", "coordinates": coords},
+        "properties": {
+            "source": "MSL traverse, NASA/JPL-Caltech (MMGIS)",
+            "sol_start": visits[0]["sol_start"] if visits else None,
+            "sol_end": visits[-1]["sol_end"] if visits else None,
+            "breaks": breaks,
+            "visits": visits,
+        },
+    }
 
 
 def site_visits(waypoints: list[dict], b: dict) -> list[dict]:
@@ -215,13 +227,15 @@ def fix_url(url: str) -> str:
 
 def to_record(cam: str, it: dict, wps_sorted: list[dict]) -> dict:
     sol = int(it["sol"])
+    inst = it.get("instrument")
     pos = position_at_sol(wps_sorted, sol)
     credit = it.get("image_credit") or ("NASA/JPL-Caltech/MSSS" if cam in MSSS_CAMERAS else "NASA/JPL-Caltech")
     utc = (it.get("date_taken") or "").replace(".000Z", "Z")
     return {
         "url": fix_url(it.get("https_url") or it["url"]),
         "sol": sol,
-        "camera": cam,
+        "camera": inst,
+        "camera_name": cam,
         "utc": utc,
         "site": pos["site"] if pos else None,
         "drive": pos["drive"] if pos else None,
@@ -246,8 +260,8 @@ def main() -> None:
     log(f"{len(waypoints)} waypoints, {len(tr_fc['features'])} traverse segments")
 
     traverse = build_traverse(tr_fc, waypoints, b)
-    n_pts = sum(len(f["geometry"]["coordinates"]) for f in traverse["features"])
-    log(f"traverse in bbox: {len(traverse['features'])} visit(s), {n_pts} points")
+    n_pts = len(traverse["geometry"]["coordinates"])
+    log(f"traverse in bbox: {len(traverse['properties']['visits'])} visit(s), {n_pts} points")
 
     visits = site_visits(waypoints, b)
     if not visits:
@@ -269,7 +283,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "traverse.geojson").write_text(json.dumps(traverse, separators=(",", ":")))
     (OUT_DIR / "images.json").write_text(json.dumps(images, indent=1))
-    log(f"wrote web/data/traverse.geojson ({len(traverse['features'])} features) "
+    log(f"wrote web/data/traverse.geojson ({n_pts} points) "
         f"and web/data/images.json ({len(images)} images)")
 
 
