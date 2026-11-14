@@ -255,3 +255,5 @@
 #hud-root[data-look="visor"] .hud-stop__name { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; }
 #hud-root[data-look="visor"] .hud-sim__play,
 #hud-root[data-look="visor"] .hud-sim__speed { background: var(--hud-panel-bg); font-family: var(--font-mono); }
+/* keep the pressed (Pause) state readable: the rule above would otherwise darken its background */
+#hud-root[data-look="visor"] .hud-sim__play[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-accent); }
