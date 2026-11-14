@@ -28,5 +28,9 @@
   "svf_grid_m": 5,
   "o2_return_margin_pct": 10,
   "eva_dose_warn_mSv": 1.0,
-  "eva_end_warn_min": 30
+  "eva_end_warn_min": 30,
+  "relay_antenna_height_m": 3,
+  "relay_search_radius_m": 300,
+  "relay_grid_m": 40,
+  "shelter_svf_percentile": 10
 }

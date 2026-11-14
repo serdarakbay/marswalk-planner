@@ -189,6 +189,14 @@ for i, r in enumerate(sf["route"]):
     check(isinstance(r["comm_ok"], bool), f"safety.route[{i}].comm_ok not bool")
 cross([r["d"] for r in sf["route"]] == ds, "safety.route d axis != summary.profile d")
 check(num(sf["offline_min"]), "safety.offline_min not a number")
+if "relay" in sf:   # optional
+    rl = sf["relay"]
+    keys(rl, ["coord", "antenna_height_m"], "safety.relay")
+    point(rl["coord"], "safety.relay.coord")
+    check(num(rl["antenna_height_m"]) and rl["antenna_height_m"] > 0, "safety.relay.antenna_height_m not > 0")
+    if "offline_min_without_relay" in rl:
+        check(num(rl["offline_min_without_relay"]) and rl["offline_min_without_relay"] >= sf["offline_min"],
+              "safety.relay: offline_min_without_relay is below offline_min")
 
 # stops.json
 stops = load("stops.json")
