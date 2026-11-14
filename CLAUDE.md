@@ -32,14 +32,14 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. Gale kraterinde, Curi
 | Kişi | Rol | Branch | Yazabileceği yerler |
 |---|---|---|---|
 | Ege | Servisler, Harita, Entegrasyon | `harita` | `web/index.html`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/tiles/`, `web/assets/`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/common.py`, `web/data/layers.json`, `CLAUDE.md`, `docs/contracts.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md`, `requirements.txt` |
-| Demir | Arazi ve Rota | `arazi` | `terrain/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
+| Demir | Arazi ve Rota | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Veri: Curiosity ve REMS + durak kartları | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css` |
 | Serdar | Horizons, EVA penceresi, HUD | `hud` | `pipeline/fetch/horizons.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/js/hud/`, `web/css/hud.css` |
 | Utku | Bilim, Güvenlik katmanları, Radyasyon, Hikâye | `bilim` | `science/` (`science/eva/` hariç, `science/safety/` dahil), `config/`, `docs/story/`, `pipeline/fetch/donki.py`, `pipeline/fetch/usgs.py`, `web/data/safety/`, `web/data/` içinde: `area.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json`, `geology.geojson` |
 
 **Veri sahipliği kuralı:** Ham veriyi tek kişi indirir; aynı verinin farklı ürünlerini iki kişi üretebilir, ama her çıktı dosyasının tek yazarı vardır. Başka biri o veriye ihtiyaç duyarsa sahibin ara çıktısını ya da `web/data/` dosyasını okur, API'yi kendisi çağırmaz.
 
-- USGS DEM → sadece Demir indirir. Kestiği `data/cache/dem_clip.tif`'i Drive'dan Utku'yla paylaşır. Demir bu DEM'den eğim, maliyet ve rota; Utku radyo gölgesi, sığınak ve `safety.json` üretir. Overlay PNG'lerini ikisi de `terrain/geo.py` içindeki `to_overlay_png()` ile üretir (Utku sadece import eder, değiştirmez); böylece katmanlar birebir hizalanır.
+- USGS DEM → sadece Demir indirir. Kestiği `data/cache/dem_clip.tif`'i Drive'dan Utku'yla paylaşır. Demir bu DEM'den eğim, maliyet ve rota; Utku radyo gölgesi, sığınak ve `safety.json` üretir. Overlay PNG'lerini ikisi de `arazi/geo.py` içindeki `to_overlay_png()` ile üretir (Utku sadece import eder, değiştirmez); böylece katmanlar birebir hizalanır.
 - Mars Trek WMTS ve tile önbelleği → sadece Ege
 - Curiosity ham görüntüleri, MSL traverse, REMS → sadece Egemen
 - JPL Horizons → sadece Serdar
@@ -61,8 +61,8 @@ pipeline/
   fetch/horizons.py    Serdar: Güneş/Dünya açıları, LMST
   fetch/donki.py       Utku: güneş olayları (live + replay)
   fetch/usgs.py        Utku: USGS jeolojik birimleri → geology.geojson
-terrain/               Demir: DEM işleme, eğim, maliyet, rota, geri dönüş halkaları
-terrain/geo.py         Demir: to_overlay_png() — Utku da import eder
+arazi/                 Demir: DEM işleme, eğim, maliyet, rota, geri dönüş halkaları
+arazi/geo.py           Demir: to_overlay_png() — Utku da import eder
 science/               Utku: models.py (O2, doz), radyasyon, duraklar, uyarılar
 science/safety/        Utku: radyo gölgesi (viewshed), sığınak (sky-view), safety.json
 science/eva/           Serdar: EVA penceresi
@@ -84,6 +84,9 @@ data/cache/            Git'e GİRMEZ: ham DEM, ara rasterler
 ## Git kuralları
 
 - Herkes kendi branch'inde çalışır. `main`'e merge'ü sadece Ege yapar.
+- **`main`'e ASLA doğrudan push etme.** `git push origin main`, `main`'e commit, `main`'e merge ya da GitHub'da "Merge pull request" düğmesi yasak; sadece kendi branch'ine push et (`git push origin <branch>`). İşin hazır olunca Ege'ye haber ver ya da PR aç, merge'ü Ege yapar. Claude olarak kullanıcı Ege değilse `main`'e push eden ya da merge eden hiçbir komutu çalıştırma; kullanıcı istese bile önce bu kuralı hatırlat.
+- **Force push** (`--force`, `--force-with-lease`) sadece kendi branch'inde ve gerçekten gerekirse yapılır; `main`'de ve başkasının branch'inde asla.
+- Kodun klasörü sahiplik tablosundaki yerdir. Repodaki boş `engine/` klasörü kullanılmaz; Demir'in kodu `arazi/` altına gider.
 - **Merge saatleri:** Cmt 14:00, 17:00, 20:00, 23:00; Paz 09:00, 11:30. PR merge saatinden 15 dk önce açılır.
 - PR açmadan önce: `git pull --rebase origin main`.
 - `main` her zaman çalışır durumda kalır, çünkü GitHub Pages `main`'den yayınlanıyor.
@@ -237,9 +240,9 @@ python -m pipeline.fetch.horizons
 python -m science.eva.build
 
 # Arazi (Demir)
-python -m terrain.fetch_dem
-python -m terrain.build_overlays
-python -m terrain.route
+python -m arazi.fetch_dem
+python -m arazi.build_overlays
+python -m arazi.route
 
 # Bilim (Utku)
 python -m pipeline.fetch.donki
