@@ -133,10 +133,10 @@ Harita, kartlar ve HUD birbirinin dosyasını import etmez; sadece şu arayüz �
 | `#panel` | Ege | Katman paneli |
 | `#map`, `#profile` | Ege | Leaflet haritası, yükseklik profili |
 | `#cards` | Egemen | `initCards(state, el)` bu elemanı alır |
-| `#hud` | Serdar | `initHUD(state, el)` bu elemanı alır; başta `hidden` |
+| `#hud-root` | Serdar | `initHUD(state, el)` bu elemanı alır; başta `hidden` |
 
-- Her modül kendi DOM'unu kendi kutusunun içinde, JS ile kurar. `hud.css` ve `cards.css` `index.html`'de zaten bağlıdır.
-- **CSS sınırı:** `hud.css`'teki her seçici `#hud` ile, `cards.css`'teki her seçici `#cards` ile başlar. `html`, `body`, `*`, çıplak etiket seçicileri ve `.leaflet-*` sınıfları sadece `base.css`'te olur.
+- Her modül kendi DOM'unu kendi kutusunun içinde, JS ile kurar. `cards.css` `index.html`'de zaten bağlıdır; HUD kendi CSS'ini (`hud.css`) kendisi yükler.
+- **CSS sınırı:** `hud.css`'teki her seçici `#hud-root` ile, `cards.css`'teki her seçici `#cards` ile başlar. `html`, `body`, `*`, çıplak etiket seçicileri ve `.leaflet-*` sınıfları sadece `base.css`'te olur.
 - Renk, font, boşluk, köşe ve z-index için sadece `base.css` değişkenleri (`var(--...)`) kullanılır; sabit hex ya da sayı yazılmaz. Yeni bir değişken gerekirse Ege'ye söylenir.
 - Katman sırası: `--z-map` < `--z-panel` < `--z-cards` < `--z-hud`.
 - **HUD modu:** HUD açılınca `document.body.dataset.mode = 'hud'`, kapanınca `'map'` yapar. Bu değeri sadece HUD yazar; HUD modunda neyin gizleneceğini `base.css` belirler (`body[data-mode="hud"]`).

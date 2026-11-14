@@ -1,5 +1,5 @@
 /* base.css (Ege): renk paleti, CSS değişkenleri ve sayfa yerleşimi.
-   hud.css (#hud) ve cards.css (#cards) sadece buradaki değişkenleri kullanır. */
+   HUD CSS'i (#hud-root, HUD kendisi yükler) ve cards.css (#cards) sadece buradaki değişkenleri kullanır. */
 
 :root {
   /* Zemin ve yüzeyler: gece Mars gökyüzü */
@@ -160,12 +160,12 @@ kbd {
 #cards:empty::before { content: "Select a stop on the map."; }
 #profile:empty::before { content: "Elevation profile"; }
 
-#hud {
+#hud-root {
   position: fixed;
   inset: 0;
   z-index: var(--z-hud);
 }
-#hud[hidden] { display: none; }
+#hud-root[hidden] { display: none; }
 
 .app-footer {
   padding: var(--space-1) var(--space-4);

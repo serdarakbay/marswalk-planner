@@ -62,5 +62,5 @@ new MutationObserver(() => {
 
 await Promise.all([
   startModule('cards', './cards/index.js', 'initCards', document.getElementById('cards')),
-  startModule('hud', './hud/index.js', 'initHUD', document.getElementById('hud')),
+  startModule('hud', './hud/index.js', 'initHUD', document.getElementById('hud-root')),
 ]);
