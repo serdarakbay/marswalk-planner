@@ -362,6 +362,23 @@ test('real route: plan without scenarios matches summary.json O2', () => {
   near(plan.finalO2, summary.o2_used_pct, 0.2, 'O2 used');
 });
 
+test('real route: ?hazard=dustdevil demo shows a hold, then a step-aside, never closer than 120 m', () => {
+  if (!route || !summary) return 'skip';
+  const rtl = routeTimeline(route, summary);
+  const plan = simulate({
+    tl: rtl, shelters: [], habitat: rtl.coords[0], startMin: -5, endMin: rtl.total_min + 60,
+    o2PerMin: summary.o2_used_pct / rtl.total_min, doseBasePerMin: 0.64 / 1440, storm: null,
+    dust: { t0: SCENARIO.DUST_URL_START_MIN },
+  });
+  const modes = plan.steps.map((s) => s.mode);
+  const hold = modes.indexOf('hold');
+  const evade = modes.indexOf('evade');
+  assert.ok(hold >= 0 && evade > hold, 'first dust devil: hold; second: step aside');
+  const closest = Math.min(...plan.steps.filter((s) => s.devilDist != null).map((s) => s.devilDist));
+  assert.ok(closest >= SCENARIO.DUST_HOLD_M, `closest ${Math.round(closest)} m`);
+  assert.equal(plan.steps.at(-1).mode, 'done');
+});
+
 test('real safety.json: radio shadows add up to a few minutes, shelters within reach', () => {
   if (!route || !summary || !safety) return 'skip';
   const rtl = routeTimeline(route, summary);

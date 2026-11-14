@@ -268,6 +268,18 @@ export function createRouter(grid, targets) {
     return { coords: simple, length_m: pathLength(simple) };
   }
   return {
+    // Compute the refuge cost fields one at a time in the background (one per timer tick), so
+    // the first storm does not freeze the page while they are all built at once
+    warm() {
+      const ids = [...byId.keys()].filter((id) => !fields.has(id));
+      const nextOne = () => {
+        const id = ids.shift();
+        if (id === undefined) return;
+        field(id);
+        setTimeout(nextOne, 0);
+      };
+      setTimeout(nextOne, 0);
+    },
     // Path to one of the refuges (cost field cached per refuge)
     pathTo(from, id) {
       const t = byId.get(id);

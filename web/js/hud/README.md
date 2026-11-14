@@ -21,7 +21,7 @@ The astronaut's helmet-visor view. Opens with **H** or the HUD button in `planne
 | Parameter | Effect |
 |---|---|
 | `?radiation=replay` | Storm scenario on; the storm hits 40 min into the walk |
-| `?hazard=dustdevil` | Dust devil scenario on; it appears 20 min into the walk |
+| `?hazard=dustdevil` | Dust devil scenario on: the first appears 20 min into the walk (hold position), the second 12 min later (step aside) |
 | `?hud=plain` | Plain look instead of the default visor look |
 
 They can be combined, e.g. `planner.html?hazard=dustdevil&radiation=replay`.
@@ -31,9 +31,9 @@ They can be combined, e.g. `planner.html?hazard=dustdevil&radiation=replay`.
 The walk is simulated in 15-second steps. Each step records the astronaut's mode, position, progress along the planned route, O2 and dose. With no scenario on, the astronaut simply follows the route.
 
 - **Solar storm:** replay of the 20 May 2024 storm measured by Curiosity RAD (`radiation.json` → `replay`: x38.6, 120 min). The astronaut walks to the recommended refuge (lowest storm dose, see Shelter options) or the one the crew picks, waits until the storm ends, walks back and resumes the route (or stays in the habitat: the EVA ends early). Dose in a shelter is multiplied by its sky-view factor (`svf`), in the habitat by `replay.habitat_dose_factor`. If waiting at a shelter would take O2 below the 25 % reserve, the astronaut returns to the habitat instead. With Utku's current values (shelter sky-view 0.70–0.81, habitat ×0.3) the habitat usually gives the lowest dose even 25–30 min away; picking a nearby shelter keeps the EVA going at a higher dose.
-- **Dust devil:** appears upwind (NE) and moves at 3 m/s. A shelter does not help here (Martian wind is weak, about 1 % of Earth's air density; the risks are dust on the visor and seals, static charge and lost visibility), so the astronaut keeps out of its way instead:
+- **Dust devil:** two of them (afternoon dust devils come in series), from upwind (NE) at 3 m/s: the first crosses the route ahead, the second comes 12 min later straight at the astronaut. A shelter does not help here (Martian wind is weak, about 1 % of Earth's air density; the risks are dust on the visor and seals, static charge and lost visibility), so the astronaut keeps out of its way instead:
   - If its track passes closer than 120 m, the astronaut **steps aside**: walks perpendicular to the track, on walkable ground (same path finder as the storm, at most 400 m), until 150 m off it, waits there until it is 160 m away and moving off, then walks back to the route.
-  - Otherwise, or when there is no walkable spot aside, the astronaut **holds position** while it approaches within 120 m and resumes once it is 160 m away and moving off.
+  - If it would only cross the route ahead (walking on would bring the astronaut within 120 m of it), the astronaut **holds position** and resumes once it is 160 m away and moving off. Holding is also the fallback when there is no walkable spot aside.
   - The delay carries over to stop times, O2 and dose. On the real route the astronaut never gets closer than ~130 m.
 
 Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) are constants at the top of `scenario.js`.

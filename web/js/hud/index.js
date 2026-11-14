@@ -218,6 +218,7 @@ export function initHUD(state, el) {
       const hab = state.area?.habitat ?? timeline?.coords?.[0];
       if (hab) targets.push({ id: 'habitat', coord: hab });
       router = createRouter(grid, targets);
+      router.warm();
       rebuilt();
     })
     .catch((err) => console.error('[hud] terrain grid failed; refuge paths are straight lines', err));
@@ -388,7 +389,7 @@ export function initHUD(state, el) {
       } else if (p.mode === 'rejoin' && legEnd) {
         scen.push({ level: 'info', text: `Dust devil passed. Back to the route: ${fmtDist(legLeft)} ${compass(bearingDeg(p.coord, legEnd))}` });
       } else if (p.mode === 'hold' && p.devil) {
-        scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing, ${where(p.devil)}` });
+        scen.push({ level: 'danger', text: `HOLD POSITION: dust devil crossing the route ahead, ${where(p.devil)}` });
       } else if (p.devil && p.approaching && p.devilDist < SCENARIO.DUST_APPROACH_M) {
         scen.push(p.mode === 'route'
           ? { level: 'warn', text: `Dust devil ${where(p.devil)}, crossing the route ahead` }

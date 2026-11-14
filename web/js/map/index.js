@@ -466,6 +466,7 @@ export function initMap(state, mapEl) {
   }).bindTooltip('Nearest shelter', { permanent: true, direction: 'right', offset: [14, 0], className: 'shelter-alert-label' });
   const shelterLine = L.polyline([], { color: danger, weight: 2, dashArray: '6 6', interactive: false });
   let stormShown = false;
+  let lastFlyMin = null;   // simulation minute of the last zoom to a path (no zoom twice in one event)
   // Dust devil scenario (HUD hud:time.hazard = {coord, radius_m}): a moving circle, sized in metres
   const warnColor = cssVar('--color-warn');
   const dustDevil = L.circle([0, 0], {
@@ -493,8 +494,16 @@ export function initMap(state, mapEl) {
       shelterLine.setLatLngs(path.map(toLatLng));
       if (!map.hasLayer(shelterLine)) shelterLine.addTo(map);
       if (!map.hasLayer(shelterRing)) shelterRing.addTo(map);
-      // When the storm starts, zoom to the astronaut and the shelter once
-      if (!stormShown) map.flyToBounds(shelterLine.getBounds(), { padding: [80, 80], maxZoom: 17, duration: 1 });
+      // When a path first shows, zoom to the astronaut and the path once, with the dust devil in
+      // view too (it is why the astronaut steps aside); not again within the same event
+      // (e.g. stepping aside, then walking back after the wait).
+      const recent = Number.isFinite(lastFlyMin) && Number.isFinite(elapsed) && Math.abs(elapsed - lastFlyMin) < 15;
+      if (!stormShown && !recent) {
+        const bounds = shelterLine.getBounds();
+        if (Array.isArray(hazard?.coord)) bounds.extend(toLatLng(hazard.coord));
+        map.flyToBounds(bounds, { padding: [80, 80], maxZoom: 17, duration: 1 });
+        lastFlyMin = elapsed;
+      }
     } else {
       shelterRing.remove();
       shelterLine.remove();

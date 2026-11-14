@@ -25,8 +25,10 @@ export const SCENARIO = {
   DUST_URL_START_MIN: 20,      // ?hazard=dustdevil: the dust devil appears 20 min into the walk
   DUST_SPEED_M_PER_MIN: 180,   // 3 m/s, a light Martian afternoon wind (assumption)
   DUST_RADIUS_M: 40,           // visual radius of the vortex (assumption)
-  DUST_START_M: 500,           // where it appears, upwind of the route
-  DUST_TRACK_M: 1000,          // it dissipates after this distance
+  DUST_START_M: 500,           // where the second one appears, upwind of the astronaut
+  DUST_TRACK_M: 1000,          // a dust devil dissipates after this distance past its start
+  DUST_SECOND_MIN: 12,         // the second dust devil comes this many minutes after the first
+  DUST_CROSS_MISS_M: 200,      // the first one crosses the route ahead, at least this far from the astronaut
   DUST_FROM_DEG: 45,           // comes from the NE, moves to the SW
   DUST_APPROACH_M: 400,        // warning distance
   DUST_HOLD_M: 120,            // hold position inside this distance while it approaches
@@ -127,7 +129,9 @@ export const bestRefuge = (opts) => opts.find((o) => !o.o2Short) ?? opts.find((o
  * @param {number} p.o2StandPerMin O2 % used per minute standing still (sheltered, holding)
  * @param {number} p.doseBasePerMin  mSv per minute outside, quiet Sun
  * @param {object|null} p.storm    {t0, duration, mult, habitatFactor}
- * @param {object|null} p.dust     {t0}
+ * @param {object|null} p.dust     {t0}: two dust devils (afternoon dust devils come in series):
+ *                                 the first crosses the route ahead (hold position), the second
+ *                                 heads straight at the astronaut DUST_SECOND_MIN later (step aside)
  * @param {object|null} p.router   terrain.js createRouter(): walkable paths to the refuges (optional)
  * @param {object|null} p.refugeChoice  {id, t}: from minute t, go to this refuge instead of the
  *                                 recommended one (ids from refugeOptions: 'S1'.., 'habitat')
@@ -147,14 +151,12 @@ export function simulate(p) {
   let stormHandled = false;
   let o2 = 0;
   let dose = 0;
-  let devil = null;          // {start, bearing, t0}
-  let prevDevilDist = null;
+  const devils = [];         // [{id, t0, start, bearing, trackM, prevDist, evadeTried}]
   let clearedAt = null;
   const choice = p.refugeChoice && p.refugeChoice.id ? p.refugeChoice : null;
   let choiceDone = false;
   let leg = null;   // the path being walked (to the refuge, aside, or back to the route)
   let evade = null;  // stepping aside from a dust devil: {from: {coord, tau}, leg}
-  let evadeTried = false;
   const optionsAt = (t) => refugeOptions({
     coord, shelters: p.shelters || [], habitat, storm, o2, left: storm.t0 + storm.duration - t,
     o2PerMin, o2StandPerMin, doseBasePerMin, router: p.router,
@@ -200,49 +202,89 @@ export function simulate(p) {
       }
     }
 
-    // Dust devil appears upwind of where the astronaut will be in a few minutes (or of where
-    // they are, if they are off the route: walking to / sitting in a shelter)
-    if (dust && !devil && t >= dust.t0 && isOutside(mode)) {
-      const meetMin = SCENARIO.DUST_START_M / SCENARIO.DUST_SPEED_M_PER_MIN;
-      const q = mode === 'route' ? routeState(tl, Math.min(total, tau + meetMin)).coord : coord;
-      devil = { t0: t, start: offset(q, SCENARIO.DUST_FROM_DEG, SCENARIO.DUST_START_M), bearing: (SCENARIO.DUST_FROM_DEG + 180) % 360 };
+    // Dust devils appear upwind (NE) and move downwind (SW) at DUST_SPEED_M_PER_MIN.
+    // 1st: crosses the route ahead, timed to reach it when the astronaut would, but at least
+    //      DUST_CROSS_MISS_M from where the astronaut is now: holding position is enough.
+    // 2nd: heads straight at the astronaut: they step aside.
+    const bearingSW = (SCENARIO.DUST_FROM_DEG + 180) % 360;
+    if (dust && devils.length === 0 && t >= dust.t0 && isOutside(mode)) {
+      let best = null;
+      for (let k = 3; k <= 10; k += 0.5) {
+        const q = mode === 'route' ? routeState(tl, Math.min(total, tau + k)).coord
+          : offset(coord, bearingSW + 90, SCENARIO.DUST_CROSS_MISS_M);
+        const startM = k * SCENARIO.DUST_SPEED_M_PER_MIN;
+        const start = offset(q, SCENARIO.DUST_FROM_DEG, startM);
+        const miss = devilPass(coord, start, bearingSW).miss;
+        if (!best || (best.miss < SCENARIO.DUST_CROSS_MISS_M && miss > best.miss)) best = { start, startM, miss };
+        if (miss >= SCENARIO.DUST_CROSS_MISS_M) break;
+      }
+      devils.push({ id: 1, t0: t, start: best.start, bearing: bearingSW, trackM: best.startM + SCENARIO.DUST_TRACK_M / 2, prevDist: null, evadeTried: false });
     }
-    let devilNow = null;
-    if (devil) {
-      const travelled = (t - devil.t0) * SCENARIO.DUST_SPEED_M_PER_MIN;
-      if (travelled <= SCENARIO.DUST_TRACK_M) devilNow = offset(devil.start, devil.bearing, travelled);
+    if (dust && devils.length === 1 && t >= dust.t0 + SCENARIO.DUST_SECOND_MIN && isOutside(mode)) {
+      devils.push({ id: 2, t0: t, start: offset(coord, SCENARIO.DUST_FROM_DEG, SCENARIO.DUST_START_M), bearing: bearingSW, trackM: SCENARIO.DUST_TRACK_M, prevDist: null, evadeTried: false });
     }
-    const devilDist = devilNow ? distanceM(coord, devilNow) : null;
-    const approaching = devilDist != null && prevDevilDist != null && devilDist < prevDevilDist;
+    for (const d of devils) {
+      const travelled = (t - d.t0) * SCENARIO.DUST_SPEED_M_PER_MIN;
+      d.now = travelled <= d.trackM ? offset(d.start, d.bearing, travelled) : null;
+      d.dist = d.now ? distanceM(coord, d.now) : null;
+      d.approaching = d.dist != null && d.prevDist != null && d.dist < d.prevDist;
+    }
+    const active = devils.filter((d) => d.now);
+    // The one shown and named in the HUD: the nearest
+    const near = active.reduce((a, d) => (!a || d.dist < a.dist ? d : a), null);
+    const devilNow = near?.now ?? null;
+    const devilDist = near?.dist ?? null;
+    const approaching = Boolean(near?.approaching);
+    // Safe to move on: every dust devil is gone, or far enough and moving away
+    const allClear = active.every((d) => d.dist > SCENARIO.DUST_CLEAR_M && !d.approaching);
 
-    // Dust devil heading straight at the astronaut (its track passes closer than DUST_HOLD_M):
+    // A dust devil heading straight at the astronaut (its track passes closer than DUST_HOLD_M):
     // step aside, perpendicular to its track, on walkable ground, and wait there
-    if (devilNow && !evadeTried && (mode === 'route' || mode === 'hold')) {
-      const pass = devilPass(coord, devilNow, devil.bearing);
-      if (pass.along > 0 && pass.miss < SCENARIO.DUST_HOLD_M) {
-        evadeTried = true;
-        const sides = [
-          { bearing: pass.side, m: SCENARIO.DUST_EVADE_M - pass.miss },
-          { bearing: (pass.side + 180) % 360, m: SCENARIO.DUST_EVADE_M + pass.miss },
-        ];
-        let way = null;
-        for (const sd of sides) {
-          const target = offset(coord, sd.bearing, sd.m);
-          const r = p.router ? p.router.pathBetween(coord, target, SCENARIO.DUST_EVADE_MAX_M * 2) : null;
-          const w = r ? r.coords : p.router ? null : [coord, target];
-          if (w && (!r || r.length_m <= SCENARIO.DUST_EVADE_MAX_M)) { way = w; break; }
-        }
-        if (way) {
-          evade = { from: { coord, tau }, leg: makeLeg(way) };
-          leg = evade.leg;
-          mode = 'evade';
+    for (const d of active) {
+      if (d.evadeTried || !(mode === 'route' || mode === 'hold')) continue;
+      const pass = devilPass(coord, d.now, d.bearing);
+      if (!(pass.along > 0 && pass.miss < SCENARIO.DUST_HOLD_M)) continue;
+      d.evadeTried = true;
+      const sides = [
+        { bearing: pass.side, m: SCENARIO.DUST_EVADE_M - pass.miss },
+        { bearing: (pass.side + 180) % 360, m: SCENARIO.DUST_EVADE_M + pass.miss },
+      ];
+      let way = null;
+      for (const sd of sides) {
+        const target = offset(coord, sd.bearing, sd.m);
+        const r = p.router ? p.router.pathBetween(coord, target, SCENARIO.DUST_EVADE_MAX_M * 2) : null;
+        const w = r ? r.coords : p.router ? null : [coord, target];
+        if (w && (!r || r.length_m <= SCENARIO.DUST_EVADE_MAX_M)) { way = w; break; }
+      }
+      if (way) {
+        evade = { from: { coord, tau }, leg: makeLeg(way) };
+        leg = evade.leg;
+        mode = 'evade';
+      }
+      break;
+    }
+
+    // A dust devil that would cross the route where the astronaut is walking to: stop and let it
+    // pass (it misses the spot where the astronaut stands, so there is no need to step aside)
+    let crossing = false;
+    if (mode === 'route' || mode === 'hold') {
+      for (const d of active) {
+        const pass = devilPass(coord, d.now, d.bearing);
+        if (pass.along <= 0 || pass.miss < SCENARIO.DUST_HOLD_M) continue;
+        // If the walk went on: where would the astronaut and the dust devil be, minute by minute,
+        // until it has passed? Too close at any time -> wait here.
+        const until = (pass.along + SCENARIO.DUST_CLEAR_M) / SCENARIO.DUST_SPEED_M_PER_MIN;
+        for (let k = 0; k <= until && !crossing; k += 0.25) {
+          const there = routeState(tl, Math.min(total, tau + k)).coord;
+          const it = offset(d.now, d.bearing, k * SCENARIO.DUST_SPEED_M_PER_MIN);
+          if (distanceM(there, it) < SCENARIO.DUST_HOLD_M) crossing = true;
         }
       }
     }
 
     switch (mode) {
       case 'route':
-        if (devilDist != null && devilDist < SCENARIO.DUST_HOLD_M && approaching) {
+        if (crossing || (devilDist != null && devilDist < SCENARIO.DUST_HOLD_M && approaching)) {
           mode = 'hold';
         } else {
           tau = Math.min(total, tau + dt);
@@ -250,7 +292,7 @@ export function simulate(p) {
         }
         break;
       case 'hold':
-        if (devilDist == null || (devilDist > SCENARIO.DUST_CLEAR_M && !approaching)) {
+        if (allClear && !crossing) {
           mode = 'route';
           clearedAt = t;
         }
@@ -261,7 +303,7 @@ export function simulate(p) {
         if (leg.s >= leg.total) mode = 'aside';
         break;
       case 'aside':
-        if (devilDist == null || (devilDist > SCENARIO.DUST_CLEAR_M && !approaching)) {
+        if (allClear) {
           mode = 'rejoin';
           leg = makeLeg([...evade.leg.coords].reverse());
         }
@@ -308,7 +350,7 @@ export function simulate(p) {
       const factor = mode === 'sheltered' ? refuge.factor : 1;
       dose += doseBasePerMin * (stormOn ? storm.mult : 1) * factor * dt;
     }
-    prevDevilDist = devilDist;
+    for (const d of devils) d.prevDist = d.dist;
 
     steps.push({
       t, mode, tau, coord, stormOn,
@@ -318,7 +360,7 @@ export function simulate(p) {
       leg: LEG_MODES.has(mode) ? leg : null,
       legS: LEG_MODES.has(mode) ? leg.s : null,
       o2, dose,
-      devil: devilNow, devilDist, approaching,
+      devil: devilNow, devilDist, approaching, devilId: near?.id ?? null,
       justCleared: clearedAt != null && t - clearedAt <= 2,
       delay: mode === 'pre' || t <= 0 ? Math.max(0, t) : Math.max(0, t - tau),
     });
@@ -338,7 +380,7 @@ export function simulate(p) {
     }
   }
   if (runKind) events.push({ kind: runKind, a: runStart, b: steps[steps.length - 1].t });
-  if (dust && devil) events.push({ kind: 'dust', a: devil.t0, b: devil.t0 + SCENARIO.DUST_TRACK_M / SCENARIO.DUST_SPEED_M_PER_MIN });
+  for (const d of devils) events.push({ kind: 'dust', a: d.t0, b: d.t0 + d.trackM / SCENARIO.DUST_SPEED_M_PER_MIN });
 
   return {
     storm, dust, events, steps,
@@ -378,7 +420,7 @@ export function missionLog(plan, schedule = [], shadows = []) {
   const arrived = new Set();
   const left = new Set();
   const inShadow = new Set();
-  let dustSeen = false;
+  const dustSeen = new Set();
   let stormSeen = false;
   let prev = steps[0];
 
@@ -398,11 +440,11 @@ export function missionLog(plan, schedule = [], shadows = []) {
     }
     if (s.mode === 'return' && prev.mode !== 'return') add(s.t, 'info', 'Storm over: walking back to the route');
     if (prev.mode === 'return' && s.mode === 'route') add(s.t, 'info', 'Back on the route');
-    if (s.devil && !dustSeen && (s.devilDist < SCENARIO.DUST_APPROACH_M || DUST_MODES.has(s.mode))) {
-      dustSeen = true;
-      add(s.t, 'warn', 'Dust devil sighted');
+    if (s.devil && !dustSeen.has(s.devilId) && (s.devilDist < SCENARIO.DUST_APPROACH_M || DUST_MODES.has(s.mode))) {
+      dustSeen.add(s.devilId);
+      add(s.t, 'warn', dustSeen.size > 1 ? 'Another dust devil sighted' : 'Dust devil sighted');
     }
-    if (s.mode === 'hold' && prev.mode !== 'hold') add(s.t, 'danger', 'Holding position: dust devil crossing');
+    if (s.mode === 'hold' && prev.mode !== 'hold') add(s.t, 'danger', 'Holding position: dust devil crossing the route ahead');
     if (s.mode === 'evade' && prev.mode !== 'evade') {
       add(s.t, 'danger', `Stepping aside: dust devil heading this way (${Math.round(s.leg?.total ?? 0)} m walk)`);
     }
