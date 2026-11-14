@@ -281,15 +281,77 @@ export function overlayChoices(state) {
 }
 
 const overlayCache = new Map();
+// overlay = an overlays.json entry {png, bounds} or a generated one {canvas, alpha}
 export async function composeImage(base, overlay, bbox, alpha = 0.7) {
   if (!overlay) return base.canvas;
-  let img = overlayCache.get(overlay.png);
-  if (!img) { img = await loadImage(overlay.png); overlayCache.set(overlay.png, img); }
   const c = document.createElement('canvas');
   c.width = base.canvas.width; c.height = base.canvas.height;
   const ctx = c.getContext('2d');
   ctx.drawImage(base.canvas, 0, 0);
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = overlay.alpha ?? alpha;
+  if (overlay.canvas) {
+    ctx.drawImage(overlay.canvas, 0, 0, c.width, c.height);
+    return c;
+  }
+  let img = overlayCache.get(overlay.png);
+  if (!img) { img = await loadImage(overlay.png); overlayCache.set(overlay.png, img); }
   drawInBounds(ctx, img, overlay.bounds, bbox, c.width);
   return c;
+}
+
+// ---------------------------------------------------------------- rock layers
+// Mount Sharp's strata lie nearly flat, so elevation is a proxy for position in
+// the layer stack: lower = older (clay-bearing), higher = younger (sulfate-bearing).
+// This colours the DEM elevation only; it does not draw mapped unit boundaries.
+const STRATA_PX = 1024;
+export const STRATA_STEP_M = 20;     // one line every 20 m of elevation
+const STRATA_LIFT = 0.35;            // how far the colours move towards a light page colour
+const STRATA_MAJOR_M = 100;          // stronger line every 100 m
+
+export function elevationRange(grid) {
+  const s = Array.from(grid.z).sort((a, b) => a - b);
+  return { lo: s[Math.floor(s.length * 0.02)], hi: s[Math.floor(s.length * 0.98)] };
+}
+
+export function strataCanvas(grid, lowColor, highColor, lineColor) {
+  const { frame } = grid;
+  const { lo, hi } = elevationRange(grid);
+  const span = hi - lo || 1;
+  const tmp = document.createElement('canvas').getContext('2d');
+  const rgb = (v) => { tmp.fillStyle = v; tmp.fillRect(0, 0, 1, 1); return tmp.getImageData(0, 0, 1, 1).data; };
+  const a = rgb(lowColor); const b = rgb(highColor); const ln = rgb(lineColor);
+  // On a light page the clay / sulfate tones turn muddy once shaded in 3D:
+  // lift them towards the page colour (hue stays from the palette).
+  const page = rgb(getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim() || 'black');
+  if ((page[0] + page[1] + page[2]) / 3 > 160) {
+    for (const c of [a, b]) for (let ch = 0; ch < 3; ch++) c[ch] += STRATA_LIFT * (page[ch] - c[ch]);
+  }
+
+  const n = STRATA_PX;
+  const z = new Float32Array(n * n);
+  for (let j = 0; j < n; j++) {
+    const zPos = (j / (n - 1) - 0.5) * frame.depth;
+    for (let i = 0; i < n; i++) z[j * n + i] = sampleGrid(grid, (i / (n - 1) - 0.5) * frame.width, zPos);
+  }
+  const c = document.createElement('canvas');
+  c.width = n; c.height = n;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(n, n);
+  const band = (v, step) => Math.floor(v / step);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const k = j * n + i;
+      const v = z[k];
+      const f = Math.min(Math.max((v - lo) / span, 0), 1);
+      let r = a[0] + f * (b[0] - a[0]); let g = a[1] + f * (b[1] - a[1]); let bl = a[2] + f * (b[2] - a[2]);
+      const right = z[j * n + Math.min(i + 1, n - 1)]; const down = z[Math.min(j + 1, n - 1) * n + i];
+      const major = band(v, STRATA_MAJOR_M) !== band(right, STRATA_MAJOR_M) || band(v, STRATA_MAJOR_M) !== band(down, STRATA_MAJOR_M);
+      const minor = band(v, STRATA_STEP_M) !== band(right, STRATA_STEP_M) || band(v, STRATA_STEP_M) !== band(down, STRATA_STEP_M);
+      const w = major ? 0.6 : minor ? 0.28 : 0;
+      r += w * (ln[0] - r); g += w * (ln[1] - g); bl += w * (ln[2] - bl);
+      img.data[k * 4] = r; img.data[k * 4 + 1] = g; img.data[k * 4 + 2] = bl; img.data[k * 4 + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return { canvas: c, lo, hi };
 }
