@@ -137,7 +137,9 @@ export function evalAlerts(alerts, metrics) {
   if (metrics.eva_state === 'closed' && metrics.at_habitat !== true) {
     out.push({ id: 'hud-eva-closed', level: 'danger', text: 'Outside EVA window: return to habitat' });
   }
-  if (metrics.radiation_status && metrics.radiation_status !== 'nominal') {
+  // Built-in radiation alert only when alerts.json has no radiation_status rule (no duplicates)
+  const radRule = (alerts?.rules ?? []).some((r) => r.metric === 'radiation_status');
+  if (!radRule && metrics.radiation_status && metrics.radiation_status !== 'nominal') {
     out.push({
       id: 'hud-radiation',
       level: metrics.radiation_status === 'storm' ? 'danger' : 'warn',
