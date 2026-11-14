@@ -12,6 +12,7 @@ The astronaut's helmet-visor view. Opens with **H** or the HUD button in `planne
 - **Radio shadow ahead:** from `safety.json` → `route[].comm_ok`, the HUD warns 10 min before a stretch without a link ("Radio shadow in 4 min, for 3 min: check in now") and counts down while in it.
 - **Point of no return:** "Turn back by T+…" = O2 above the 25 % reserve minus the O2 to walk home from here (straight line × 1.3, 50 m/min). Warns under 30 min, "Turn back now" at zero.
 - **Shelter options (storm):** every refuge (terrain shelters and the habitat) ranked by the storm dose still to come if the astronaut goes there now: walk time at the full storm rate, then the wait at the shelter's sky-view factor (habitat: `habitat_dose_factor`). The lowest dose the O2 allows is marked **best** and chosen by default; tap another one to change course. Shelters where waiting would take O2 below the reserve are greyed out.
+- **Path to the refuge:** the walk to the refuge (and back to the route after the storm) follows a path around steep ground, like a turn-by-turn route: Dijkstra on Demir's heightmap (`summary.json` → `terrain`, 256 × 256 cells of ~9 m), never steeper than 25° (`slope_max_deg`), with a cost that grows with the square of the slope (×2 at 15°). Distances, walk times and doses in the options use this path. On the real data every refuge is reachable from every point of the route, with detours up to ~30 % longer than the straight line. Without the heightmap the astronaut walks straight lines. The remaining path is sent to the map in `hud:time` (`refuge_path`).
 - **Mission log:** the latest key events up to the current time, newest first (EVA start, stops, radio shadows of a minute or more, storm, shelter, dust devil, return). Built from the simulated plan, so it follows the time slider.
 - **Simulation clock:** play / pause, speed (real time to x1200), time slider with coloured event bands.
 
@@ -41,6 +42,7 @@ Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) 
 | `index.js` | `initHUD(state, el)`: panels, alerts, controls, `hud:time` events |
 | `model.js` | Pure helpers: Sun interpolation, EVA status, route timing, stops, O2, dose, radiation, alerts |
 | `scenario.js` | Storm and dust devil simulation |
+| `terrain.js` | Heightmap grid, paths to the refuges around steep ground |
 | `sim.js` | Simulation clock |
 | `dev.html`, `mock-state.js` | Standalone test page with MOCK data |
 | `test.mjs` | Self-tests (`node web/js/hud/test.mjs`) |
@@ -52,9 +54,9 @@ Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) 
 node web/js/hud/test.mjs
 ```
 
-No dependencies. Part 1 checks the logic on small made-up inputs (stop order, storm and dust devil plans, O2 and dose, radio shadows, radiation, alerts, missing data). Part 2 checks the real files in `web/data/` (sun.json, EVA window, stop order on the real route, O2 against summary.json, safety.json); a missing file is skipped. Exits with code 1 if anything fails.
+No dependencies. Part 1 checks the logic on small made-up inputs (stop order, storm and dust devil plans, shelter options, paths around a wall, O2 and dose, radio shadows, radiation, alerts, missing data). Part 2 checks the real files in `web/data/` (sun.json, EVA window, stop order on the real route, O2 against summary.json, safety.json); a missing file is skipped. Exits with code 1 if anything fails.
 
 ## Events
 
 - Listens to `hud:toggle`, the **H** key and `stop:select`.
-- Emits `hud:time` with `{active, playing, utc, elapsed_min, coord, d_m, storm, shelter, hazard, mode}` (see `CLAUDE.md`).
+- Emits `hud:time` with `{active, playing, utc, elapsed_min, coord, d_m, storm, shelter, hazard, mode, refuge_path, refuge_label}` (see `CLAUDE.md`). `refuge_path` is the `[[lon, lat], ...]` still to walk to the refuge, or back to the route after the storm; `refuge_label` names it ("Shelter S4", "Habitat", "Back to the route").

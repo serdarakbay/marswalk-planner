@@ -11,6 +11,7 @@
 // the point where the route was left), home (back inside because of the storm), done.
 
 import { bearingDeg, distanceM, routeState } from './model.js';
+import { legPoint, makeLeg } from './terrain.js';
 
 // Scenario constants. Storm duration and shelter dose factors come from radiation.json (Utku);
 // the rest are demo assumptions, shown as such in the UI.
@@ -51,7 +52,9 @@ export function offset(from, bearing, meters, radiusM = 3396190) {
  * sorted by the storm dose still to come (walk there at the full storm rate, then wait at the
  * shelter's sky-view factor, or the habitat's dose factor, until the storm ends).
  * o2Short: waiting there would take O2 below the reserve (walk there, wait, walk home).
- * Returns [{id, label, coord, svf, factor, habitat, d, walkMin, dose, o2Short}].
+ * With q.router (terrain.js) distances follow the walkable path around steep ground; without
+ * it, or where no path exists, they are straight lines.
+ * Returns [{id, label, coord, svf, factor, habitat, d, walkMin, dose, o2Short, path}].
  */
 export function refugeOptions(q) {
   const { coord, shelters = [], habitat, storm } = q;
@@ -70,12 +73,19 @@ export function refugeOptions(q) {
   if (Array.isArray(habitat)) {
     list.push({ id: 'habitat', label: 'Habitat', coord: habitat, svf: null, factor: storm.habitatFactor, habitat: true });
   }
+  const walkTo = (from, o) => {
+    const r = q.router?.pathTo(from, o.id);
+    return r ? { path: r.coords, d: r.length_m } : { path: [from, o.coord], d: distanceM(from, o.coord) };
+  };
+  const hab = list.find((o) => o.habitat);
   for (const o of list) {
-    o.d = distanceM(coord, o.coord);
+    const w = walkTo(coord, o);
+    o.path = w.path;
+    o.d = w.d;
     o.walkMin = o.d / SCENARIO.WALK_M_PER_MIN;
     const walk = Math.min(o.walkMin, left);
     o.dose = rate * walk + rate * o.factor * (left - walk);
-    const home = o.habitat || !Array.isArray(habitat) ? 0 : distanceM(o.coord, habitat) / SCENARIO.WALK_M_PER_MIN;
+    const home = o.habitat || !hab ? 0 : walkTo(o.coord, hab).d / SCENARIO.WALK_M_PER_MIN;
     const need = o2PerMin * (o.walkMin + home) + (o.habitat ? 0 : stand * Math.max(0, left - o.walkMin));
     o.o2Short = !o.habitat && o2 + need > 100 - SCENARIO.O2_RESERVE_PCT;
   }
@@ -84,13 +94,6 @@ export function refugeOptions(q) {
 
 // Recommended refuge: the lowest storm dose among the ones the O2 allows
 export const bestRefuge = (opts) => opts.find((o) => !o.o2Short) ?? opts.find((o) => o.habitat) ?? null;
-
-function toward(a, b, meters) {
-  const d = distanceM(a, b);
-  if (d <= meters || d === 0) return { coord: b, arrived: true };
-  const f = meters / d;
-  return { coord: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], arrived: false };
-}
 
 /**
  * @param {object} p
@@ -104,6 +107,7 @@ function toward(a, b, meters) {
  * @param {number} p.doseBasePerMin  mSv per minute outside, quiet Sun
  * @param {object|null} p.storm    {t0, duration, mult, habitatFactor}
  * @param {object|null} p.dust     {t0}
+ * @param {object|null} p.router   terrain.js createRouter(): walkable paths to the refuges (optional)
  * @param {object|null} p.refugeChoice  {id, t}: from minute t, go to this refuge instead of the
  *                                 recommended one (ids from refugeOptions: 'S1'.., 'habitat')
  */
@@ -111,7 +115,6 @@ export function simulate(p) {
   const { tl, habitat, startMin, endMin, o2PerMin, doseBasePerMin, storm, dust } = p;
   const o2StandPerMin = Number.isFinite(p.o2StandPerMin) ? p.o2StandPerMin : o2PerMin;
   const dt = SCENARIO.STEP_MIN;
-  const shelters = (p.shelters || []).filter((s) => Array.isArray(s?.coord));
   const total = tl.total_min;
   const steps = [];
 
@@ -128,9 +131,10 @@ export function simulate(p) {
   let clearedAt = null;
   const choice = p.refugeChoice && p.refugeChoice.id ? p.refugeChoice : null;
   let choiceDone = false;
+  let leg = null;   // the path being walked (to the refuge, or back to the route)
   const optionsAt = (t) => refugeOptions({
-    coord, shelters, habitat, storm, o2, left: storm.t0 + storm.duration - t,
-    o2PerMin, o2StandPerMin, doseBasePerMin,
+    coord, shelters: p.shelters || [], habitat, storm, o2, left: storm.t0 + storm.duration - t,
+    o2PerMin, o2StandPerMin, doseBasePerMin, router: p.router,
   });
   // A short-of-O2 shelter is replaced by the habitat (Utku's rule)
   const pick = (opts, o) => {
@@ -157,6 +161,7 @@ export function simulate(p) {
       if (refuge) {
         resume = { coord, tau };
         mode = 'to_refuge';
+        leg = makeLeg(refuge.path ?? [coord, refuge.coord]);
       }
     }
     // The crew switched refuge during the storm: head there from here
@@ -165,7 +170,7 @@ export function simulate(p) {
       if (refuge?.id !== choice.id) {
         const opts = optionsAt(t);
         const next = pick(opts, opts.find((o) => o.id === choice.id));
-        if (next) { refuge = next; mode = 'to_refuge'; }
+        if (next) { refuge = next; mode = 'to_refuge'; leg = makeLeg(next.path ?? [coord, next.coord]); }
       }
     }
 
@@ -200,18 +205,23 @@ export function simulate(p) {
         }
         break;
       case 'to_refuge': {
-        const m = toward(coord, refuge.coord, SCENARIO.WALK_M_PER_MIN * dt);
-        coord = m.coord;
-        if (m.arrived) mode = refuge.habitat ? 'home' : 'sheltered';
+        leg.s += SCENARIO.WALK_M_PER_MIN * dt;
+        coord = legPoint(leg, leg.s);
+        if (leg.s >= leg.total) mode = refuge.habitat ? 'home' : 'sheltered';
         break;
       }
       case 'sheltered':
-        if (!stormOn) mode = 'return';
+        if (!stormOn) {
+          mode = 'return';
+          // Back the same walkable way: the path from the route to the refuge, reversed
+          const back = p.router?.pathTo(resume.coord, refuge.id);
+          leg = makeLeg(back ? [...back.coords].reverse() : [coord, resume.coord]);
+        }
         break;
       case 'return': {
-        const m = toward(coord, resume.coord, SCENARIO.WALK_M_PER_MIN * dt);
-        coord = m.coord;
-        if (m.arrived) { mode = 'route'; tau = resume.tau; }
+        leg.s += SCENARIO.WALK_M_PER_MIN * dt;
+        coord = legPoint(leg, leg.s);
+        if (leg.s >= leg.total) { mode = 'route'; tau = resume.tau; }
         break;
       }
       default:
@@ -232,6 +242,9 @@ export function simulate(p) {
       t, mode, tau, coord, stormOn,
       refuge: refuge && (mode === 'to_refuge' || mode === 'sheltered' || mode === 'home') ? refuge : null,
       resume: mode === 'return' ? resume : null,
+      // the path being walked and how far along it (for the line on the map)
+      leg: mode === 'to_refuge' || mode === 'return' ? leg : null,
+      legS: mode === 'to_refuge' || mode === 'return' ? leg.s : null,
       o2, dose,
       devil: devilNow, devilDist, approaching,
       justCleared: clearedAt != null && t - clearedAt <= 2,

@@ -13,6 +13,7 @@ import {
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
 import { bestRefuge, missionLog, refugeGuided, refugeOptions, simulate } from './scenario.js';
+import { createRouter, legRemaining, makeGrid, pathLength } from './terrain.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(here, '../../data');
@@ -160,6 +161,71 @@ test('storm alert: generic rule hidden while the HUD guides to a refuge', () => 
   assert.ok(shown('route'), 'shown while still on the route');
   assert.ok(!shown('to_refuge'), 'hidden while heading to the refuge');
   assert.ok(!shown('sheltered'), 'hidden while sheltered');
+});
+
+// --- terrain: a 40 x 40 grid (~9 m cells) with a steep wall across the middle and one gap
+const GW = 40;
+const gridBounds = { west: 0, south: -0.006, east: 0.006, north: 0 };
+const wallZ = new Float32Array(GW * GW);
+for (let y = 0; y < GW; y++) for (let x = 0; x < GW; x++) {
+  wallZ[y * GW + x] = x === 20 && y < 34 ? 50 : 0;   // 50 m wall at x = 20, gap at the south end
+}
+const wallGrid = makeGrid(wallZ, GW, GW, gridBounds);
+const cell = (x, y) => wallGrid.coordOf(y * GW + x);
+
+test('refuge path: goes around a wall too steep to cross', () => {
+  const from = cell(10, 5);
+  const to = cell(30, 5);
+  const router = createRouter(wallGrid, [{ id: 'S1', coord: to }]);
+  const r = router.pathTo(from, 'S1');
+  assert.ok(r, 'path found');
+  assert.ok(r.length_m > 2 * distanceM(from, to), `detour ${Math.round(r.length_m)} m vs straight ${Math.round(distanceM(from, to))} m`);
+  // Every point that crosses x = 20 is in the gap (y >= 34)
+  for (const c of r.coords) {
+    const i = wallGrid.cellOf(c);
+    if (i >= 0 && i % GW === 20) assert.ok(Math.floor(i / GW) >= 34, 'crosses only through the gap');
+  }
+  near(r.length_m, pathLength(r.coords), 1e-6, 'length');
+});
+
+test('refuge path: flat ground is about a straight line; no way through -> null', () => {
+  const flat = makeGrid(new Float32Array(GW * GW), GW, GW, gridBounds);
+  const a = cell(5, 5);
+  const b = cell(15, 12);
+  const r = createRouter(flat, [{ id: 'S1', coord: b }]).pathTo(a, 'S1');
+  assert.ok(r.length_m < distanceM(a, b) * 1.1, 'close to straight');
+  const closed = new Float32Array(wallZ);
+  for (let y = 34; y < GW; y++) closed[y * GW + 20] = 50;   // close the gap
+  const g = makeGrid(closed, GW, GW, gridBounds);
+  assert.equal(createRouter(g, [{ id: 'S1', coord: cell(30, 5) }]).pathTo(cell(10, 5), 'S1'), null);
+});
+
+test('storm with terrain: the astronaut walks the path there and back', () => {
+  // A route on the west side of the wall; the only shelter is east of it
+  const route = {
+    type: 'Feature',
+    properties: { t_min: [0, 10, 20] },
+    geometry: { type: 'LineString', coordinates: [cell(5, 5), cell(10, 5), cell(5, 5)] },
+  };
+  const rtl = routeTimeline(route, null);
+  const shelter = { coord: cell(30, 5), svf: 0.3 };
+  const router = createRouter(wallGrid, [{ id: 'S1', coord: shelter.coord }, { id: 'habitat', coord: cell(5, 5) }]);
+  const storm = { t0: 10, duration: 60, mult: 38.6, habitatFactor: 1 };
+  const plan = simulate({
+    tl: rtl, shelters: [shelter], habitat: cell(5, 5), startMin: -1, endMin: 200,
+    o2PerMin: 0.2, o2StandPerMin: 0.1, doseBasePerMin: 0.64 / 1440, storm, dust: null, router,
+  });
+  const go = plan.at(10.5);
+  assert.equal(go.refuge.id, 'S1');
+  assert.ok(go.leg.coords.length > 2, 'walks a path, not a straight line');
+  near(go.refuge.d, go.leg.total, 1e-6, 'option distance = path length');
+  // Half way there it is south of the start (going round the wall), not on the straight line
+  const half = plan.steps.find((s) => s.mode === 'to_refuge' && s.legS >= go.leg.total / 2);
+  assert.ok(half.coord[1] < cell(10, 20)[1], 'detours through the gap in the south');
+  const back = plan.steps.find((s) => s.mode === 'return');
+  assert.ok(back && back.leg.coords.length > 2, 'returns along the path');
+  assert.ok(legRemaining(back.leg, back.legS).length >= 2, 'remaining path for the map');
+  assert.ok(plan.steps.some((s) => s.mode === 'done'), 'finishes the route');
 });
 
 test('dust devil: hold position, then resume with a delay', () => {

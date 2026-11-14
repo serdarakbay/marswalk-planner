@@ -23,6 +23,7 @@ import {
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
+import { createRouter, legRemaining, loadTerrainGrid } from './terrain.js';
 import { bestRefuge, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
@@ -162,6 +163,7 @@ export function initHUD(state, el) {
   // Step-by-step plan of the walk with the scenarios that are switched on (see scenario.js)
   let plan = null;
   let simParams = null;   // inputs of the last plan, reused by the Shelter options panel
+  let router = null;      // walkable paths to the refuges, once the heightmap is loaded
   function rebuildPlan() {
     plan = null;
     if (!timeline || !evaStart || !range) return;
@@ -171,6 +173,7 @@ export function initHUD(state, el) {
         ? state.radiation.base_mSv_per_day : FALLBACK.rad_base_mSv_per_day;
       simParams = {
         refugeChoice,
+        router,
         tl: timeline,
         shelters: state.safety?.shelters,
         habitat: state.area?.habitat ?? timeline.coords[0],
@@ -205,6 +208,19 @@ export function initHUD(state, el) {
     }
   }
   rebuildLog();
+
+  // Paths to the refuges follow the terrain (Demir's heightmap); until it loads, or without it,
+  // the astronaut walks straight lines.
+  loadTerrainGrid(state.summary?.terrain)
+    .then((grid) => {
+      if (!grid) return;
+      const targets = (state.safety?.shelters || []).map((s, i) => ({ id: `S${i + 1}`, coord: s?.coord }));
+      const hab = state.area?.habitat ?? timeline?.coords?.[0];
+      if (hab) targets.push({ id: 'habitat', coord: hab });
+      router = createRouter(grid, targets);
+      rebuilt();
+    })
+    .catch((err) => console.error('[hud] terrain grid failed; refuge paths are straight lines', err));
 
   // Look: visor by default (the challenge describes the HUD as projected on the helmet visor).
   // ?hud=plain in the page URL switches to the plain/modern look.
@@ -274,6 +290,8 @@ export function initHUD(state, el) {
     const shelter = !p && isStorm && !atHabitat
       ? nearestShelter(state.safety?.shelters, pos ?? state.area?.habitat) : null;
     const refuge = p?.refuge ?? null;
+    // Metres still to walk on the current path (to the refuge, or back to the route)
+    const legLeft = p?.leg ? Math.max(0, p.leg.total - p.legS) : null;
     // Radio shadow now / next, while walking the route (route minutes)
     const curShadow = onRoute ? shadows.find((x) => tau >= x.a && tau < x.b) ?? null : null;
     const nextShadow = onRoute ? shadows.find((x) => x.a > tau) ?? null : null;
@@ -348,10 +366,11 @@ export function initHUD(state, el) {
     if (p) {
       const where = (to) => `${fmtDist(distanceM(p.coord, to))} ${compass(bearingDeg(p.coord, to))}`;
       if (p.mode === 'to_refuge' && refuge) {
-        const mins = distanceM(p.coord, refuge.coord) / SCENARIO.WALK_M_PER_MIN;
+        const dm = legLeft ?? distanceM(p.coord, refuge.coord);
+        const go = `${(dm / SCENARIO.WALK_M_PER_MIN).toFixed(1)} min, ${fmtDist(dm)} ${compass(bearingDeg(p.coord, refuge.coord))}${p.leg?.coords.length > 2 ? ', follow the path' : ''}`;
         scen.push({ level: 'danger', text: refuge.habitat
-          ? `Return to the habitat${refuge.o2Short ? ' (not enough O2 to wait out the storm)' : ''}: ${mins.toFixed(1)} min, ${where(refuge.coord)}`
-          : `Take shelter${refuge.id ? ` ${refuge.id}` : ''}: ${mins.toFixed(1)} min, ${where(refuge.coord)}` });
+          ? `Return to the habitat${refuge.o2Short ? ' (not enough O2 to wait out the storm)' : ''}: ${go}`
+          : `Take shelter${refuge.id ? ` ${refuge.id}` : ''}: ${go}` });
       } else if (p.mode === 'sheltered') {
         scen.push({ level: 'warn', text: `Sheltered (sky-view ${fmtNum(refuge?.svf, 2)}): storm ends in ${fmtDuration(stormLeft)}` });
       } else if (p.mode === 'home' && stormOn) {
@@ -415,7 +434,7 @@ export function initHUD(state, el) {
         row(life.body, 'Solar event', `×${dose.multiplier}`, rad?.replay_date ? 'replay' : null);
       }
       if (p?.mode === 'to_refuge' && refuge) {
-        const d = distanceM(p.coord, refuge.coord);
+        const d = legLeft ?? distanceM(p.coord, refuge.coord);
         row(life.body, refuge.habitat ? 'Habitat' : `Shelter${refuge.id ? ` ${refuge.id}` : ''}`,
           `${(d / SCENARIO.WALK_M_PER_MIN).toFixed(1)} min · ${fmtDist(d)} ${compass(bearingDeg(p.coord, refuge.coord))}`);
       } else if (p?.mode === 'sheltered') {
@@ -640,7 +659,8 @@ export function initHUD(state, el) {
   // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
   // coord and d_m are null until route.geojson exists. active is false when the HUD is closed.
   // Extra fields: storm, shelter (refuge the astronaut is heading to or sits in, while the storm
-  // is on), hazard ({coord, radius_m} of a dust devil, for the map) and mode (see scenario.js).
+  // is on), hazard ({coord, radius_m} of a dust devil, for the map), mode (see scenario.js),
+  // refuge_path ([[lon, lat], ...] still to walk to the refuge or back to the route) and refuge_label.
   function emitTime() {
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
     const p = plan ? plan.at(elapsed) : null;
@@ -666,6 +686,10 @@ export function initHUD(state, el) {
         storm: Boolean(p ? p.stormOn : storm),
         shelter: p?.stormOn && p.refuge && !p.refuge.habitat && isOutside(p.mode) ? r6(p.refuge.coord) : null,
         hazard: p?.devil ? { coord: r6(p.devil), radius_m: SCENARIO.DUST_RADIUS_M } : null,
+        // Path still ahead to the refuge (or back to the route after the storm), around steep ground
+        refuge_path: p?.leg ? legRemaining(p.leg, p.legS).map(r6) : null,
+        refuge_label: p?.refuge ? (p.refuge.habitat ? 'Habitat' : `Shelter ${p.refuge.id ?? ''}`.trim())
+          : p?.mode === 'return' ? 'Back to the route' : null,
         mode: p?.mode ?? null,
       },
     }));
