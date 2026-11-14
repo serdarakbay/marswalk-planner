@@ -15,8 +15,18 @@ const EXAGGERATION = 1.6;      // vertical exaggeration
 const TEXTURE_ZOOM = 13;       // Mars Trek zoom for the top image (about 9 tiles)
 const TURN_RAD_PER_S = 0.035;  // a full turn takes about three minutes
 
-// Stitch Mars Trek tiles (EPSG4326 scheme) and crop them to the bounds
+// Stitch Mars Trek tiles (EPSG4326 scheme) and crop them to the bounds.
+// If Mars Trek is unreachable, the same tiles come from the backup cache (fallbackUrl).
 async function topTexture(layer, b) {
+  try {
+    return await stitch(layer.url, layer, b);
+  } catch (err) {
+    if (!layer.fallbackUrl) throw err;
+    return stitch(layer.fallbackUrl, layer, b);
+  }
+}
+
+async function stitch(template, layer, b) {
   const z = Math.min(TEXTURE_ZOOM, layer.maxNativeZoom ?? TEXTURE_ZOOM);
   const deg = 180 / 2 ** z;
   const x0 = Math.floor((b.west + 180) / deg);
@@ -31,7 +41,7 @@ async function topTexture(layer, b) {
   const jobs = [];
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
-      const url = layer.url.replace('{z}', z).replace('{y}', y).replace('{x}', x);
+      const url = template.replace('{z}', z).replace('{y}', y).replace('{x}', x);
       jobs.push(new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';

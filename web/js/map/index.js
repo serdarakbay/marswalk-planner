@@ -172,7 +172,7 @@ function miniMap(map, layers) {
     attributionControl: false, zoomControl: false, dragging: false, scrollWheelZoom: false,
     doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0,
   });
-  L.tileLayer(global.url, { maxNativeZoom: global.maxNativeZoom, maxZoom: MAX_ZOOM, noWrap: true }).addTo(mini);
+  tileLayer(global).addTo(mini); // same helper as the main map, so it falls back to web/tiles/ too
   const accent = cssVar('--color-accent');
   const view = L.rectangle(map.getBounds(), { color: accent, weight: 1, fillOpacity: 0.15, interactive: false }).addTo(mini);
   const dot = L.circleMarker(map.getCenter(), {
