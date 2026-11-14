@@ -1,9 +1,9 @@
 {
- "start_lmst": "10:13",
- "end_lmst": "17:22",
- "reason": "Start limited by temperature -40 C; end limited by Sun elevation 15 deg. Rule: sun_el >= 15 deg and temp >= -40 C (temperature MOCK).",
- "start_utc": "2026-11-15T12:46:05Z",
- "end_utc": "2026-11-15T20:06:20Z",
- "duration_min": 440,
- "temp_source": "MOCK"
+ "start_lmst": "08:53",
+ "end_lmst": "16:41",
+ "reason": "Start limited by temperature -40 C; end limited by 8 h nominal EVA. Rule: sun_el >= 15 deg and temp >= -40 C (temperature from weather.json, approximate).",
+ "start_utc": "2026-11-15T11:24:10Z",
+ "end_utc": "2026-11-15T19:24:10Z",
+ "duration_min": 480,
+ "temp_source": "weather.json"
 }

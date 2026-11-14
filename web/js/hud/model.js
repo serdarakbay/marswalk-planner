@@ -82,15 +82,21 @@ export function evaStatus(eva, t) {
   return { state: 'closed', min: (ts - end) / 60000 };
 }
 
-// Planned EVA dose. Returns {mSv, estimated}.
-export function evaDose(radiation, eva) {
-  const durMin = eva?.duration_min;
-  if (!Number.isFinite(durMin)) return null;
+// Planned dose for the time spent outside. Returns {mSv, estimated, multiplier, source}.
+// activeMin: minutes outside (route duration if known), else the EVA window length.
+// Source order: radiation.json rate x time > summary.json dose_mSv > FALLBACK rate (est.).
+export function evaDose(radiation, eva, activeMin, summary) {
+  const durMin = Number.isFinite(activeMin) ? activeMin : eva?.duration_min;
   const base = radiation?.base_mSv_per_day;
   const mult = Number.isFinite(radiation?.event_multiplier) ? radiation.event_multiplier : 1;
-  const estimated = !Number.isFinite(base);
-  const rate = estimated ? FALLBACK.rad_base_mSv_per_day : base;
-  return { mSv: (rate * mult * durMin) / 1440, estimated, multiplier: mult };
+  if (Number.isFinite(base) && Number.isFinite(durMin)) {
+    return { mSv: (base * mult * durMin) / 1440, estimated: false, multiplier: mult, source: 'radiation.json' };
+  }
+  if (Number.isFinite(summary?.dose_mSv)) {
+    return { mSv: summary.dose_mSv, estimated: false, multiplier: 1, source: 'summary.json' };
+  }
+  if (!Number.isFinite(durMin)) return null;
+  return { mSv: (FALLBACK.rad_base_mSv_per_day * durMin) / 1440, estimated: true, multiplier: 1, source: 'fallback' };
 }
 
 // Great-circle distance on the project sphere, coords as [lon, lat].
@@ -125,12 +131,109 @@ export function evalAlerts(alerts, metrics) {
   if (Number.isFinite(metrics.earth_el) && metrics.earth_el < 0) {
     out.push({ id: 'hud-earth-down', level: 'warn', text: 'Earth below horizon: no direct-to-Earth link' });
   }
-  if (metrics.eva_state === 'closed') {
-    out.push({ id: 'hud-eva-closed', level: 'crit', text: 'Outside EVA window: return to habitat' });
+  if (metrics.eva_state === 'closed' && metrics.at_habitat !== true) {
+    out.push({ id: 'hud-eva-closed', level: 'danger', text: 'Outside EVA window: return to habitat' });
   }
   if (metrics.radiation_status && metrics.radiation_status !== 'nominal') {
     out.push({ id: 'hud-radiation', level: 'warn', text: metrics.radiation_message || `Radiation: ${metrics.radiation_status}` });
   }
-  const rank = { crit: 0, critical: 0, warn: 1, warning: 1, info: 2 };
+  const rank = { danger: 0, crit: 0, critical: 0, warn: 1, warning: 1, info: 2 };
   return out.sort((a, b) => (rank[a.level] ?? 3) - (rank[b.level] ?? 3));
+}
+
+// ---------------------------------------------------------------------------
+// Simulation helpers (route timing, O2 and dose over time)
+
+// route.geojson (Demir): LineString with properties.t_min[] (minutes from EVA start
+// at each vertex). Accepts a Feature, a FeatureCollection or a bare geometry.
+// If t_min is missing, time is spread by distance over summary.duration_min.
+export function routeTimeline(route, summary) {
+  const feat = route?.type === 'FeatureCollection' ? route.features?.[0] : route;
+  const geom = feat?.type === 'Feature' ? feat.geometry : feat;
+  const coords = geom?.type === 'LineString' ? geom.coordinates : null;
+  if (!Array.isArray(coords) || coords.length < 2) return null;
+
+  const cum = [0];
+  for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + distanceM(coords[i - 1], coords[i]));
+  let t = feat?.properties?.t_min;
+  if (!Array.isArray(t) || t.length !== coords.length || !t.every(Number.isFinite)) {
+    const total = summary?.duration_min;
+    if (!Number.isFinite(total)) return null;
+    const len = cum[cum.length - 1] || 1;
+    t = cum.map((d) => (d / len) * total);
+  }
+  let slope = feat?.properties?.slope_deg;
+  if (!Array.isArray(slope) || slope.length !== coords.length) slope = null;
+  return { coords, t, d: cum, slope, total_min: t[t.length - 1] };
+}
+
+// Position, distance along route (m) and slope at `elapsedMin`.
+export function routeState(tl, elapsedMin) {
+  if (!tl || !Number.isFinite(elapsedMin)) return null;
+  const { coords, t, d, slope } = tl;
+  const n = t.length;
+  let i = 1;
+  while (i < n - 1 && elapsedMin > t[i]) i++;
+  const f = elapsedMin <= t[0] ? 0
+    : elapsedMin >= t[n - 1] ? 1
+      : t[i] === t[i - 1] ? 1 : (elapsedMin - t[i - 1]) / (t[i] - t[i - 1]);
+  return {
+    coord: [lerp(coords[i - 1][0], coords[i][0], f), lerp(coords[i - 1][1], coords[i][1], f)],
+    d_m: lerp(d[i - 1], d[i], f),
+    slope_deg: slope ? Math.max(slope[i - 1], slope[i]) : null,
+  };
+}
+
+// safety.json route[] entry in effect at distance d_m (last entry with d <= d_m).
+export function safetyAt(safety, dM) {
+  const rows = safety?.route;
+  if (!Array.isArray(rows) || !rows.length || !Number.isFinite(dM)) return null;
+  let cur = null;
+  for (const r of rows) {
+    if (Number.isFinite(r?.d) && r.d <= dM) cur = r;
+  }
+  return cur ?? rows[0];
+}
+
+
+// Arrival time of each stop = t_min of the nearest route vertex. Sorted by time.
+export function stopSchedule(tl, stops) {
+  if (!tl || !Array.isArray(stops)) return [];
+  const out = [];
+  for (const stop of stops) {
+    if (!Array.isArray(stop?.coord)) continue;
+    let best = -1;
+    let bestD = Infinity;
+    tl.coords.forEach((c, i) => {
+      const d = distanceM(c, stop.coord);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    if (best >= 0) out.push({ stop, t_min: tl.t[best] });
+  }
+  return out.sort((a, b) => a.t_min - b.t_min);
+}
+
+export function nextStop(schedule, elapsedMin) {
+  if (!schedule.length || !Number.isFinite(elapsedMin)) return null;
+  return schedule.find((s) => s.t_min >= elapsedMin) ?? null;
+}
+
+// Fraction of the planned outside activity done at `elapsedMin` (0..1).
+// Activity length = route duration if known, else the EVA window length.
+export function activityFraction(elapsedMin, activeMin) {
+  if (!Number.isFinite(elapsedMin) || !Number.isFinite(activeMin) || activeMin <= 0) return null;
+  return Math.min(1, Math.max(0, elapsedMin / activeMin));
+}
+
+// O2: summary.o2_used_pct spread linearly over the activity (assumption, shown as est.).
+export function o2At(summary, frac) {
+  const used = summary?.o2_used_pct;
+  if (!Number.isFinite(used) || frac == null) return null;
+  const usedNow = used * frac;
+  return { used_pct: usedNow, remaining_pct: Math.max(0, 100 - usedNow), at_return_pct: Math.max(0, 100 - used) };
+}
+
+// Dose accumulated so far (mSv) for a given total EVA dose.
+export function doseAt(dose, frac) {
+  return dose && frac != null ? dose.mSv * frac : null;
 }

@@ -1,5 +1,5 @@
 /* HUD mode (Serdar). Plain/modern look for now.
-   Rules (CLAUDE.md, "Sayfa yerleşimi"):
+   Rules (CLAUDE.md, page layout section):
    - every selector starts with #hud-root
    - colours, fonts, spacing, radii and z-index come only from base.css variables
    - loaded by web/js/hud/index.js itself (not linked in index.html)
@@ -36,10 +36,54 @@
   color: var(--hud-fg);
 }
 
+/* re-rendered panels; the simulation bar sits below them */
+#hud-root .hud-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hud-gap);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 #hud-root .hud-bar,
 #hud-root .hud-alerts,
 #hud-root .hud-col,
-#hud-root .hud-bottom .hud-panel { pointer-events: auto; }
+#hud-root .hud-bottom .hud-panel,
+#hud-root .hud-sim { pointer-events: auto; }
+
+/* simulation controls */
+#hud-root .hud-sim {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  align-self: center;
+  width: 100%;
+  max-width: 720px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--hud-panel-bg);
+  border: 1px solid var(--hud-panel-border);
+  border-radius: var(--hud-radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+#hud-root .hud-sim__play,
+#hud-root .hud-sim__speed {
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-weight: 600;
+  color: var(--hud-fg);
+  background: var(--color-surface-2);
+  border: 1px solid var(--hud-panel-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+#hud-root .hud-sim__play { min-width: 5.5em; }
+#hud-root .hud-sim__play[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-accent); border-color: var(--hud-accent); }
+#hud-root .hud-sim__play:hover,
+#hud-root .hud-sim__speed:hover { border-color: var(--hud-accent); }
+#hud-root .hud-sim__range { flex: 1 1 auto; min-width: 0; accent-color: var(--hud-accent); cursor: pointer; }
+#hud-root .hud-sim__label { min-width: 6.5em; text-align: right; font-family: var(--font-mono); color: var(--hud-accent); }
+#hud-root .hud-sim :focus-visible { outline: 2px solid var(--hud-accent); outline-offset: 2px; }
 
 /* top bar */
 #hud-root .hud-bar {
@@ -84,6 +128,7 @@
 }
 #hud-root .hud-alert--warn,
 #hud-root .hud-alert--warning { border-left-color: var(--hud-warn); }
+#hud-root .hud-alert--danger,
 #hud-root .hud-alert--crit,
 #hud-root .hud-alert--critical { border-left-color: var(--hud-crit); font-weight: 600; }
 #hud-root .hud-alert--info { border-left-color: var(--hud-info); }
@@ -150,7 +195,13 @@
 @media (max-width: 900px) {
   #hud-root { pointer-events: auto; overflow-y: auto; }
   #hud-root .hud { height: auto; min-height: 100%; }
-  #hud-root .hud-grid { flex-direction: column; flex: 0 0 auto; }
+  #hud-root .hud-content,
+  #hud-root .hud-grid { flex: 0 0 auto; }
+  #hud-root .hud-grid { flex-direction: column; }
   #hud-root .hud-col,
   #hud-root .hud-bottom .hud-panel { width: 100%; }
+  /* controls stay reachable while scrolling */
+  #hud-root .hud-sim { position: sticky; bottom: 0; flex-wrap: wrap; }
+  #hud-root .hud-sim__range { order: 3; flex-basis: 100%; }
+  #hud-root .hud-sim__label { margin-left: auto; }
 }
