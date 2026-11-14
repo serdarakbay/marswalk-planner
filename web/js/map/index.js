@@ -454,12 +454,12 @@ export function initMap(state, mapEl) {
 
   // Astronaut position from the HUD simulation clock ('hud:time').
   // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null,
-  //          storm, shelter: [lon, lat] | null}
+  //          storm, shelter: [lon, lat] | null, refuge_path: [[lon, lat], ...] | null, refuge_label}
   const astronaut = L.circleMarker([0, 0], {
     radius: 7, color: cssVar('--color-bg'), weight: 2,
     fillColor: cssVar('--color-hud'), fillOpacity: 1, interactive: false,
   });
-  // Storm replay: pulsing ring on the nearest shelter and a line from the astronaut to it
+  // Storm replay: pulsing ring on the refuge and the path from the astronaut to it
   const danger = cssVar('--color-danger');
   const shelterRing = L.circleMarker([0, 0], {
     radius: 14, color: danger, weight: 3, fill: false, interactive: false, className: 'shelter-alert',
@@ -481,10 +481,16 @@ export function initMap(state, mapEl) {
     } else {
       dustDevil.remove();
     }
-    const showStorm = Boolean(active && storm && Array.isArray(coord) && Array.isArray(shelter));
+    // HUD refuge_path: the walkable path still ahead to the refuge (or back to the route after
+    // the storm), around steep ground. Without it, a straight line to the shelter.
+    const { refuge_path: refugePath, refuge_label: refugeLabel } = e.detail || {};
+    const path = Array.isArray(refugePath) && refugePath.length > 1 ? refugePath
+      : storm && Array.isArray(coord) && Array.isArray(shelter) ? [coord, shelter] : null;
+    const showStorm = Boolean(active && path);
     if (showStorm) {
-      shelterRing.setLatLng(toLatLng(shelter));
-      shelterLine.setLatLngs([toLatLng(coord), toLatLng(shelter)]);
+      shelterRing.setLatLng(toLatLng(path[path.length - 1]));
+      shelterRing.setTooltipContent(refugeLabel || 'Nearest shelter');
+      shelterLine.setLatLngs(path.map(toLatLng));
       if (!map.hasLayer(shelterLine)) shelterLine.addTo(map);
       if (!map.hasLayer(shelterRing)) shelterRing.addTo(map);
       // When the storm starts, zoom to the astronaut and the shelter once

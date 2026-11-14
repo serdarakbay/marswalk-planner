@@ -111,6 +111,32 @@
 #hud-root .hud-sim__dust[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-warn); }
 #hud-root .hud-panel--danger { border-color: var(--hud-crit); }
 
+/* shelter options during a storm: one button per refuge, lowest storm dose first */
+#hud-root .hud-refuges { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+#hud-root .hud-refuge {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  color: var(--hud-fg);
+  background: transparent;
+  border: 1px solid var(--hud-panel-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+#hud-root .hud-refuge:hover:not(:disabled) { border-color: var(--hud-accent); }
+#hud-root .hud-refuge:focus-visible { outline: 2px solid var(--hud-accent); outline-offset: 2px; }
+#hud-root .hud-refuge:disabled { cursor: not-allowed; opacity: 0.55; }
+#hud-root .hud-refuge--current { border-color: var(--hud-crit); }
+#hud-root .hud-refuge__name { font-weight: 600; }
+#hud-root .hud-refuge__dose { font-family: var(--font-mono); text-align: right; }
+#hud-root .hud-refuge__where { grid-column: 1 / -1; color: var(--hud-muted); }
+#hud-root .hud-tag--ok { color: var(--hud-ok); }
+
 /* top bar */
 #hud-root .hud-bar {
   display: flex;
@@ -169,7 +195,8 @@
   flex: 1 1 auto;
   min-height: 0;
 }
-#hud-root .hud-col { width: var(--hud-col-w); max-width: 100%; display: flex; flex-direction: column; gap: var(--hud-gap); }
+#hud-root .hud-col { width: var(--hud-col-w); max-width: 100%; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: var(--hud-gap); }
+#hud-root .hud-col > .hud-panel { flex: 0 0 auto; }
 #hud-root .hud-bottom { display: flex; justify-content: center; align-items: stretch; flex-wrap: wrap; gap: var(--hud-gap); }
 #hud-root .hud-bottom .hud-panel { width: var(--hud-col-w); max-width: 100%; }
 
@@ -207,6 +234,15 @@
 #hud-root .hud-meter__fill { height: 100%; background: var(--hud-ok); }
 
 #hud-root .hud-stop__name { margin: 0 0 var(--space-2); font-size: var(--text-md); font-weight: 600; }
+/* mission log (newest first) */
+#hud-root .hud-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+#hud-root .hud-log__item { display: flex; gap: var(--space-2); font-size: var(--text-xs); line-height: 1.3; padding-left: var(--space-2); border-left: 2px solid var(--hud-muted); }
+#hud-root .hud-log__item--warn { border-left-color: var(--hud-warn); }
+#hud-root .hud-log__item--danger { border-left-color: var(--hud-crit); }
+#hud-root .hud-log__item--info { border-left-color: var(--hud-info); }
+#hud-root .hud-log__t { flex: 0 0 auto; font-family: var(--font-mono); color: var(--hud-muted); }
+#hud-root .hud-log__text { min-width: 0; }
+
 #hud-root .hud-stop__note {
   margin: var(--space-2) 0 0;
   font-size: var(--text-xs);

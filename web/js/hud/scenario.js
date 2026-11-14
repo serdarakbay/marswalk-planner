@@ -1,5 +1,6 @@
-// Demo scenarios for the HUD simulation: solar storm (go to the nearest shelter and wait)
-// and a dust devil crossing the route (hold position until it passes).
+// Demo scenarios for the HUD simulation: solar storm (go to the refuge with the lowest storm
+// dose and wait) and a dust devil (hold position until it passes, or step aside off its track
+// when it is heading straight at the astronaut).
 //
 // simulate() steps through the EVA in small time steps and records, for every step, where the
 // astronaut is, what they are doing (mode), how far along the planned route they are (tau, in
@@ -7,10 +8,13 @@
 // simply follows the planned route, exactly as before.
 //
 // Modes: pre (in the habitat before the EVA), route (walking the plan), hold (waiting for a dust
-// devil to pass), to_refuge (walking to a shelter or the habitat), sheltered, return (back to
-// the point where the route was left), home (back inside because of the storm), done.
+// devil to pass), evade (stepping aside off a dust devil's track), aside (waiting there), rejoin
+// (walking back to the route), to_refuge (walking to a shelter or the habitat), sheltered,
+// return (back to the point where the route was left), home (back inside because of the storm),
+// done.
 
 import { bearingDeg, distanceM, routeState } from './model.js';
+import { legPoint, makeLeg } from './terrain.js';
 
 // Scenario constants. Storm duration and shelter dose factors come from radiation.json (Utku);
 // the rest are demo assumptions, shown as such in the UI.
@@ -27,13 +31,21 @@ export const SCENARIO = {
   DUST_APPROACH_M: 400,        // warning distance
   DUST_HOLD_M: 120,            // hold position inside this distance while it approaches
   DUST_CLEAR_M: 160,           // resume once it is this far and moving away
+  DUST_EVADE_M: 150,           // its track passes closer than DUST_HOLD_M: step aside to this far from it
+  DUST_EVADE_MAX_M: 400,       // longest step-aside walk worth taking (else hold position)
   O2_RESERVE_PCT: 25,          // o2_reserve_pct in config/mission.json: never plan to dip below it
   RETURN_PATH_FACTOR: 1.3,     // walk home is ~30 % longer than the straight line (assumption)
   SHADOW_WARN_MIN: 10,         // warn this many route minutes before a radio shadow
 };
 
-const OUTSIDE = new Set(['route', 'hold', 'to_refuge', 'sheltered', 'return']);
+const OUTSIDE = new Set(['route', 'hold', 'evade', 'aside', 'rejoin', 'to_refuge', 'sheltered', 'return']);
+const DUST_MODES = new Set(['hold', 'evade', 'aside', 'rejoin']);
+// Modes in which the astronaut walks a path (leg) rather than the planned route
+const LEG_MODES = new Set(['to_refuge', 'return', 'evade', 'rejoin']);
 export const isOutside = (mode) => OUTSIDE.has(mode);
+// Heading to or waiting in a storm refuge: the HUD gives the exact refuge, so the generic
+// "go to the nearest shelter" storm alert (alerts.json) is not shown then.
+export const refugeGuided = (mode) => mode === 'to_refuge' || mode === 'sheltered';
 
 // Move `from` by `meters` on a bearing (degrees from north). Small distances: flat approximation.
 export function offset(from, bearing, meters, radiusM = 3396190) {
@@ -43,12 +55,66 @@ export function offset(from, bearing, meters, radiusM = 3396190) {
   return [from[0] + dLon, from[1] + dLat];
 }
 
-function toward(a, b, meters) {
-  const d = distanceM(a, b);
-  if (d <= meters || d === 0) return { coord: b, arrived: true };
-  const f = meters / d;
-  return { coord: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], arrived: false };
+// Where a dust devil moving on `bearing` passes a point: `along` metres ahead of it (negative:
+// already past), `miss` metres to the side; `side` is the bearing from the track to the point.
+export function devilPass(point, devil, bearing) {
+  const rad = Math.PI / 180;
+  const R = 3396190;
+  const x = (point[0] - devil[0]) * rad * R * Math.cos(devil[1] * rad);
+  const y = (point[1] - devil[1]) * rad * R;
+  const ux = Math.sin(bearing * rad);
+  const uy = Math.cos(bearing * rad);
+  const cross = ux * y - uy * x;   // > 0: point on the left of the track
+  return { along: x * ux + y * uy, miss: Math.abs(cross), side: (bearing + (cross >= 0 ? -90 : 90) + 360) % 360 };
 }
+
+/**
+ * Storm refuges compared from where the astronaut is now: every terrain shelter plus the habitat,
+ * sorted by the storm dose still to come (walk there at the full storm rate, then wait at the
+ * shelter's sky-view factor, or the habitat's dose factor, until the storm ends).
+ * o2Short: waiting there would take O2 below the reserve (walk there, wait, walk home).
+ * With q.router (terrain.js) distances follow the walkable path around steep ground; without
+ * it, or where no path exists, they are straight lines.
+ * Returns [{id, label, coord, svf, factor, habitat, d, walkMin, dose, o2Short, path}].
+ */
+export function refugeOptions(q) {
+  const { coord, shelters = [], habitat, storm } = q;
+  if (!Array.isArray(coord) || !storm) return [];
+  const left = Math.max(0, q.left);
+  const rate = (q.doseBasePerMin || 0) * storm.mult;
+  const o2PerMin = q.o2PerMin || 0;
+  const stand = Number.isFinite(q.o2StandPerMin) ? q.o2StandPerMin : o2PerMin;
+  const o2 = q.o2 || 0;
+  const list = [];
+  shelters.forEach((s, i) => {
+    if (!Array.isArray(s?.coord)) return;
+    list.push({ id: `S${i + 1}`, label: `Shelter S${i + 1}`, coord: s.coord, svf: s.svf,
+      factor: Number.isFinite(s.svf) ? s.svf : 1, habitat: false });
+  });
+  if (Array.isArray(habitat)) {
+    list.push({ id: 'habitat', label: 'Habitat', coord: habitat, svf: null, factor: storm.habitatFactor, habitat: true });
+  }
+  const walkTo = (from, o) => {
+    const r = q.router?.pathTo(from, o.id);
+    return r ? { path: r.coords, d: r.length_m } : { path: [from, o.coord], d: distanceM(from, o.coord) };
+  };
+  const hab = list.find((o) => o.habitat);
+  for (const o of list) {
+    const w = walkTo(coord, o);
+    o.path = w.path;
+    o.d = w.d;
+    o.walkMin = o.d / SCENARIO.WALK_M_PER_MIN;
+    const walk = Math.min(o.walkMin, left);
+    o.dose = rate * walk + rate * o.factor * (left - walk);
+    const home = o.habitat || !hab ? 0 : walkTo(o.coord, hab).d / SCENARIO.WALK_M_PER_MIN;
+    const need = o2PerMin * (o.walkMin + home) + (o.habitat ? 0 : stand * Math.max(0, left - o.walkMin));
+    o.o2Short = !o.habitat && o2 + need > 100 - SCENARIO.O2_RESERVE_PCT;
+  }
+  return list.sort((a, b) => a.dose - b.dose);
+}
+
+// Recommended refuge: the lowest storm dose among the ones the O2 allows
+export const bestRefuge = (opts) => opts.find((o) => !o.o2Short) ?? opts.find((o) => o.habitat) ?? null;
 
 /**
  * @param {object} p
@@ -62,12 +128,14 @@ function toward(a, b, meters) {
  * @param {number} p.doseBasePerMin  mSv per minute outside, quiet Sun
  * @param {object|null} p.storm    {t0, duration, mult, habitatFactor}
  * @param {object|null} p.dust     {t0}
+ * @param {object|null} p.router   terrain.js createRouter(): walkable paths to the refuges (optional)
+ * @param {object|null} p.refugeChoice  {id, t}: from minute t, go to this refuge instead of the
+ *                                 recommended one (ids from refugeOptions: 'S1'.., 'habitat')
  */
 export function simulate(p) {
   const { tl, habitat, startMin, endMin, o2PerMin, doseBasePerMin, storm, dust } = p;
   const o2StandPerMin = Number.isFinite(p.o2StandPerMin) ? p.o2StandPerMin : o2PerMin;
   const dt = SCENARIO.STEP_MIN;
-  const shelters = (p.shelters || []).filter((s) => Array.isArray(s?.coord));
   const total = tl.total_min;
   const steps = [];
 
@@ -82,6 +150,22 @@ export function simulate(p) {
   let devil = null;          // {start, bearing, t0}
   let prevDevilDist = null;
   let clearedAt = null;
+  const choice = p.refugeChoice && p.refugeChoice.id ? p.refugeChoice : null;
+  let choiceDone = false;
+  let leg = null;   // the path being walked (to the refuge, aside, or back to the route)
+  let evade = null;  // stepping aside from a dust devil: {from: {coord, tau}, leg}
+  let evadeTried = false;
+  const optionsAt = (t) => refugeOptions({
+    coord, shelters: p.shelters || [], habitat, storm, o2, left: storm.t0 + storm.duration - t,
+    o2PerMin, o2StandPerMin, doseBasePerMin, router: p.router,
+  });
+  // A short-of-O2 shelter is replaced by the habitat (Utku's rule)
+  const pick = (opts, o) => {
+    if (!o) return null;
+    if (!o.o2Short) return o;
+    const hab = opts.find((x) => x.habitat);
+    return hab ? { ...hab, o2Short: true } : o;
+  };
 
   for (let t = startMin; t <= endMin + 1e-9; t += dt) {
     const stormOn = Boolean(storm) && t >= storm.t0 && t < storm.t0 + storm.duration;
@@ -89,27 +173,31 @@ export function simulate(p) {
     // EVA starts at T+0, unless a storm is on: then it waits in the habitat
     if (mode === 'pre' && t > 0 && !stormOn) mode = 'route';
 
-    // Storm hits while outside: pick the closest refuge (terrain shelter or habitat)
+    // Storm hits while outside: go to the recommended refuge (lowest storm dose the O2 allows),
+    // or to the one the crew picked
     if (storm && !stormHandled && t >= storm.t0 && isOutside(mode)) {
       stormHandled = true;
-      const options = shelters.map((s) => ({ coord: s.coord, factor: Number.isFinite(s.svf) ? s.svf : 1, svf: s.svf, habitat: false }));
-      if (habitat) options.push({ coord: habitat, factor: storm.habitatFactor, habitat: true });
-      refuge = options.reduce((best, o) => {
-        const d = distanceM(coord, o.coord);
-        return !best || d < best.d ? { ...o, d } : best;
-      }, null);
-      // Waiting out the storm at a terrain shelter must fit in the O2 above the reserve
-      // (walk there, wait, walk back home); otherwise go back to the habitat (Utku's rule).
-      if (refuge && !refuge.habitat && habitat) {
-        const left = storm.t0 + storm.duration - t;
-        const home = distanceM(refuge.coord, habitat);
-        const need = o2PerMin * (refuge.d + home) / SCENARIO.WALK_M_PER_MIN + o2StandPerMin * left;
-        if (o2 + need > 100 - SCENARIO.O2_RESERVE_PCT) {
-          refuge = { coord: habitat, factor: storm.habitatFactor, habitat: true, d: distanceM(coord, habitat), o2Short: true };
-        }
+      const fromRoute = evade && DUST_MODES.has(mode) ? evade.from : null;
+      evade = null;
+      const opts = optionsAt(t);
+      const chosen = choice && choice.t <= t ? opts.find((o) => o.id === choice.id) : null;
+      if (chosen) choiceDone = true;
+      refuge = pick(opts, chosen ?? bestRefuge(opts));
+      if (refuge) {
+        // After the storm, back to the route (not to the side spot of a dust devil step-aside)
+        resume = fromRoute ?? { coord, tau };
+        mode = 'to_refuge';
+        leg = makeLeg(refuge.path ?? [coord, refuge.coord]);
       }
-      resume = { coord, tau };
-      mode = 'to_refuge';
+    }
+    // The crew switched refuge during the storm: head there from here
+    if (choice && !choiceDone && stormHandled && t >= choice.t && (mode === 'to_refuge' || mode === 'sheltered')) {
+      choiceDone = true;
+      if (refuge?.id !== choice.id) {
+        const opts = optionsAt(t);
+        const next = pick(opts, opts.find((o) => o.id === choice.id));
+        if (next) { refuge = next; mode = 'to_refuge'; leg = makeLeg(next.path ?? [coord, next.coord]); }
+      }
     }
 
     // Dust devil appears upwind of where the astronaut will be in a few minutes (or of where
@@ -127,6 +215,31 @@ export function simulate(p) {
     const devilDist = devilNow ? distanceM(coord, devilNow) : null;
     const approaching = devilDist != null && prevDevilDist != null && devilDist < prevDevilDist;
 
+    // Dust devil heading straight at the astronaut (its track passes closer than DUST_HOLD_M):
+    // step aside, perpendicular to its track, on walkable ground, and wait there
+    if (devilNow && !evadeTried && (mode === 'route' || mode === 'hold')) {
+      const pass = devilPass(coord, devilNow, devil.bearing);
+      if (pass.along > 0 && pass.miss < SCENARIO.DUST_HOLD_M) {
+        evadeTried = true;
+        const sides = [
+          { bearing: pass.side, m: SCENARIO.DUST_EVADE_M - pass.miss },
+          { bearing: (pass.side + 180) % 360, m: SCENARIO.DUST_EVADE_M + pass.miss },
+        ];
+        let way = null;
+        for (const sd of sides) {
+          const target = offset(coord, sd.bearing, sd.m);
+          const r = p.router ? p.router.pathBetween(coord, target, SCENARIO.DUST_EVADE_MAX_M * 2) : null;
+          const w = r ? r.coords : p.router ? null : [coord, target];
+          if (w && (!r || r.length_m <= SCENARIO.DUST_EVADE_MAX_M)) { way = w; break; }
+        }
+        if (way) {
+          evade = { from: { coord, tau }, leg: makeLeg(way) };
+          leg = evade.leg;
+          mode = 'evade';
+        }
+      }
+    }
+
     switch (mode) {
       case 'route':
         if (devilDist != null && devilDist < SCENARIO.DUST_HOLD_M && approaching) {
@@ -142,19 +255,45 @@ export function simulate(p) {
           clearedAt = t;
         }
         break;
+      case 'evade':
+        leg.s += SCENARIO.WALK_M_PER_MIN * dt;
+        coord = legPoint(leg, leg.s);
+        if (leg.s >= leg.total) mode = 'aside';
+        break;
+      case 'aside':
+        if (devilDist == null || (devilDist > SCENARIO.DUST_CLEAR_M && !approaching)) {
+          mode = 'rejoin';
+          leg = makeLeg([...evade.leg.coords].reverse());
+        }
+        break;
+      case 'rejoin':
+        leg.s += SCENARIO.WALK_M_PER_MIN * dt;
+        coord = legPoint(leg, leg.s);
+        if (leg.s >= leg.total) {
+          mode = 'route';
+          tau = evade.from.tau;
+          evade = null;
+          clearedAt = t;
+        }
+        break;
       case 'to_refuge': {
-        const m = toward(coord, refuge.coord, SCENARIO.WALK_M_PER_MIN * dt);
-        coord = m.coord;
-        if (m.arrived) mode = refuge.habitat ? 'home' : 'sheltered';
+        leg.s += SCENARIO.WALK_M_PER_MIN * dt;
+        coord = legPoint(leg, leg.s);
+        if (leg.s >= leg.total) mode = refuge.habitat ? 'home' : 'sheltered';
         break;
       }
       case 'sheltered':
-        if (!stormOn) mode = 'return';
+        if (!stormOn) {
+          mode = 'return';
+          // Back the same walkable way: the path from the route to the refuge, reversed
+          const back = p.router?.pathTo(resume.coord, refuge.id);
+          leg = makeLeg(back ? [...back.coords].reverse() : [coord, resume.coord]);
+        }
         break;
       case 'return': {
-        const m = toward(coord, resume.coord, SCENARIO.WALK_M_PER_MIN * dt);
-        coord = m.coord;
-        if (m.arrived) { mode = 'route'; tau = resume.tau; }
+        leg.s += SCENARIO.WALK_M_PER_MIN * dt;
+        coord = legPoint(leg, leg.s);
+        if (leg.s >= leg.total) { mode = 'route'; tau = resume.tau; }
         break;
       }
       default:
@@ -165,7 +304,7 @@ export function simulate(p) {
 
     if (isOutside(mode)) {
       // Standing still (in a shelter, waiting for a dust devil) costs less than walking
-      o2 += (mode === 'sheltered' || mode === 'hold' ? o2StandPerMin : o2PerMin) * dt;
+      o2 += (mode === 'sheltered' || mode === 'hold' || mode === 'aside' ? o2StandPerMin : o2PerMin) * dt;
       const factor = mode === 'sheltered' ? refuge.factor : 1;
       dose += doseBasePerMin * (stormOn ? storm.mult : 1) * factor * dt;
     }
@@ -175,6 +314,9 @@ export function simulate(p) {
       t, mode, tau, coord, stormOn,
       refuge: refuge && (mode === 'to_refuge' || mode === 'sheltered' || mode === 'home') ? refuge : null,
       resume: mode === 'return' ? resume : null,
+      // the path being walked and how far along it (for the line on the map)
+      leg: LEG_MODES.has(mode) ? leg : null,
+      legS: LEG_MODES.has(mode) ? leg.s : null,
       o2, dose,
       devil: devilNow, devilDist, approaching,
       justCleared: clearedAt != null && t - clearedAt <= 2,
@@ -188,7 +330,7 @@ export function simulate(p) {
   let runKind = null;
   let runStart = null;
   for (const s of steps) {
-    const kind = s.mode === 'hold' ? 'hold' : s.mode === 'sheltered' ? 'sheltered' : null;
+    const kind = DUST_MODES.has(s.mode) ? 'hold' : s.mode === 'sheltered' ? 'sheltered' : null;
     if (kind !== runKind) {
       if (runKind) events.push({ kind: runKind, a: runStart, b: s.t });
       runKind = kind;
@@ -199,7 +341,7 @@ export function simulate(p) {
   if (dust && devil) events.push({ kind: 'dust', a: devil.t0, b: devil.t0 + SCENARIO.DUST_TRACK_M / SCENARIO.DUST_SPEED_M_PER_MIN });
 
   return {
-    storm, dust, events,
+    storm, dust, events, steps,
     startMin, endMin,
     // O2 used by the time the astronaut is back inside (the whole simulated walk)
     finalO2: steps.length ? steps[steps.length - 1].o2 : 0,
@@ -224,3 +366,74 @@ export function simulate(p) {
 }
 
 export { bearingDeg };
+
+// ---------------------------------------------------------------------------
+// Mission log: the key events of the simulated walk, [{t, level, text}] sorted by time.
+// Built once per plan; the HUD shows the entries up to the current simulation time.
+export function missionLog(plan, schedule = [], shadows = []) {
+  const steps = plan?.steps;
+  if (!Array.isArray(steps) || !steps.length) return [];
+  const log = [];
+  const add = (t, level, text) => log.push({ t, level, text });
+  const arrived = new Set();
+  const left = new Set();
+  const inShadow = new Set();
+  let dustSeen = false;
+  let stormSeen = false;
+  let prev = steps[0];
+
+  for (const s of steps.slice(1)) {
+    if (plan.storm && !stormSeen && s.t >= plan.storm.t0) {
+      stormSeen = true;
+      add(s.t, 'danger', 'Solar storm alert (replay of 20 May 2024)');
+    }
+    if (prev.mode === 'pre' && s.mode === 'route') add(s.t, 'info', 'EVA start: left the habitat');
+    if (s.mode === 'to_refuge' && s.refuge && (prev.mode !== 'to_refuge' || prev.refuge !== s.refuge)) {
+      add(s.t, 'danger', s.refuge.habitat
+        ? `Heading back to the habitat${s.refuge.o2Short ? ' (O2 too low to wait out the storm)' : ''}`
+        : `Heading to shelter${s.refuge.id ? ` ${s.refuge.id}` : ''}, ${Math.round(s.refuge.d)} m away`);
+    }
+    if (s.mode === 'sheltered' && prev.mode !== 'sheltered') {
+      add(s.t, 'warn', `In shelter${s.refuge?.id ? ` ${s.refuge.id}` : ''} (sky-view ${Number.isFinite(s.refuge?.svf) ? s.refuge.svf.toFixed(2) : '—'})`);
+    }
+    if (s.mode === 'return' && prev.mode !== 'return') add(s.t, 'info', 'Storm over: walking back to the route');
+    if (prev.mode === 'return' && s.mode === 'route') add(s.t, 'info', 'Back on the route');
+    if (s.devil && !dustSeen && (s.devilDist < SCENARIO.DUST_APPROACH_M || DUST_MODES.has(s.mode))) {
+      dustSeen = true;
+      add(s.t, 'warn', 'Dust devil sighted');
+    }
+    if (s.mode === 'hold' && prev.mode !== 'hold') add(s.t, 'danger', 'Holding position: dust devil crossing');
+    if (s.mode === 'evade' && prev.mode !== 'evade') {
+      add(s.t, 'danger', `Stepping aside: dust devil heading this way (${Math.round(s.leg?.total ?? 0)} m walk)`);
+    }
+    if (s.mode === 'aside' && prev.mode !== 'aside') add(s.t, 'warn', 'Clear of its track: waiting for it to pass');
+    if (s.mode === 'rejoin' && prev.mode !== 'rejoin') add(s.t, 'info', 'Dust devil passed: back to the route');
+    if (prev.mode === 'rejoin' && s.mode === 'route') add(s.t, 'info', 'Back on the route');
+    if (prev.mode === 'hold' && s.mode === 'route') add(s.t, 'info', 'Dust devil passed: walk resumed');
+
+    if (s.mode === 'route' || s.mode === 'hold') {
+      for (const e of schedule) {
+        const id = e.stop.id ?? e.stop.name;
+        if (!arrived.has(id) && s.tau >= e.t_min) {
+          arrived.add(id);
+          add(s.t, 'info', `Arrived at ${e.stop.name || id}`);
+        }
+        if (arrived.has(id) && !left.has(id) && s.tau > (e.t_leave ?? e.t_min)) {
+          left.add(id);
+          add(s.t, 'info', `Left ${e.stop.name || id}`);
+        }
+      }
+      // One line per radio shadow (shorter than a minute: not worth a log line)
+      shadows.forEach((x, i) => {
+        if (!inShadow.has(i) && x.b - x.a >= 1 && s.tau >= x.a && s.tau < x.b) {
+          inShadow.add(i);
+          add(s.t, 'warn', `Radio shadow for ${Math.round(x.b - x.a)} min: no link to the habitat`);
+        }
+      });
+    }
+    if (s.mode === 'home' && prev.mode !== 'home') add(s.t, 'warn', 'Back in the habitat: EVA ended early');
+    if (s.mode === 'done' && prev.mode !== 'done') add(s.t, 'info', 'EVA complete: back in the habitat');
+    prev = s;
+  }
+  return log;
+}
