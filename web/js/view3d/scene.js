@@ -10,7 +10,8 @@ import {
 } from './terrain.js';
 
 const EXAGGERATIONS = [1, 2, 3];
-const DEFAULT_EXAGGERATION = 2;
+// true scale on the real DEM; the flat placeholder needs a boost to show anything
+const DEFAULT_EXAGGERATION = { real: 1, placeholder: 2 };
 const ROUTE_LIFT_M = 1.5;          // keep lines just above the surface
 const ROUTE_STEP_M = 4;            // resample the route for a smooth tube
 const PIN_HEIGHT_M = 40;
@@ -122,7 +123,7 @@ export async function createScene(state, el, { onProgress } = {}) {
   const { grid } = heights;
   let zBase = 0;
   { let s = 0; for (const z of grid.z) s += z; zBase = s / grid.z.length; }
-  let exag = DEFAULT_EXAGGERATION;
+  let exag = heights.real ? DEFAULT_EXAGGERATION.real : DEFAULT_EXAGGERATION.placeholder;
   const yAt = (x, z) => (sampleGrid(grid, x, z) - zBase) * exag;
   const posLL = (lon, lat, lift = 0) => {
     const [x, z] = frame.toXZ(lon, lat);
@@ -354,8 +355,11 @@ export async function createScene(state, el, { onProgress } = {}) {
   let fly = null;     // {s: metres along route}
 
   function overview() {
+    // frame the route, the stops and the habitat (they can be far apart)
     const box = new THREE.Box3();
-    if (coords.length) for (const c of coords) box.expandByPoint(posLL(c[0], c[1]));
+    const pts = [...coords, ...(Array.isArray(state.stops) ? state.stops.map((s) => s.coord) : []), state.area.habitat]
+      .filter((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]));
+    if (pts.length) for (const c of pts) box.expandByPoint(posLL(c[0], c[1]));
     else box.setFromObject(terrain);
     const center = box.getCenter(new THREE.Vector3());
     const size = Math.max(box.getSize(new THREE.Vector3()).length(), 600);
