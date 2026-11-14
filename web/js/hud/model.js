@@ -6,6 +6,9 @@ export const FALLBACK = {
   // Curiosity RAD surface dose equivalent rate at Gale (Hassler et al. 2014); same as
   // rad_base_mSv_per_day in CLAUDE.md. Replaced by radiation.json when it lands.
   rad_base_mSv_per_day: 0.64,
+  // Same as rad_event_window_h in config/mission.json; used until radiation.json carries
+  // its own event_window_h.
+  rad_event_window_h: 48,
 };
 
 const MARS_RADIUS_M = 3396190; // same sphere as the project CRS (CLAUDE.md)
@@ -263,6 +266,23 @@ export function doseAt(dose, frac) {
 
 // ---------------------------------------------------------------------------
 // Solar storm replay (radiation.json "replay" block, Utku)
+
+// Live status at simulation time t. radiation.json is written for the moment the script
+// ran: "elevated" when a CME reached Mars within +/- window hours of then. Re-apply the same
+// rule at time t using mars_arrivals_in_window, so the alert ends when the window ends.
+export function radiationAt(radiation, t) {
+  const arrivals = radiation?.mars_arrivals_in_window;
+  if (!radiation || radiation.status !== 'elevated' || !Array.isArray(arrivals) || !arrivals.length || !t) {
+    return radiation ?? null;
+  }
+  const windowH = Number.isFinite(radiation.event_window_h)
+    ? radiation.event_window_h : FALLBACK.rad_event_window_h;
+  const active = arrivals.some((a) => {
+    const at = parseUtc(a?.utc);
+    return at && Math.abs(t - at) <= windowH * 3600000;
+  });
+  return active ? radiation : { ...radiation, status: 'nominal', message: 'Background GCR only.' };
+}
 
 // radiation.json with the replay scenario applied on top when `storm` is on.
 // The top-level fields stay the live values; replay only overrides status,
