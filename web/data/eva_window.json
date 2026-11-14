@@ -1,0 +1,9 @@
+{
+ "start_lmst": "10:13",
+ "end_lmst": "17:22",
+ "reason": "Start limited by temperature -40 C; end limited by Sun elevation 15 deg. Rule: sun_el >= 15 deg and temp >= -40 C (temperature MOCK).",
+ "start_utc": "2026-11-15T12:46:05Z",
+ "end_utc": "2026-11-15T20:06:20Z",
+ "duration_min": 440,
+ "temp_source": "MOCK"
+}
