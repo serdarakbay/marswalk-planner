@@ -1,19 +1,17 @@
 # fetch_dem.py
-# Büyük DEM dosyasından sadece çalışma alanımızı (2,4 x 2,4 km) keser ve
-# data/cache/dem_clip.tif olarak kaydeder. Sonraki hesaplar bu küçük dosyayı kullanır.
-
-
-from pathlib import Path
+# Clips only our work area (~2.4 x 2.4 km) out of the big DEM and saves it as
+# data/cache/dem_clip.tif. All later steps use this small file.
+# Run: python -m arazi.fetch_dem
 
 import rasterio
-from rasterio.crs import CRS
 from rasterio.warp import transform
 from rasterio.windows import Window, from_bounds
 
-SRC = "data/raw/MSL_Gale_DEM_Mosaic_1m_v3.tif"
-OUT = Path("data/cache/dem_clip.tif")
-WEST, SOUTH, EAST, NORTH = 137.36, -4.77, 137.40, -4.73
-MARS_GEO = CRS.from_string("+proj=longlat +R=3396190 +no_defs")
+from arazi.geo import CACHE, MARS_GEO, ROOT, bbox
+
+SRC = ROOT / "data" / "raw" / "MSL_Gale_DEM_Mosaic_1m_v3.tif"
+OUT = CACHE / "dem_clip.tif"
+WEST, SOUTH, EAST, NORTH = bbox()
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
@@ -35,4 +33,4 @@ with rasterio.open(SRC) as ds:
 with rasterio.open(OUT, "w", **profile) as dst:
     dst.write(data, 1)
 
-print("Kaydedildi:", OUT, "| boyut:", data.shape)
+print("Saved:", OUT.relative_to(ROOT), "| shape:", data.shape)

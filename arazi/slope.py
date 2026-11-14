@@ -1,12 +1,16 @@
 # slope.py
-# dem_clip.tif'ten her pikselin eğimini (derece) hesaplar ve data/cache/slope.tif
-# olarak kaydeder. Hesap metre cinsinden gridde yapılır.
+# Computes the slope (degrees) of every pixel of dem_clip.tif and saves it as
+# data/cache/slope.tif. Computed on the metric grid (1 m pixels).
+# Run: python -m arazi.slope
 
 import numpy as np
 import rasterio
 
-SRC = "data/cache/dem_clip.tif"
-OUT = "data/cache/slope.tif"
+from arazi.geo import CACHE, ROOT, load_mission
+
+SRC = CACHE / "dem_clip.tif"
+OUT = CACHE / "slope.tif"
+mission = load_mission()
 
 with rasterio.open(SRC) as ds:
     z = ds.read(1).astype("float64")
@@ -24,10 +28,11 @@ profile.update(dtype="float32", nodata=np.nan, compress="deflate")
 with rasterio.open(OUT, "w", **profile) as dst:
     dst.write(slope_deg.astype("float32"), 1)
 
-print("Eğim (derece) min/ortalama/max:",
+warn, smax = mission["slope_warn_deg"], mission["slope_max_deg"]
+print("Slope (deg) min/mean/max:",
       round(float(np.nanmin(slope_deg)), 1),
       round(float(np.nanmean(slope_deg)), 1),
       round(float(np.nanmax(slope_deg)), 1))
-print("%15 dereceden dik:", round(float(np.nanmean(slope_deg > 15) * 100), 1))
-print("%25 dereceden dik:", round(float(np.nanmean(slope_deg > 25) * 100), 1))
-print("Kaydedildi:", OUT)
+print(f"Steeper than {warn} deg: %", round(float(np.nanmean(slope_deg > warn) * 100), 1))
+print(f"Steeper than {smax} deg: %", round(float(np.nanmean(slope_deg > smax) * 100), 1))
+print("Saved:", OUT.relative_to(ROOT))
