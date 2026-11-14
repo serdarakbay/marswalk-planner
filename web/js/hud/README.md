@@ -26,6 +26,8 @@ The astronaut's helmet-visor view. Opens with **H** or the HUD button in `planne
 
 They can be combined, e.g. `planner.html?hazard=dustdevil&radiation=replay`.
 
+With `?radiation=replay` or `?hazard=dustdevil` the HUD opens by itself and plays from 2 min before the first event (T+38 for the storm, T+18 for the dust devil), so the link shows the scenario at once. The plain `planner.html` opens with the HUD closed.
+
 ## Scenarios (`scenario.js`)
 
 The walk is simulated in 15-second steps. Each step records the astronaut's mode, position, progress along the planned route, O2 and dose. With no scenario on, the astronaut simply follows the route.

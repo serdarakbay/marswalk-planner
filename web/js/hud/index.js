@@ -72,6 +72,7 @@ function fmtNum(v, digits = 0, unit = '') {
 
 const LOG_ROWS = 6;   // mission log entries shown (newest first)
 const REFUGE_ROWS = 3; // shelter options shown (lowest storm dose first)
+const DEMO_START_DELAY_MS = 600; // demo links: wait for the other modules before opening the HUD
 
 // '2024-05-20' -> '20 May 2024' (UI text is English)
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -794,6 +795,19 @@ export function initHUD(state, el) {
     pinnedStop = e.detail;
     if (open) render();
   });
+
+  // Demo links (?radiation=replay, ?hazard=dustdevil): open the HUD and play from 2 min before
+  // the first event, so the link shows the scenario at once instead of the plain planner.
+  // Deferred a little so the map (started in parallel by main.js) is listening to 'hud:time'.
+  const firstEvent = Math.min(storm && hasReplay ? stormT0 : Infinity, dustOn ? dustT0 : Infinity);
+  const demoAt = Number.isFinite(firstEvent) ? firstEvent - 2 : null;
+  if (demoAt != null && clock && evaStart) {
+    setTimeout(() => {
+      toggle(true);
+      clock.seek(new Date(evaStart.getTime() + demoAt * 60000));
+      clock.play();
+    }, DEMO_START_DELAY_MS);
+  }
 
   return {
     toggle,
