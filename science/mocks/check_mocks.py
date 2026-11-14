@@ -251,6 +251,11 @@ r = load("radiation.json")
 marked(r, "radiation.json")
 keys(r, ["base_mSv_per_day", "event_multiplier", "status", "message"], "radiation")
 check(r["status"] in ("nominal", "elevated", "storm"), "radiation: bad status")
+if "replay" in r:   # optional
+    rp = r["replay"]
+    keys(rp, ["status", "event_multiplier", "message", "event_dose_mGy", "duration_min"], "radiation.replay")
+    check(rp.get("status") in ("nominal", "elevated", "storm"), "radiation.replay: bad status")
+    check(num(rp.get("duration_min")) and rp["duration_min"] > 0, "radiation.replay.duration_min not > 0")
 
 # alerts.json
 a = load("alerts.json")

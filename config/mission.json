@@ -32,5 +32,7 @@
   "relay_antenna_height_m": 3,
   "relay_search_radius_m": 300,
   "relay_grid_m": 40,
-  "shelter_svf_percentile": 10
+  "shelter_svf_percentile": 10,
+  "habitat_dose_factor": 0.3,
+  "storm_duration_min": 120
 }

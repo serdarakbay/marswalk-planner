@@ -276,10 +276,10 @@ Curiosity's route inside the bbox. It can be a single LineString `Feature` or a 
 - `replay` (optional): the 20 May 2024 storm scenario, written next to the live values so the demo can switch to it. The top-level fields above stay the live (or current) values.
 
   ```json
-  "replay": {"status": "storm", "event_multiplier": 38.6, "message": "Replay of the 20 May 2024 solar storm: dose rate x38.6. Stay close to shelter.", "event_dose_mGy": 8.1}
+  "replay": {"status": "storm", "event_multiplier": 38.6, "message": "Replay of the 20 May 2024 solar storm: dose rate x38.6. Stay close to shelter.", "event_dose_mGy": 8.1, "duration_min": 120}
   ```
 
-  `event_dose_mGy` is absorbed dose (Gy) and is never added to mSv values.
+  `event_dose_mGy` is absorbed dose (Gy) and is never added to mSv values. `duration_min` is how long the storm lasts in the replay, in minutes (`storm_duration_min` in `config/mission.json`).
 
 ## alerts.json (Utku)
 
@@ -340,7 +340,9 @@ All thresholds and constants. Python scripts read them from here, so there are n
   "relay_antenna_height_m": 3,
   "relay_search_radius_m": 300,
   "relay_grid_m": 40,
-  "shelter_svf_percentile": 10
+  "shelter_svf_percentile": 10,
+  "habitat_dose_factor": 0.3,
+  "storm_duration_min": 120
 }
 ```
 
@@ -366,6 +368,9 @@ All thresholds and constants. Python scripts read them from here, so there are n
   - `svf_radius_m`: how far to search for the horizon in each direction, m.
   - `svf_grid_m`: spacing of the candidate points, m.
   - `shelter_svf_percentile`: only candidates in this most-enclosed share (lowest SVF) can become shelters, %.
+- Storm replay (HUD):
+  - `habitat_dose_factor`: dose rate inside the habitat as a fraction of the outside rate, no unit. At a terrain shelter the factor is that shelter's `svf` (`safety.json`).
+  - `storm_duration_min`: how long the replay storm lasts, minutes; also written to `radiation.json` as `replay.duration_min`.
   - `relay_antenna_height_m`: relay antenna height above the ground, m.
   - `relay_search_radius_m`: the relay is searched within this distance of the route, m.
   - `relay_grid_m`: spacing of the coarse relay search grid, m.
