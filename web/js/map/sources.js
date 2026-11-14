@@ -1,4 +1,4 @@
-// sources.js (Ege): small "Sources" button in the header with a popover listing every dataset,
+// sources.js (Ege): small "Data sources" button in the footer with a popover listing every dataset,
 // what the app uses it for, and its status. The status comes from state, so a file that did not
 // load shows "not loaded" and DONKI shows "Live" or "Replay" as it really is.
 
@@ -83,10 +83,11 @@ function el(tag, className, text) {
 }
 
 export function initSources(state) {
-  const actions = document.querySelector('.app-header .actions');
-  if (!actions) throw new Error('header actions not found');
+  // A small link-style button at the end of the footer line, so the header keeps its room
+  const footer = document.querySelector('.app-footer');
+  if (!footer) throw new Error('footer not found');
 
-  const button = el('button', 'btn', 'Sources');
+  const button = el('button', 'sources-link', 'Data sources');
   button.type = 'button';
   button.id = 'sources-toggle';
   button.title = 'Data sources';
@@ -140,5 +141,5 @@ export function initSources(state) {
     button.setAttribute('aria-pressed', 'false');
   });
 
-  actions.prepend(button);
+  footer.append(' · ', button);
 }
