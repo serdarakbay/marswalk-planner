@@ -111,6 +111,7 @@ new MutationObserver(() => {
 
 await Promise.all([
   startModule('map', './map/index.js', 'initMap', document.getElementById('map')),
+  startModule('sources', './map/sources.js', 'initSources', null),
   startModule('cards', './cards/index.js', 'initCards', document.getElementById('cards')),
   startModule('hud', './hud/index.js', 'initHUD', document.getElementById('hud-root')),
   // The 3D button only appears once Egemen's 3D view has started
