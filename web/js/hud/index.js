@@ -74,6 +74,7 @@ function fmtNum(v, digits = 0, unit = '') {
 
 const LOG_ROWS = 6;   // mission log entries shown (newest first)
 const REFUGE_ROWS = 3; // shelter options shown (lowest storm dose first)
+const EMIT_MS = 100;   // while playing, send the position ('hud:time') at most this often
 const TARGET_ROWS = 5; // science targets shown (nearest first)
 
 // Science targets: targets.json (array or {targets: [...]}) if loaded, else the route stops
@@ -396,6 +397,9 @@ export function initHUD(state, el) {
     alertBox.setAttribute('aria-live', 'polite');
     const alerts = evalAlerts(state.alerts, metrics);
     const scen = [];
+    if (arrivedStop && clock && !clock.playing) {
+      scen.push({ level: 'info', text: `At ${arrivedStop.name || 'the stop'}: Curiosity's photos of this spot are in the stop card. Press Play to go on.` });
+    }
     if (p) {
       const where = (to) => `${fmtDist(distanceM(p.coord, to))} ${compass(bearingDeg(p.coord, to))}`;
       if (p.mode === 'to_refuge' && refuge) {
@@ -817,8 +821,37 @@ export function initHUD(state, el) {
     if (open) render();
   });
   if (targetList.length) sim.append(targetsBtn);
+  const stopsBtn = h('button', 'hud-sim__storm hud-sim__targets', 'Stop at stops');
+  stopsBtn.type = 'button';
+  stopsBtn.title = "Pause at each stop and open its card with Curiosity's photos of that spot";
+  stopsBtn.setAttribute('aria-pressed', 'false');
+  stopsBtn.addEventListener('click', () => {
+    stopAtStops = !stopAtStops;
+    stopsBtn.setAttribute('aria-pressed', String(stopAtStops));
+  });
+  if (schedule.length) sim.append(stopsBtn);
 
   let lastMinute = null;
+  let lastEmitMs = 0;
+  // "Stop at stops": while playing, pause on arriving at a stop and open its card (Curiosity's
+  // photos of that spot) with 'stop:select'; Play continues. Off by default.
+  let stopAtStops = false;
+  let lastTau = null;
+  let arrivedStop = null;
+  function trackArrival(playing) {
+    const e = evaStart && time ? (time - evaStart) / 60000 : null;
+    const p = plan ? plan.at(e) : null;
+    const tau = p ? p.tau : e;
+    const prev = lastTau;
+    lastTau = tau;
+    if (!playing || !stopAtStops || prev == null || !Number.isFinite(tau)) return;
+    if (p && p.mode !== 'route') return;
+    const hit = schedule.find((x) => prev < x.t_min && x.t_min <= tau);
+    if (!hit) return;
+    arrivedStop = hit.stop;
+    clock.pause();
+    document.dispatchEvent(new CustomEvent('stop:select', { detail: hit.stop }));
+  }
   let clock = null;
 
   // A scenario or the storm refuge changed: re-plan the walk and redraw what depends on it
@@ -839,10 +872,11 @@ export function initHUD(state, el) {
   function emitTime() {
     const elapsed = evaStart && time ? (time - evaStart) / 60000 : null;
     const p = plan ? plan.at(elapsed) : null;
-    let coord = p ? p.coord : null;
+    const smooth = plan ? plan.posAt(elapsed) : null;
+    let coord = smooth ? smooth.coord : p ? p.coord : null;
     let dM = null;
     try {
-      const tau = p ? p.tau : elapsed;
+      const tau = smooth ? smooth.tau : p ? p.tau : elapsed;
       const rs = routeState(timeline, tau);
       if (!p) coord = rs?.coord ?? null;
       if (!p || p.mode === 'route' || p.mode === 'hold') dM = rs?.d_m ?? null;
@@ -905,13 +939,21 @@ export function initHUD(state, el) {
       onTick(t) {
         time = t;
         syncControls();
-        // While playing, update once per simulated minute; seeks and pauses update at once.
+        // While playing, the panels update once per simulated minute; the position ('hud:time')
+        // about 10 times a second, so the map, profile and 3D view move smoothly. Seeks and
+        // pauses update everything at once.
         const minute = Math.floor(t.getTime() / 60000);
+        const nowMs = performance.now();
         if (minute !== lastMinute || !clock.playing) {
           lastMinute = minute;
+          lastEmitMs = nowMs;
           emitTime();
           if (open) render();
+        } else if (nowMs - lastEmitMs >= EMIT_MS) {
+          lastEmitMs = nowMs;
+          emitTime();
         }
+        trackArrival(clock.playing);
       },
     });
     slider.min = '0';
@@ -923,6 +965,7 @@ export function initHUD(state, el) {
         clock.pause();
       } else {
         pinnedStop = null;
+        arrivedStop = null;
         clock.play();
       }
     });

@@ -482,6 +482,20 @@ export function simulate(p) {
       const i = Math.round((e - startMin) / dt);
       return steps[Math.min(steps.length - 1, Math.max(0, i))];
     },
+    // Position and route progress between two steps (smooth motion for the map and 3D view);
+    // at a change of mode it snaps to the nearest step
+    posAt(e) {
+      if (!Number.isFinite(e) || !steps.length) return null;
+      const x = Math.min(steps.length - 1, Math.max(0, (e - startMin) / dt));
+      const a = steps[Math.floor(x)];
+      const b = steps[Math.min(steps.length - 1, Math.floor(x) + 1)];
+      const f = x - Math.floor(x);
+      if (a === b || a.mode !== b.mode) return { coord: (f < 0.5 ? a : b).coord, tau: (f < 0.5 ? a : b).tau };
+      return {
+        coord: [a.coord[0] + (b.coord[0] - a.coord[0]) * f, a.coord[1] + (b.coord[1] - a.coord[1]) * f],
+        tau: a.tau + (b.tau - a.tau) * f,
+      };
+    },
     // Dose if the walk had simply continued through the storm (for the comparison row)
     noShelterDose(e) {
       if (!Number.isFinite(e)) return null;
