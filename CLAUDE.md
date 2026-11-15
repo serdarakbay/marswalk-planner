@@ -178,7 +178,7 @@ The map, cards, HUD and 3D view never import each other's files; they talk only 
 - Use only `base.css` variables (`var(--...)`) for colour, font, spacing, radius and z-index; no hard-coded hex values or numbers. If you need a new variable, ask Ege.
 - Stacking order: `--z-map` < `--z-view3d` < `--z-panel` < `--z-cards` < `--z-hud`.
 - **HUD mode:** when the HUD opens it sets `document.body.dataset.mode = 'hud'`, and `'map'` when it closes. Only the HUD writes this value; `base.css` decides what is hidden in HUD mode (`body[data-mode="hud"]`).
-- The header HUD button dispatches `document.dispatchEvent(new CustomEvent('hud:toggle'))`. The HUD listens to the H key and to `hud:toggle`. The map uses no single-letter keyboard shortcuts.
+- The header HUD button dispatches `document.dispatchEvent(new CustomEvent('hud:toggle'))`. The HUD listens to the H key and to `hud:toggle`. The 3D Bodycam button dispatches `hud:play`: the HUD opens and starts the walk (from T+0 if it is over or has not started). The map uses no single-letter keyboard shortcuts.
 - The header 3D button dispatches `document.dispatchEvent(new CustomEvent('view3d:toggle'))`. The 3D view listens to it, shows or hides `#view3d-root` itself, and sets `document.body.dataset.view = '3d'` / `'map'`. The button only appears once the 3D module has started.
 - `main.js` loads the modules with `import()`. If `web/js/cards/index.js`, `web/js/hud/index.js` or `web/js/view3d/index.js` is missing or throws, it logs to the console and the page keeps working.
 - If this is not enough, do not edit `planner.html`; ask Ege.

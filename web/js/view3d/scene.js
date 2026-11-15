@@ -773,10 +773,15 @@ export async function createScene(state, el, { onProgress } = {}) {
     updateButtons();
   }
   // Bodycam: the camera follows the HUD astronaut, looking where they walk (storm refuge, dust devil
-  // step-aside, detours). The HUD drives the position through hud:time; open it with H and press Play.
+  // step-aside, detours). The HUD drives the position through hud:time, so switching it on asks the
+  // HUD to open and play ('hud:play'); with the walk already playing it just keeps going.
   function toggleBodycam() {
     bodycam = !bodycam;
-    if (bodycam) { stopFly(); tween = null; }
+    if (bodycam) {
+      stopFly();
+      tween = null;
+      document.dispatchEvent(new CustomEvent('hud:play'));
+    }
     updateButtons();
   }
 
@@ -800,7 +805,7 @@ export async function createScene(state, el, { onProgress } = {}) {
   }, `${x}×`));
   const bodyBtn = h('button', {
     class: 'v3d-btn', type: 'button', onclick: toggleBodycam, 'aria-pressed': 'false',
-    title: 'Follow the HUD astronaut, looking where they walk (open the HUD with H and press Play)',
+    title: 'Follow the HUD astronaut, looking where they walk (opens the HUD and starts the walk)',
   }, 'Bodycam');
   const resetBtn = h('button', {
     class: 'v3d-btn', type: 'button',

@@ -1049,6 +1049,21 @@ export function initHUD(state, el) {
   }
 
   document.addEventListener('hud:toggle', () => toggle());
+  // 'hud:play' (3D Bodycam): open the HUD and walk. If the walk is over or has not started, it
+  // starts again from the habitat door (T+0), so the camera always has an astronaut to follow.
+  document.addEventListener('hud:play', () => {
+    toggle(true);
+    if (!clock || clock.playing) return;
+    if (evaStart && timeline) {
+      const elapsed = (clock.time - evaStart) / 60000;
+      const p = plan ? plan.at(elapsed) : null;
+      const outside = p ? isOutside(p.mode) : elapsed > 0 && elapsed < timeline.total_min;
+      if (!outside) clock.seek(evaStart);
+    }
+    pinnedStop = null;
+    arrivedStop = null;
+    clock.play();
+  });
   document.addEventListener('keydown', (e) => {
     const t = e.target;
     const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
