@@ -71,6 +71,25 @@ export function sunAt(sun, t) {
   };
 }
 
+// Air temperature (°C) at a local Mars time, from weather.json rows [{lmst, temp_c}] (Egemen, REMS),
+// interpolated between rows and across midnight. null without data.
+export function tempAt(weather, lmstMin) {
+  const rows = (Array.isArray(weather?.rows) ? weather.rows : [])
+    .map((r) => ({ m: lmstToMin(r?.lmst), c: r?.temp_c }))
+    .filter((r) => r.m != null && Number.isFinite(r.c))
+    .sort((a, b) => a.m - b.m);
+  if (!rows.length || !Number.isFinite(lmstMin)) return null;
+  const t = ((lmstMin % 1440) + 1440) % 1440;
+  let i = rows.findIndex((r) => r.m > t);
+  if (i === -1) i = rows.length; // after the last row: towards the first one, next sol
+  const a = rows[(i - 1 + rows.length) % rows.length];
+  const b = rows[i % rows.length];
+  const am = a.m > t ? a.m - 1440 : a.m;
+  let bm = b.m <= am ? b.m + 1440 : b.m;
+  if (bm < t) bm += 1440;
+  return bm === am ? a.c : lerp(a.c, b.c, (t - am) / (bm - am));
+}
+
 export function fmtLmst(min) {
   if (!Number.isFinite(min)) return '—';
   const m = Math.floor(((min % 1440) + 1440) % 1440);

@@ -14,8 +14,8 @@ Martian Map plans a safe astronaut walk (a "Marswalk") in Gale crater, where Cur
 - **Elevation profile:** elevation and slope along the route, with radio-shadow stretches where the crew loses contact. Hovering the profile marks the same spot on the map.
 - **Radio relay:** a mast on the ridge that cuts the time without a link to the habitat; the map and the landing page show the time before and after.
 - **Stop cards:** what to look at at each stop, with nearby Curiosity photos and the arrival time on the route.
-- **3D view:** the HiRISE image draped over the real terrain, with the route, stops, habitat, Sun shadows and the HUD astronaut. Press the **3D** button.
-- **HUD mode:** a visor view with the next stop, O2, dose, Sun and Earth position and alerts, a simulation clock, and two replayable emergencies: a solar storm (shelters ranked by dose, a path around steep ground to the chosen one) and dust devils (hold position or step aside). Near a stop it shows Curiosity's photo of that spot, and the Targets panel answers "can I go there?" for ten more places Curiosity photographed off the route ([details](web/js/hud/README.md)). Press **H**.
+- **3D view:** the HiRISE image draped over the real terrain, with the route, stops, habitat, Sun shadows and the HUD astronaut. **Fly along your route** draws the walk from A to B; **Bodycam** starts the HUD walk and follows the astronaut at ground level, with the next stop's distance and climb on its label. Press the **3D** button.
+- **HUD mode:** a visor view with the next stop, O2, dose, Sun and Earth position, outside air temperature and alerts, a simulation clock, and two replayable emergencies: a solar storm (shelters ranked by dose, a path around steep ground to the chosen one) and dust devils (hold position or step aside). Near a stop it shows Curiosity's photo of that spot, and the Targets panel answers "can I go there?" for ten more places Curiosity photographed off the route ([details](web/js/hud/README.md)). Press **H**.
 - **Data sources:** a small panel (the *Data sources* link in the footer) lists every dataset, what the planner uses it for and its status, read from the loaded data (for example Live or Replay for the solar events).
 - **Backup map tiles:** if Mars Trek cannot be reached, the map, the minimap and the landing 3D block fall back to cached tiles of the study area in `web/tiles/`.
 - **Landing page:** the site root introduces the walk, the safety layers, the storm and the models, with a 3D block diagram of the study area; every number on it is read from the data files. The planner itself is `planner.html`.
@@ -154,11 +154,11 @@ Taken from the commit history. Where two names are given, the work was shared: t
 | Two dust devils: hold position, then step aside off the track and rejoin the route | Serdar |
 | Science targets off the route: `science/targets.py` and `targets.json` | Serdar, Utku (candidates and unit rules) |
 | Targets panel: "can I go there?" (O2 reserve, EVA window), path preview, detour with sampling | Serdar |
-| HUD self-tests (`node web/js/hud/test.mjs`, 36 checks on logic and real data) | Serdar |
+| HUD self-tests (`node web/js/hud/test.mjs`, 43 checks on logic and real data) | Serdar |
 | Data sources panel with live status (`web/js/map/sources.js`, footer link) | Serdar, Ege (map) |
 | Map: storm path line, moving dust devil circle, zoom that includes the hazard, click for elevation and slope, cursor coordinates, lat/lon grid, overview minimap | Serdar, Ege (map owner) |
 | Header keeps the 3D and HUD buttons on screen at laptop widths | Serdar, Ege (`base.css`) |
-| 3D view: Bodycam that follows the HUD astronaut, path line that follows the HUD path | Serdar, Egemen (3D view owner) |
+| 3D view: Bodycam that follows the HUD astronaut (starts the HUD walk, labels the next stop with distance and climb), path line that follows the HUD path | Serdar, Egemen (3D view owner) |
 | HUD documentation: `web/js/hud/README.md`, HUD parts of this README and `CLAUDE.md` | Serdar, Ege |
 
 ### Utku

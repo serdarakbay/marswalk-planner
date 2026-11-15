@@ -12,6 +12,7 @@ import {
   distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeO2, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
   routeO2Left, walkO2PerMin,
+  tempAt,
 } from './model.js';
 import {
   bestRefuge, detourCheck, devilPass, missionLog, previewPhoto, refugeGuided, refugeOptions, SCENARIO, simulate, stopPreview,
@@ -399,6 +400,16 @@ test('mission log: "Approaching" once per stop with a photo, before its arrival,
   assert.equal(plain.filter((x) => x.text.startsWith('Approaching')).length, 0, 'no photos, no line');
 });
 
+test('air temperature: interpolated by LMST, across midnight, null without data', () => {
+  const w = { rows: [{ lmst: '00:00', temp_c: -70 }, { lmst: '12:00', temp_c: -10 }, { lmst: '23:00', temp_c: -60 }] };
+  near(tempAt(w, 6 * 60), -40, 1e-9, 'halfway between midnight and noon');
+  near(tempAt(w, 12 * 60), -10, 1e-9, 'on a row');
+  near(tempAt(w, 23.5 * 60), -65, 1e-9, 'between 23:00 and the next midnight');
+  near(tempAt(w, 1440 + 6 * 60), -40, 1e-9, 'minutes past one sol wrap');
+  assert.equal(tempAt({}, 600), null);
+  assert.equal(tempAt(w, null), null);
+});
+
 test('radio shadows: intervals from comm_ok, empty for another route', () => {
   const len = tl.d.at(-1);
   const rows = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ d: (len * i) / 8, comm_ok: !(i === 2 || i === 3) }));
@@ -518,6 +529,15 @@ test('O2 rates for the panel: walking rate for the way home, rest of the route f
   const tlO2 = routeTimeline({ ...synthRoute, properties: { ...synthRoute.properties, o2_pct: o2 } }, null);
   near(routeO2Left(tlO2, { o2_used_pct: 5.6 }, 2), o2.at(-1) - 1, 1e-9, 'from the per-vertex values');
   assert.equal(routeO2Left(tlO2, {}, 99), 0, 'nothing left after the end');
+});
+
+test('real weather.json: air in the EVA window between REMS min and max', () => {
+  const weather = read('weather.json');
+  if (!weather || !eva) return 'skip';
+  for (const hm of [eva.start_lmst, eva.end_lmst]) {
+    const c = tempAt(weather, Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5)));
+    assert.ok(c >= weather.min_c - 0.5 && c <= weather.max_c + 0.5, `${hm}: ${c} °C`);
+  }
 });
 
 test('real route: plan without scenarios matches summary.json O2', () => {

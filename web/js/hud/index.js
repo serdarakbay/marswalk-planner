@@ -19,7 +19,7 @@
 import {
   activityFraction, compass, distanceM, doseAt, effectiveRadiation, evaDose, evalAlerts, evaStatus, radiationAt,
   bearingDeg, FALLBACK, fmtDuration, shadowIntervals, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState,
-  routeO2Left, routeTimeline, safetyAt, walkO2PerMin,
+  routeO2Left, routeTimeline, safetyAt, tempAt, walkO2PerMin,
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
@@ -661,6 +661,13 @@ export function initHUD(state, el) {
     safe('sun', () => {
       row(sunP.body, 'Elevation', fmtNum(s?.sun_el, 1, '°'));
       row(sunP.body, 'Azimuth', s ? `${fmtNum(s.sun_az, 0, '°')} ${compass(s.sun_az)}` : '—');
+      // Outside air from REMS (a typical sol, so "approx."); tagged when below the EVA limit
+      const air = tempAt(state.weather, s?.lmst_min);
+      if (Number.isFinite(air)) {
+        const limit = state.mission?.eva_min_temp_c;
+        const cold = Number.isFinite(limit) && air < limit;
+        row(sunP.body, 'Air (approx.)', `${fmtNum(air, 0)} °C`, cold ? 'cold' : null);
+      }
     }, sunP.body);
 
     // --- comms

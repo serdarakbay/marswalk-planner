@@ -464,7 +464,11 @@ export async function createScene(state, el, { onProgress } = {}) {
       ring.visible = false;
       marks.add(stick, head, lab, ring);
       pickables.push(head, stick);
-      stopObjs.set(stop.id ?? i, { head, lab, ring, headY: head.position.y, stop, name, baseText, text: baseText });
+      stopObjs.set(stop.id ?? i, {
+        head, lab, ring, headY: head.position.y, stop, name, baseText, text: baseText,
+        labTop: lab.position.clone(),                              // above the pin head (overview)
+        labFoot: ground.clone().add(new THREE.Vector3(0, 2, 0)),   // at the pin's foot (Bodycam)
+      });
     });
     applySelection();
 
@@ -696,10 +700,13 @@ export async function createScene(state, el, { onProgress } = {}) {
   // ahead ("1  Clay-bearing mudstone · 1.12 km · ↑60 m"); the other stop labels step aside so the
   // view stays clear. Off Bodycam every label shows the stop's elevation again.
   let labelAt = 0;
-  function setLabelText(o, text) {
-    if (o.text === text) return;
+  // In Bodycam the label hangs just under the foot of the pin, low in the view and clear of the
+  // HUD alerts at the top; in the overview it sits above the pin head as before.
+  function setLabelText(o, text, low = false) {
+    if (o.text === text && o.low === low) return;
     const fresh = labelSprite(text, colors.sand);
-    fresh.position.copy(o.lab.position);
+    fresh.position.copy(low ? o.labFoot : o.labTop);
+    if (low) fresh.center.set(0.5, 1.4);
     fresh.material.opacity = o.lab.material.opacity;
     fresh.visible = o.lab.visible;
     marks.remove(o.lab);
@@ -708,6 +715,7 @@ export async function createScene(state, el, { onProgress } = {}) {
     marks.add(fresh);
     o.lab = fresh;
     o.text = text;
+    o.low = low;
   }
   function updateStopLabels(now) {
     const nextId = bodycam && astroShown && Array.isArray(hudTime?.coord) ? hudTime.next_stop ?? null : null;
@@ -726,7 +734,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       const d = Math.hypot(sx - ax, sz - az);
       // real heights from the DEM, not the exaggerated scene heights
       const climb = heights.real ? sampleGrid(grid, sx, sz) - sampleGrid(grid, ax, az) : 0;
-      setLabelText(o, d < AT_STOP_M ? `${o.name} · here` : `${o.name} · ${fmtDist(d)}${fmtClimb(climb)}`);
+      setLabelText(o, d < AT_STOP_M ? `${o.name} · here` : `${o.name} · ${fmtDist(d)}${fmtClimb(climb)}`, true);
     }
   }
 
