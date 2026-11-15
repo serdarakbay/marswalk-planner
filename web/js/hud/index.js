@@ -19,7 +19,7 @@
 import {
   activityFraction, compass, distanceM, doseAt, effectiveRadiation, evaDose, evalAlerts, evaStatus, radiationAt,
   bearingDeg, FALLBACK, fmtDuration, shadowIntervals, fmtLmst, nearestShelter, nextStop, o2At, parseUtc, routeState,
-  routeTimeline, safetyAt,
+  routeO2Left, routeTimeline, safetyAt, walkO2PerMin,
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
@@ -338,11 +338,12 @@ export function initHUD(state, el) {
     const dose = evaDose(rad, eva, timeline?.total_min, state.summary);
     const doseNow = p ? p.dose : doseAt(dose, frac);
     let o2 = null;
-    if (p && Number.isFinite(state.summary?.o2_used_pct)) {
-      const perMin = state.summary.o2_used_pct / timeline.total_min;
+    const routeLeft = p ? routeO2Left(timeline, state.summary, p.tau) : null;
+    if (p && routeLeft != null) {
       // Once a storm or dust devil has started, the plan's final O2 includes the waits and detours;
-      // before that the HUD cannot know it is coming, so it shows the plain route estimate.
-      const nominal = p.o2 + perMin * Math.max(0, timeline.total_min - p.tau);
+      // before that the HUD cannot know it is coming, so it shows the plain route estimate: O2 used
+      // so far plus what the rest of the route costs (Demir's per-vertex values when present).
+      const nominal = p.o2 + routeLeft;
       const started = (plan.storm && elapsed >= plan.storm.t0) || (plan.dust && elapsed >= plan.dust.t0);
       const atReturn = started ? Math.max(plan.finalO2, nominal) : nominal;
       o2 = { used_pct: p.o2, remaining_pct: Math.max(0, 100 - p.o2), at_return_pct: Math.max(0, 100 - atReturn) };
@@ -371,8 +372,9 @@ export function initHUD(state, el) {
     const nextShadow = onRoute ? shadows.find((x) => x.a > tau) ?? null : null;
     // Point of no return: O2 above the reserve, minus the O2 to walk home from here
     let turnBack = null;
-    if (o2 && !atHabitat && Array.isArray(state.area?.habitat) && Number.isFinite(state.summary?.o2_used_pct) && timeline) {
-      const perMin = state.summary.o2_used_pct / timeline.total_min;
+    // Walking home costs the walking rate (summary.o2_walk_pct_per_min), not the route average
+    const perMin = walkO2PerMin(state.summary, timeline);
+    if (o2 && !atHabitat && Array.isArray(state.area?.habitat) && Number.isFinite(perMin) && timeline) {
       const here = pos ?? state.area.habitat;
       const homeMin = (distanceM(here, state.area.habitat) * SCENARIO.RETURN_PATH_FACTOR) / SCENARIO.WALK_M_PER_MIN;
       const spare = o2.remaining_pct - SCENARIO.O2_RESERVE_PCT - homeMin * perMin;

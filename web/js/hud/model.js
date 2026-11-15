@@ -183,6 +183,22 @@ export function routeTimeline(route, summary) {
   return { coords, t, d: cum, slope, o2, total_min: t[t.length - 1] };
 }
 
+// O2 % per minute while walking (to a shelter, home, a target): Demir's walking-only rate from
+// summary.json, else the route average (lower: it includes the time standing at the stops).
+export function walkO2PerMin(summary, tl) {
+  if (Number.isFinite(summary?.o2_walk_pct_per_min) && summary.o2_walk_pct_per_min > 0) return summary.o2_walk_pct_per_min;
+  return Number.isFinite(summary?.o2_used_pct) && tl?.total_min > 0 ? summary.o2_used_pct / tl.total_min : null;
+}
+
+// O2 % still to use on the planned route from route minute `tau` to its end: the per-vertex values
+// of route.geojson (o2_pct) when present, else the route total spread evenly over its time.
+export function routeO2Left(tl, summary, tau) {
+  if (!tl || !Number.isFinite(tau)) return null;
+  const left = Math.max(0, tl.total_min - tau);
+  if (tl.o2) return Math.max(0, tl.o2[tl.o2.length - 1] - routeO2(tl, tau));
+  return Number.isFinite(summary?.o2_used_pct) && tl.total_min > 0 ? (summary.o2_used_pct * left) / tl.total_min : null;
+}
+
 // O2 % used on the planned route by route minute `tau` (from route.geojson o2_pct), or null.
 export function routeO2(tl, tau) {
   if (!tl?.o2 || !Number.isFinite(tau)) return null;

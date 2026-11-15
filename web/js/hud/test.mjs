@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import {
   distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeO2, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
+  routeO2Left, walkO2PerMin,
 } from './model.js';
 import {
   bestRefuge, detourCheck, devilPass, missionLog, previewPhoto, refugeGuided, refugeOptions, SCENARIO, simulate, stopPreview,
@@ -506,6 +507,17 @@ test('real targets.json: off the route stops, inside the area, one of the three 
     assert.ok(d >= 150, `${t.id} is ${Math.round(d)} m from a stop: a place of its own`);
     assert.ok(t.name && t.note, `${t.id} has a name and a note`);
   }
+});
+
+test('O2 rates for the panel: walking rate for the way home, rest of the route from o2_pct', () => {
+  near(walkO2PerMin({ o2_used_pct: 5.6, o2_walk_pct_per_min: 0.3 }, tl), 0.3, 1e-9, 'walking-only rate when given');
+  near(walkO2PerMin({ o2_used_pct: 5.6 }, tl), 0.2, 1e-9, 'else the route average');
+  assert.equal(walkO2PerMin({}, tl), null);
+  near(routeO2Left(tl, { o2_used_pct: 5.6 }, 14), 2.8, 1e-9, 'even spread without o2_pct');
+  const o2 = T.map((t, i) => (i < 5 ? t * 0.5 : 2 + (t - 4) * 0.05));
+  const tlO2 = routeTimeline({ ...synthRoute, properties: { ...synthRoute.properties, o2_pct: o2 } }, null);
+  near(routeO2Left(tlO2, { o2_used_pct: 5.6 }, 2), o2.at(-1) - 1, 1e-9, 'from the per-vertex values');
+  assert.equal(routeO2Left(tlO2, {}, 99), 0, 'nothing left after the end');
 });
 
 test('real route: plan without scenarios matches summary.json O2', () => {
