@@ -14,7 +14,11 @@
 //   state.summary, state.radiation                       -> briefing: distance, time, O2, radiation
 // Dispatches (same events as the header buttons / the map):
 //   stop:select (tour buttons), view3d:toggle, hud:toggle (briefing shortcuts)
+// Navigation view ("Plan your own route", nav.js + router.js): nav:pick, nav:routes,
+//   nav:choose, nav:clear out; nav:point in (a clicked point from the map or the 3D view).
 // Every input may be null/missing: the card degrades, it never throws.
+
+import { createNav } from './nav.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DEFAULT_CREDIT = 'NASA/JPL-Caltech';
@@ -288,7 +292,7 @@ function legendBlock(st) {
       st.traverse ? row('traverse', "Curiosity rover's real path") : null));
 }
 
-function briefingView(st) {
+function briefingView(st, onNav) {
   const sum = st.summary || {};
   const stops = Array.isArray(st.stops) ? st.stops.filter((x) => x && typeof x === 'object') : [];
   const rad = RADIATION_TEXT[st.radiation?.status] || null;
@@ -331,6 +335,7 @@ function briefingView(st) {
       h('b', {}, '3D terrain'), h('small', {}, 'Fly along the route over the real Mount Sharp terrain')) : null);
 
   return h('article', { class: 'mm-brief', 'aria-label': 'Mission briefing' },
+    onNav ? h('button', { class: 'mm-card__back', type: 'button', onclick: onNav }, '‹ Route planner') : null,
     h('p', { class: 'mm-card__kicker' }, 'Mission briefing'),
     h('h2', { class: 'mm-card__title' }, 'Plan a safe walk on Mars'),
     h('p', { class: 'mm-brief__lead' },
@@ -339,6 +344,9 @@ function briefingView(st) {
     stats.length ? h('div', { class: 'mm-card__stats' }, stats) : null,
     rad && st.radiation?.status !== 'nominal' ? h('p', { class: 'mm-card__note' }, rad[1]) : null,
     stops.length ? h('button', { class: 'mm-brief__start', type: 'button', onclick: () => selectStop(stops[0]) }, 'Start the tour  →') : null,
+    onNav && st.summary?.terrain?.png ? h('button', { class: 'mm-brief__nav', type: 'button', onclick: onNav },
+      h('span', { class: 'mm-brief__nav-icon', 'aria-hidden': 'true' }, 'A→B'),
+      h('span', {}, h('b', {}, 'Plan your own route'), h('small', {}, 'Pick a start and a destination: fastest and safest way'))) : null,
     h('section', { class: 'mm-brief__walk', 'aria-label': 'The walk, step by step' },
       h('span', { class: 'mm-card__label' }, 'The walk, step by step'),
       h('ol', {}, steps)),
@@ -361,10 +369,26 @@ export function initCards(state, el) {
   const isOpen = () => card.isConnected;
   const stops = () => (Array.isArray(st.stops) ? st.stops : []);
   let brief = null;
+  let nav = null;            // navigation view (nav.js), created on first use
+  const navOpen = () => !!nav?.el.isConnected;
+
+  function showNav() {
+    try {
+      nav ||= createNav(st, { onBriefing: () => showBriefing(), onActivate: () => { if (!navOpen()) showNav(); } });
+      card.remove();
+      current = null;
+      el.replaceChildren(nav.el);
+      nav.open();
+      el.scrollTop = 0;
+    } catch (err) {
+      console.error('[cards] navigation failed', err);
+    }
+  }
 
   function showBriefing() {
+    if (navOpen()) nav.close();
     try {
-      brief = briefingView(st);
+      brief = briefingView(st, showNav);
       el.replaceChildren(brief);
       el.scrollTop = 0;
     } catch (err) {
@@ -373,10 +397,11 @@ export function initCards(state, el) {
     }
   }
 
+  // closing a stop card (or the briefing) goes back to the route planner, the main view
   function hide() {
     card.remove();
     current = null;
-    showBriefing();
+    showNav();
   }
 
   // index of the open stop in stops.json order (= the number on the map)
@@ -395,7 +420,7 @@ export function initCards(state, el) {
         ? h('button', { class: 'mm-card__tour-btn mm-card__tour-btn--next', type: 'button', onclick: () => selectStop(next) },
           h('small', {}, 'Next stop ›'), h('b', {}, next.name || `Stop ${i + 2}`))
         : h('button', { class: 'mm-card__tour-btn mm-card__tour-btn--next', type: 'button', onclick: hide },
-          h('small', {}, 'Tour done ›'), h('b', {}, 'Back to the briefing')));
+          h('small', {}, 'Tour done ›'), h('b', {}, 'Back to the route planner')));
   }
 
   function setPhoto(i) {
@@ -467,13 +492,13 @@ export function initCards(state, el) {
     // replaceChildren() would print "null" for missing blocks, so drop them first
     const idx = stopIndex(stop);
     card.replaceChildren(...[
-      h('button', { class: 'mm-card__back', type: 'button', onclick: hide }, '‹ Mission briefing'),
+      h('button', { class: 'mm-card__back', type: 'button', onclick: hide }, '‹ Route planner'),
       h('header', { class: 'mm-card__head' },
         h('div', {},
           h('p', { class: 'mm-card__kicker' }, idx >= 0 ? `Stop ${idx + 1} of ${stops().length}` : 'Stop'),
           h('h2', { class: 'mm-card__title' }, stop.name || 'Unnamed stop'),
           coord ? h('p', { class: 'mm-card__coord' }, coord) : null),
-        h('button', { class: 'mm-card__close', type: 'button', 'aria-label': 'Close card and show the briefing', onclick: hide }, '×')),
+        h('button', { class: 'mm-card__close', type: 'button', 'aria-label': 'Close card and show the route planner', onclick: hide }, '×')),
       arrivalBlock(arrival),
       photoBlock(),
       stop.science ? h('section', { class: 'mm-card__science' },
@@ -495,6 +520,7 @@ export function initCards(state, el) {
       photos = nearbyPhotos(stop, st.images);
       nearby = photos.length > 0;
     }
+    if (navOpen()) nav.close();
     const sameStop = current && current.stop.id === stop.id && stop.id != null;
     current = { stop, photos, nearby, index: sameStop ? Math.min(current.index, Math.max(0, photos.length - 1)) : 0 };
     try {
@@ -506,10 +532,15 @@ export function initCards(state, el) {
     }
   }
 
-  showBriefing();
+  showNav();
   // the 3D button appears only once that module has started: refresh the shortcuts then
   const b3d = document.getElementById('view3d-toggle');
-  if (b3d) new MutationObserver(() => { if (!isOpen()) showBriefing(); }).observe(b3d, { attributes: true, attributeFilter: ['hidden'] });
+  if (b3d) {
+    new MutationObserver(() => {
+      if (navOpen()) nav.open();
+      else if (!isOpen() && brief?.isConnected) showBriefing();
+    }).observe(b3d, { attributes: true, attributeFilter: ['hidden'] });
+  }
 
   document.addEventListener('stop:select', (ev) => show(ev.detail));
   document.addEventListener('keydown', (ev) => {

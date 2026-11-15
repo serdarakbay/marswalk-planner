@@ -1,7 +1,9 @@
 // profile.js (Ege): elevation profile under the map.
 //
-//   export function initProfile(state, el, { onHover })   // el = #profile
+//   export function initProfile(state, el, { onHover, label })   // el = #profile
 //
+// Returns the Chart (or null); call chart.detach() before drawing another profile in the same
+// element: it removes the hud:time listener and destroys the chart.
 // Draws summary.json profile[{d, z, slope}] with slope on a second axis, the route summary
 // above it, radio-shadow bands from safety.json route[{d, comm_ok}], and a vertical line at
 // the astronaut position from 'hud:time' (d_m). onHover(d) gets the hovered distance in
@@ -61,7 +63,7 @@ function shadowRanges(route) {
   return ranges;
 }
 
-export function initProfile(state, el, { onHover } = {}) {
+export function initProfile(state, el, { onHover, label } = {}) {
   const prof = state.summary?.profile;
   if (!Array.isArray(prof) || prof.length < 2) return null;
   if (typeof Chart === 'undefined') {
@@ -83,7 +85,7 @@ export function initProfile(state, el, { onHover } = {}) {
 
   const canvas = document.createElement('canvas');
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'Elevation and slope along the planned route');
+  canvas.setAttribute('aria-label', `Elevation and slope along ${label || 'the planned route'}`);
   const wrap = document.createElement('div');
   wrap.className = 'profile-chart';
   wrap.append(canvas);
@@ -204,13 +206,18 @@ export function initProfile(state, el, { onHover } = {}) {
 
   canvas.addEventListener('mouseleave', () => onHover?.(null));
 
-  document.addEventListener('hud:time', (e) => {
+  const onTime = (e) => {
     const { active, d_m: d } = e.detail || {};
     const next = active && Number.isFinite(d) ? d : null;
     if (next === astronautD) return;
     astronautD = next;
     chart.draw();
-  });
+  };
+  document.addEventListener('hud:time', onTime);
+  chart.detach = () => {
+    document.removeEventListener('hud:time', onTime);
+    chart.destroy();
+  };
 
   return chart;
 }

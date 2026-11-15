@@ -1,5 +1,5 @@
 // main.js (Ege): app entry point. Loads every web/data/ file into a single state object,
-// then starts the map, cards and HUD modules. A missing file or module never breaks the page.
+// then starts the map, cards, HUD and 3D modules. A missing file or module never breaks the page.
 
 const DATA_FILES = {
   area: 'data/area.json',
@@ -55,27 +55,37 @@ async function startModule(name, path, initName, el) {
 
 const state = await loadState();
 
-// Mission status chips in the header, from whatever data is available
-function fmtMin(min) {
-  const h = Math.floor(min / 60);
-  const m = Math.round(min % 60);
-  return h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min`;
+// Conditions in the header, from whatever data is available (every item is optional)
+function tempAt(weather, lmst) {
+  const rows = Array.isArray(weather?.rows) ? weather.rows : [];
+  const toMin = (t) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  const want = toMin(lmst);
+  if (want == null || !rows.length) return null;
+  let best = null; let bd = Infinity;
+  for (const r of rows) {
+    const d = Math.abs(toMin(r.lmst) - want);
+    if (Number.isFinite(r.temp_c) && d < bd) { bd = d; best = r.temp_c; }
+  }
+  return best;
 }
 
 function renderStatus(s) {
   const chips = [];
   if (s.eva?.start_lmst && s.eva?.end_lmst) {
-    chips.push({ label: 'EVA window', value: `${s.eva.start_lmst}–${s.eva.end_lmst} LMST`, title: s.eva.reason });
+    chips.push({ label: 'EVA window (Mars time)', value: `${s.eva.start_lmst}–${s.eva.end_lmst}`, title: s.eva.reason });
   }
-  if (Number.isFinite(s.summary?.distance_m) && Number.isFinite(s.summary?.duration_min)) {
-    chips.push({ label: 'Route', value: `${(s.summary.distance_m / 1000).toFixed(2)} km · ${fmtMin(s.summary.duration_min)}` });
-  }
-  if (Number.isFinite(s.summary?.o2_used_pct)) {
-    chips.push({ label: 'O2 used', value: `${s.summary.o2_used_pct.toFixed(1)}%` });
+  const t = tempAt(s.weather, s.eva?.start_lmst);
+  if (Number.isFinite(t)) {
+    chips.push({ label: s.weather?.approximate ? 'Air at start (approx.)' : 'Air at start', value: `${Math.round(t)} °C`, title: s.weather?.source });
   }
   if (s.radiation?.status) {
-    const level = { nominal: 'ok', elevated: 'warn', storm: 'danger' }[s.radiation.status] || 'info';
-    chips.push({ label: 'Radiation', value: s.radiation.status, title: s.radiation.message, level });
+    const level = { nominal: 'ok', elevated: 'warn', storm: 'danger' }[s.radiation.status] || '';
+    const value = s.radiation.status[0].toUpperCase() + s.radiation.status.slice(1);
+    chips.push({ label: 'Radiation', value, title: s.radiation.message, level });
+  }
+  const earth = Array.isArray(s.sun?.rows) ? s.sun.rows.find((r) => Number.isFinite(r.light_time_min)) : null;
+  if (earth) {
+    chips.push({ label: 'Signal to Earth', value: `${earth.light_time_min.toFixed(1)} min`, title: 'One-way light time, JPL Horizons' });
   }
   const list = document.getElementById('mission-status');
   list.replaceChildren(...chips.map(({ label, value, title, level }) => {

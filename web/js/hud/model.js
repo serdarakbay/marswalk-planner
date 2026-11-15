@@ -176,7 +176,23 @@ export function routeTimeline(route, summary) {
   }
   let slope = feat?.properties?.slope_deg;
   if (!Array.isArray(slope) || slope.length !== coords.length) slope = null;
-  return { coords, t, d: cum, slope, total_min: t[t.length - 1] };
+  // O2 used so far at each vertex (Demir, arazi/walk.py): walking uphill / downhill and standing
+  // at the stops each at their own rate. Missing or broken: null, the HUD uses per-minute rates.
+  let o2 = feat?.properties?.o2_pct;
+  if (!Array.isArray(o2) || o2.length !== coords.length || !o2.every(Number.isFinite)) o2 = null;
+  return { coords, t, d: cum, slope, o2, total_min: t[t.length - 1] };
+}
+
+// O2 % used on the planned route by route minute `tau` (from route.geojson o2_pct), or null.
+export function routeO2(tl, tau) {
+  if (!tl?.o2 || !Number.isFinite(tau)) return null;
+  const { t, o2 } = tl;
+  const n = t.length;
+  if (tau <= t[0]) return o2[0];
+  if (tau >= t[n - 1]) return o2[n - 1];
+  let i = 1;
+  while (i < n - 1 && tau > t[i]) i++;
+  return t[i] === t[i - 1] ? o2[i] : lerp(o2[i - 1], o2[i], (tau - t[i - 1]) / (t[i] - t[i - 1]));
 }
 
 // Position, distance along route (m) and slope at `elapsedMin`.
