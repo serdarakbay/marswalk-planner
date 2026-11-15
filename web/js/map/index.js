@@ -578,16 +578,15 @@ export function initMap(state, mapEl) {
   const extent = L.latLngBounds([]);
   const vectors = [];
 
-  // Curiosity's actual traverse
+  // Curiosity's actual traverse: off by default (Layers); a thick blue line on a light casing so it
+  // reads on the imagery
   if (state.traverse) {
-    const traverse = L.geoJSON(state.traverse, {
-      coordsToLatLng,
-      style: { color: cssVar('--color-info'), weight: 2, opacity: 0.9, dashArray: '4 4' },
-      interactive: false,
-    });
+    const traverse = L.featureGroup([
+      L.geoJSON(state.traverse, { coordsToLatLng, style: { color: cssVar('--color-surface'), weight: 8, opacity: 0.85 }, interactive: false }),
+      L.geoJSON(state.traverse, { coordsToLatLng, style: { color: cssVar('--color-info'), weight: 4.5, opacity: 1 }, interactive: false }),
+    ]);
     extent.extend(traverse.getBounds());
-    vectors.push(traverse);
-    overlays.push({ meta: { id: 'traverse', name: 'Curiosity traverse' }, layer: traverse, on: true, group: 'Route' });
+    overlays.push({ meta: { id: 'traverse', name: "Curiosity rover's real path" }, layer: traverse, on: false, group: 'Route' });
   }
 
   // Geologic map (geology.geojson), off by default
@@ -621,17 +620,15 @@ export function initMap(state, mapEl) {
     overlays.push({ meta: { id: 'relay', name: 'Radio relay' }, layer: marker, on: true, group: 'Safety' });
   }
 
-  // Planned Marswalk route (Demir): the science walk the HUD follows; a calm dashed line, so the
-  // route planner's own routes stay the brightest thing on the map
+  // Planned Marswalk route (Demir): the science walk the HUD follows. Off by default (Layers), so the
+  // route planner's own routes are the only lines at first; dashed sand on a light casing
   if (state.route) {
-    const route = L.geoJSON(state.route, {
-      coordsToLatLng,
-      style: { color: cssVar('--color-sand'), weight: 3, opacity: 0.85, dashArray: '8 6' },
-      interactive: false,
-    });
+    const route = L.featureGroup([
+      L.geoJSON(state.route, { coordsToLatLng, style: { color: cssVar('--color-surface'), weight: 7, opacity: 0.85 }, interactive: false }),
+      L.geoJSON(state.route, { coordsToLatLng, style: { color: cssVar('--color-sand'), weight: 4, opacity: 1, dashArray: '10 7' }, interactive: false }),
+    ]);
     extent.extend(route.getBounds());
-    vectors.push(route);
-    overlays.push({ meta: { id: 'planned', name: 'Planned science walk (HUD)' }, layer: route, on: true, group: 'Route' });
+    overlays.push({ meta: { id: 'planned', name: 'Planned science walk (HUD)' }, layer: route, on: false, group: 'Route' });
   }
 
   // Habitat: house badge
