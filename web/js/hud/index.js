@@ -211,7 +211,9 @@ export function initHUD(state, el) {
         habitat: state.area?.habitat ?? timeline.coords[0],
         startMin: (range.start - evaStart) / 60000,
         endMin: (range.end - evaStart) / 60000,
-        o2PerMin: Number.isFinite(state.summary?.o2_used_pct) ? state.summary.o2_used_pct / timeline.total_min : 0,
+        // walking rate off the route (Demir, summary.json); older summaries: the route average
+        o2PerMin: Number.isFinite(state.summary?.o2_walk_pct_per_min) ? state.summary.o2_walk_pct_per_min
+          : Number.isFinite(state.summary?.o2_used_pct) ? state.summary.o2_used_pct / timeline.total_min : 0,
         o2StandPerMin: Number.isFinite(state.summary?.o2_standing_pct_per_min)
           ? state.summary.o2_standing_pct_per_min : FALLBACK.o2_standing_pct_per_min,
         doseBasePerMin: base / 1440,

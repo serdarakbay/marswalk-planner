@@ -14,7 +14,7 @@
 // no longer fits), to_refuge (walking to a shelter or the habitat), sheltered, return (back to
 // the point where the route was left), home (back inside before the end of the route), done.
 
-import { bearingDeg, distanceM, routeState } from './model.js';
+import { bearingDeg, distanceM, routeO2, routeState } from './model.js';
 import { legPoint, makeLeg } from './terrain.js';
 
 // Scenario constants. Storm duration and shelter dose factors come from radiation.json (Utku);
@@ -158,7 +158,9 @@ export const bestRefuge = (opts) => opts.find((o) => !o.o2Short) ?? opts.find((o
  * @param {Array}  p.habitat       [lon, lat]
  * @param {number} p.startMin      first simulated minute (relative to EVA start, may be < 0)
  * @param {number} p.endMin        last simulated minute
- * @param {number} p.o2PerMin      O2 % used per minute walking the route (route average)
+ * @param {number} p.o2PerMin      O2 % used per minute walking off the planned route (to a refuge,
+ *                                 aside, a detour); on the route itself tl.o2 (route.geojson o2_pct)
+ *                                 is used when present, else this rate
  * @param {number} p.o2StandPerMin O2 % used per minute standing still (sheltered, holding)
  * @param {number} p.doseBasePerMin  mSv per minute outside, quiet Sun
  * @param {object|null} p.storm    {t0, duration, mult, habitatFactor}
@@ -210,6 +212,7 @@ export function simulate(p) {
   };
 
   for (let t = startMin; t <= endMin + 1e-9; t += dt) {
+    const tauBefore = tau;
     const stormOn = Boolean(storm) && t >= storm.t0 && t < storm.t0 + storm.duration;
 
     // EVA starts at T+0, unless a storm is on: then it waits in the habitat
@@ -434,9 +437,16 @@ export function simulate(p) {
     if (mode === 'route' || mode === 'hold' || mode === 'done') coord = routeState(tl, tau).coord;
     if (mode === 'pre' || mode === 'home') coord = mode === 'home' ? (refuge?.coord ?? habitat ?? coord) : (habitat ?? tl.coords[0]);
 
+    // Walking the planned route (this step moved along it, including the step that ends it):
+    // Demir's per-vertex O2 from route.geojson, slope-aware, stops at the standing rate
+    const routeDelta = (mode === 'route' || mode === 'done') && tau > tauBefore && tl.o2
+      ? routeO2(tl, tau) - routeO2(tl, tauBefore) : null;
+    if (routeDelta != null) o2 += Math.max(0, routeDelta);
     if (isOutside(mode)) {
-      // Standing still (in a shelter, waiting for a dust devil) costs less than walking
-      o2 += (mode === 'sheltered' || mode === 'hold' || mode === 'aside' || mode === 'sampling' ? o2StandPerMin : o2PerMin) * dt;
+      // Off the route: standing still (in a shelter, waiting for a dust devil) costs less than walking
+      if (routeDelta == null) {
+        o2 += (mode === 'sheltered' || mode === 'hold' || mode === 'aside' || mode === 'sampling' ? o2StandPerMin : o2PerMin) * dt;
+      }
       const factor = mode === 'sheltered' ? refuge.factor : 1;
       dose += doseBasePerMin * (stormOn ? storm.mult : 1) * factor * dt;
     }

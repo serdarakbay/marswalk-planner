@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeState,
+  distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeO2, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
 import {
@@ -56,6 +56,39 @@ const base = {
 const toS1 = { id: 'S1', t: -Infinity };
 
 console.log('\nPart 1: logic (synthetic inputs)');
+
+// Same route with Demir's per-vertex O2 (route.geojson o2_pct): walking 0.3 %/min, standing 0.1 %/min
+const O2_WALK = 0.3;
+const O2_STAND = 0.1;
+const synthO2 = T.map((_, i) => 0);
+for (let i = 1; i < T.length; i++) {
+  const dwell = X[i] === X[i - 1];
+  synthO2[i] = synthO2[i - 1] + (T[i] - T[i - 1]) * (dwell ? O2_STAND : O2_WALK);
+}
+const tlO2 = routeTimeline({ ...synthRoute, properties: { ...synthRoute.properties, o2_pct: synthO2 } }, null);
+
+test('route O2: o2_pct read and interpolated by route minute', () => {
+  assert.ok(Array.isArray(tlO2.o2), 'tl.o2 present');
+  assert.equal(tl.o2, null, 'no o2_pct: tl.o2 is null');
+  near(routeO2(tlO2, 4), 4 * O2_WALK, 1e-9, 'at A (walked 4 min)');
+  near(routeO2(tlO2, 9), 4 * O2_WALK + 5 * O2_STAND, 1e-9, 'half way through the dwell at A');
+  assert.equal(routeO2(tl, 9), null, 'no o2_pct: null');
+  const broken = routeTimeline({ ...synthRoute, properties: { ...synthRoute.properties, o2_pct: [1, 2] } }, null);
+  assert.equal(broken.o2, null, 'o2_pct of the wrong length is ignored');
+});
+
+test('route O2: plain walk follows o2_pct, not the per-minute rate', () => {
+  const plan = simulate({ ...base, tl: tlO2, o2PerMin: 0.9 });
+  near(plan.finalO2, synthO2.at(-1), 1e-6, 'O2 used = last o2_pct');
+});
+
+test('route O2: off the route (to a shelter) the walking rate applies', () => {
+  const plan = simulate({ ...base, tl: tlO2, o2PerMin: 0.5, refugeChoice: toS1,
+    storm: { t0: 2, duration: 40, mult: 10, habitatFactor: 0.3 } });
+  const i = plan.steps.findIndex((x, k) => k > 0 && x.mode === 'to_refuge' && plan.steps[k - 1].mode === 'to_refuge');
+  assert.ok(i > 0, 'walks to the shelter');
+  near(plan.steps[i].o2 - plan.steps[i - 1].o2, 0.5 * SCENARIO.STEP_MIN, 1e-9, 'O2 per step on the way to the shelter');
+});
 
 test('route timeline: length and duration', () => {
   near(tl.total_min, 28, 1e-9, 'total minutes');
@@ -481,6 +514,18 @@ test('real route: plan without scenarios matches summary.json O2', () => {
   const plan = simulate({
     tl: rtl, shelters: [], habitat: rtl.coords[0], startMin: -5, endMin: rtl.total_min + 10,
     o2PerMin: summary.o2_used_pct / rtl.total_min, doseBasePerMin: 0.64 / 1440, storm: null, dust: null,
+  });
+  near(plan.finalO2, summary.o2_used_pct, 0.2, 'O2 used');
+});
+
+test('real route: with the walking rate off the route, the plain plan still matches summary.json O2', () => {
+  if (!route || !summary || !Number.isFinite(summary.o2_walk_pct_per_min)) return 'skip';
+  const rtl = routeTimeline(route, summary);
+  if (!rtl.o2) return 'skip';
+  const plan = simulate({
+    tl: rtl, shelters: [], habitat: rtl.coords[0], startMin: -5, endMin: rtl.total_min + 10,
+    o2PerMin: summary.o2_walk_pct_per_min, o2StandPerMin: summary.o2_standing_pct_per_min,
+    doseBasePerMin: 0.64 / 1440, storm: null, dust: null,
   });
   near(plan.finalO2, summary.o2_used_pct, 0.2, 'O2 used');
 });
