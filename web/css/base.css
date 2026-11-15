@@ -2,28 +2,32 @@
    The HUD CSS (#hud-root, loaded by the HUD) and cards.css (#cards) use only these variables. */
 
 :root {
-  /* Background and surfaces: Martian night sky */
-  --color-bg: #0e1117;
-  --color-surface: #161b24;
-  --color-surface-2: #1f2633;
-  --color-border: #2d3545;
+  /* Regolith palette (Egemen's proposal, same tones as the landing page):
+     paper surfaces, ink text, oxide accent, clay and sulfate for the two rock units */
+  --color-bg: #F7F2EA;
+  --color-surface: #F7F2EA;
+  --color-surface-2: #EEE4D6;
+  --color-border: color-mix(in srgb, #6B5A4E 28%, #F7F2EA);
 
   /* Text */
-  --color-text: #ebe6dd;
-  --color-text-muted: #9ba3b1;
-  --color-text-inverse: #0e1117;
+  --color-text: #2A201B;
+  --color-text-muted: #6B5A4E;
+  --color-text-inverse: #F7F2EA;
 
   /* Mars tones */
-  --color-accent: #d4683a;        /* rust: main accent, selection, route */
-  --color-accent-hover: #e27c4f;
-  --color-sand: #e3b878;          /* sand: secondary accent, stops */
-  --color-dust: #8a6a55;          /* dust: passive lines */
+  --color-accent: #B4532A;        /* oxide: main accent, selection, route */
+  --color-accent-hover: #9C4220;
+  --color-accent-text: #9C4220;   /* accent for text on paper */
+  --color-sand: #8A6A2E;          /* sand: secondary accent, stops */
+  --color-dust: #6B5A4E;          /* dust: passive lines */
+  --color-clay: #6F7F68;          /* clay-bearing unit */
+  --color-sulfate: #8A6A2E;       /* sulfate-bearing unit */
 
   /* Status colours (alerts, slope, O2, dose) */
-  --color-ok: #4fb37a;
-  --color-warn: #e8b43a;
-  --color-danger: #e5484d;
-  --color-info: #5aa9e6;
+  --color-ok: #6F7F68;
+  --color-warn: #9C4220;
+  --color-danger: #B3302A;
+  --color-info: #41627F;
 
   /* HUD: readable on the visor, thin lines */
   --color-hud: #8ef0e0;
@@ -49,7 +53,7 @@
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
-  --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 16px color-mix(in srgb, #2A201B 14%, transparent);
 
   /* Stacking order */
   --z-map: 0;
@@ -64,6 +68,33 @@
   --cards-w: 340px;
   --profile-h: 190px;
 
+  color-scheme: light;
+}
+
+/* Night palette: the HUD visor and the small controls that sit on the dark orbital imagery keep
+   light text and bright status colours. Same variable names, so hud.css needs no change. */
+#hud-root,
+.map-coords,
+.map-grid-label,
+.leaflet-control-scale-line,
+.leaflet-control-attribution {
+  --color-bg: #0e1117;
+  --color-surface: #161b24;
+  --color-surface-2: #1f2633;
+  --color-border: #2d3545;
+  --color-text: #ebe6dd;
+  --color-text-muted: #9ba3b1;
+  --color-text-inverse: #0e1117;
+  --color-accent: #d4683a;
+  --color-accent-hover: #e27c4f;
+  --color-accent-text: #e27c4f;
+  --color-sand: #e3b878;
+  --color-dust: #8a6a55;
+  --color-ok: #4fb37a;
+  --color-warn: #e8b43a;
+  --color-danger: #e5484d;
+  --color-info: #5aa9e6;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   color-scheme: dark;
 }
 
@@ -165,9 +196,11 @@ kbd {
 .btn[hidden] { display: none; }
 .btn[aria-pressed="true"] { background: var(--color-accent); color: var(--color-text-inverse); }
 
+/* Stop cards on the left, layer panel on the right (Egemen's proposal); the HTML order is
+   unchanged, so on narrow screens the stacked order stays panel, map, cards */
 .app-main {
   display: grid;
-  grid-template-columns: var(--panel-w) 1fr var(--cards-w);
+  grid-template-columns: var(--cards-w) 1fr var(--panel-w);
   min-height: 0;
 }
 
@@ -176,8 +209,8 @@ kbd {
   background: var(--color-surface);
   padding: var(--space-4);
 }
-#panel { border-right: 1px solid var(--color-border); z-index: var(--z-panel); }
-#cards { border-left: 1px solid var(--color-border); z-index: var(--z-cards); }
+#cards { order: -1; border-right: 1px solid var(--color-border); z-index: var(--z-cards); }
+#panel { order: 1; border-left: 1px solid var(--color-border); z-index: var(--z-panel); }
 
 .map-wrap {
   display: grid;
@@ -364,7 +397,7 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
 @media (prefers-reduced-motion: reduce) { .shelter-alert { animation: none; } }
 .leaflet-tooltip.shelter-alert-label {
   background: var(--color-danger) !important;
-  color: var(--color-text) !important;
+  color: var(--color-text-inverse) !important;
   border-color: var(--color-danger) !important;
   font-weight: 600;
 }
@@ -372,7 +405,7 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
 /* Same label for a HUD path outside the storm (science target, back to the route) */
 .leaflet-tooltip.shelter-alert-label.is-calm {
   background: var(--color-ok) !important;
-  color: var(--color-bg) !important;
+  color: var(--color-text-inverse) !important;
   border-color: var(--color-ok) !important;
 }
 
@@ -429,8 +462,9 @@ body[data-mode="hud"] .map-wrap { grid-template-rows: 1fr; }
   .status-strip { display: none; }
   .app-main { grid-template-columns: 1fr; }
   .map-wrap { grid-template-rows: 60vh var(--profile-h); }
-  #panel { border-right: 0; border-bottom: 1px solid var(--color-border); }
-  #cards { border-left: 0; border-top: 1px solid var(--color-border); }
+  #panel, #cards { order: 0; }
+  #panel { border-left: 0; border-bottom: 1px solid var(--color-border); }
+  #cards { border-right: 0; border-top: 1px solid var(--color-border); }
 }
 
 /* ---- Data sources popover (map/sources.js) ---- */
