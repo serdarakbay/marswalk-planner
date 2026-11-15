@@ -4,8 +4,6 @@
 //
 // three.js r160 (MIT, https://github.com/mrdoob/three.js), passed in by scene.js.
 
-const PEN_TILT = 0.6;   // radians the pen leans back from vertical
-
 // Chaikin corner cutting on [x, z] points: removes the staircase of a grid path; ends are kept.
 export function chaikin(pts, iterations = 2) {
   let p = pts;
@@ -74,7 +72,7 @@ function ribbonGeometry(THREE, pts, width) {
 /**
  * pts: THREE.Vector3[] already draped on the terrain. Returns a Group with:
  *   .len (metres), .pointAt(s) -> Vector3, .setProgress(0..1), .hit (mesh for picking),
- *   .head (the pen tip that draws it, or null; scene.js scales it with the camera distance)
+ *   .head (the astronaut marker that draws it, or null; scene.js scales it with the camera distance)
  * opts: {color, width, glow (0 = none), opacity, head, headColor, rimColor, hitWidth}
  */
 export function makeTrail(THREE, pts, opts = {}) {
@@ -108,25 +106,27 @@ export function makeTrail(THREE, pts, opts = {}) {
     group.add(hit);
   }
 
-  // The head: a small pen tip that draws the line. Unit size (scene.js scales it); its local origin
-  // is the very tip, which sits on the end of the drawn line; the pen leans back along the way.
+  // The head: the astronaut, an opaque dot with a light rim and a small arrow ahead of it showing
+  // the way it walks. Unit size (scene.js scales it); the dot's centre is the end of the line.
   let dot = null;
   if (head) {
     dot = new THREE.Group();
-    const lit = (c) => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.3, roughness: 0.5 });
-    const nibGeo = new THREE.ConeGeometry(0.42, 1.5, 18).rotateX(Math.PI).translate(0, 0.75, 0);   // tip at 0
-    const shaftGeo = new THREE.CylinderGeometry(0.42, 0.42, 2.6, 18).translate(0, 1.5 + 1.3, 0);
-    const nib = new THREE.Mesh(nibGeo, lit(headColor));
-    const shaft = new THREE.Mesh(shaftGeo, lit(shaftColor));
-    const pen = new THREE.Group();
-    pen.add(nib, shaft);
-    pen.rotation.x = -PEN_TILT;   // leans back (towards -z of the head group = where it came from)
-    dot.add(pen);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16),
+      new THREE.MeshStandardMaterial({ color: headColor, emissive: headColor, emissiveIntensity: 0.35, roughness: 0.45 }));
+    const rim = new THREE.Mesh(new THREE.SphereGeometry(1.3, 24, 16),
+      new THREE.MeshBasicMaterial({ color: shaftColor, side: THREE.BackSide }));
+    const arrowGeo = new THREE.BufferGeometry();
+    arrowGeo.setAttribute('position', new THREE.Float32BufferAttribute([-0.85, 0, 1.55, 0.85, 0, 1.55, 0, 0, 2.9], 3));
+    const arrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: headColor, side: THREE.DoubleSide }));
+    const arrowRim = new THREE.Mesh(arrowGeo.clone().scale(1.35, 1, 1.15).translate(0, -0.01, -0.3),
+      new THREE.MeshBasicMaterial({ color: shaftColor, side: THREE.DoubleSide }));
+    ball.renderOrder = 12; rim.renderOrder = 11; arrow.renderOrder = 12; arrowRim.renderOrder = 11;
+    dot.add(rim, ball, arrowRim, arrow);
     dot.visible = false;
     group.add(dot);
   }
 
-  // Exact line end: the last drawn segment is stretched to the pen tip (its far vertices moved
+  // Exact line end: the last drawn segment is stretched to the astronaut (its far vertices moved
   // there), so the line comes out of the tip with no gap; restored on the next frame.
   const origPos = lines.map((l) => l.geometry.attributes.position.array.slice());
   let edited = -1;
@@ -159,7 +159,7 @@ export function makeTrail(THREE, pts, opts = {}) {
     return pts[lo].clone().lerp(pts[hi], f);
   }
 
-  // f in 0..1 of the length. 1 draws everything; the pen shows while 0 < f < 1, or at the end
+  // f in 0..1 of the length. 1 draws everything; the astronaut shows while 0 < f < 1, or at the end
   // too with {keepHead: true} (it rests on B for a moment before it goes)
   const up = new THREE.Vector3(0, 1, 0);
   function setProgress(f, { keepHead = false } = {}) {
@@ -181,7 +181,7 @@ export function makeTrail(THREE, pts, opts = {}) {
       if (dot.visible) {
         const tip = pointAt(s);
         dot.position.copy(tip);
-        // face the way of travel (from a little behind the tip), so the pen leans back along the line
+        // face the way of travel (from a little behind), so the arrow points where it walks
         const from = pointAt(Math.max(s - 6, 0));
         const dir = tip.clone().sub(from).setY(0);
         if (dir.lengthSq() > 1e-6) dot.rotation.set(0, Math.atan2(dir.x, dir.z), 0);

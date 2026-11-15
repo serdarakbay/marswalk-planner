@@ -31,11 +31,13 @@ const TRAIL_W_OFF = 1.8;           // other routes: thin and faint
 const TRAIL_OFF_OPACITY = 0.55;
 const TRAIL_W_REF = 2.6;           // planned walk and Curiosity's path (when switched on)
 const TRAIL_HIT_M = 30;            // click target width for the faint routes
-// The pen: constant speed along the route (by distance, not time), easing in and out at the ends
+// The astronaut draws the route: constant speed along it (by distance, not time), easing in and
+// out at the ends, leaving the line behind like a pen on paper
 const PEN_REVEAL_M_S = 1100;       // when a route is picked or the 3D view opens: a quick sketch
-const PEN_FLY_M_S = 60;            // "Fly along your route": the camera follows the pen
+const PEN_FLY_M_S = 60;            // "Fly along your route" at 1x: the camera follows the astronaut
+const SPEEDS = [1, 2, 4];          // simulation speed buttons
 const PEN_RAMP_S = 0.7;            // time to reach full speed, and to slow down to B
-const PEN_REST_MS = 700;           // the pen rests on B, then goes; the line stays
+const PEN_REST_MS = 700;           // the astronaut rests on B, then goes; the line stays
 const CAM_FOLLOW = 2.2;            // camera smoothing (1/s): higher = tighter
 const FLY_BACK_M = 120;            // fly-along camera: behind and above the snake's head
 const FLY_UP_M = 80;
@@ -56,6 +58,7 @@ const SKIRT_SCALE = 7;             // ground plane width
 const SKIRT_SEGMENTS = 160;
 const SKIRT_SETTLE = 0.6;          // edge heights settle to the mean level over this distance
 const SKIRT_DROP_M = 3;            // ground beyond sits this much lower, so the DEM covers it
+const SKIRT_UNDER_M = 60;          // under the DEM tile: this far below its lowest point
 const EDGE_FADE = 0.035;           // share of the image blended into the ground colour at each edge
 const FOG_NEAR = 0.85;
 const FOG_FAR = 3.2;
@@ -275,11 +278,19 @@ export async function createScene(state, el, { onProgress } = {}) {
   skirt.receiveShadow = true;
   scene.add(skirt);
   const zMean = zBase;
+  // lowest DEM point: under the DEM tile the ground plane sits well below it (its coarse grid
+  // would otherwise poke through narrow valleys as flat grey patches)
+  let zLow = Infinity;
+  for (const z of grid.z) if (z < zLow) zLow = z;
   function skirtHeights() {
     const p = skirtGeo.attributes.position;
     const hw = frame.width / 2; const hd = frame.depth / 2;
     for (let k = 0; k < p.count; k++) {
       const x = p.getX(k); const zz = p.getZ(k);
+      if (Math.abs(x) < hw && Math.abs(zz) < hd) {
+        p.setY(k, (zLow - zBase) * exag - SKIRT_UNDER_M);
+        continue;
+      }
       const cx = Math.min(Math.max(x, -hw), hw); const cz = Math.min(Math.max(zz, -hd), hd);
       const out = Math.hypot(x - cx, zz - cz);
       const f = Math.min(out / (worldSize * SKIRT_SETTLE), 1);
@@ -394,7 +405,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       const p = posLL(hab[0], hab[1]);
       const dome = new THREE.Mesh(
         new THREE.SphereGeometry(9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshStandardMaterial({ color: colors.text, roughness: 0.4, metalness: 0.2 }),
+        new THREE.MeshStandardMaterial({ color: colors.textInv, roughness: 0.35, metalness: 0.15 }),   // a light dome, not a black blob
       );
       dome.position.copy(p);
       dome.castShadow = true;
@@ -465,7 +476,7 @@ export async function createScene(state, el, { onProgress } = {}) {
   colors.muted = css('--color-muted-route', colors.dust);
 
   // A / B: a small disc on the ground with a light rim, and its letter just above; unit size,
-  // scaled every frame like the pen (markScale)
+  // scaled every frame like the astronaut (markScale)
   const navPins = [];
   function navPin(coord, letter, color) {
     const g = new THREE.Group();
@@ -539,10 +550,12 @@ export async function createScene(state, el, { onProgress } = {}) {
     playSnake();
   }
 
-  // ----- the pen: the active route drawn from A to B like a pen line on paper
+  // ----- the astronaut draws the active route from A to B, like a pen line on paper
   // Speed is constant along the way (m/s), with a short ease in and out: distance s(t) follows a
-  // trapezoid speed profile, so a long route takes longer but the pen always moves the same.
-  let snake = null;   // {start, v, ramp, total (s), follow, doneAt}
+  // trapezoid speed profile, so a long route takes longer but the astronaut always moves the same.
+  // The clock (elapsed) runs at the chosen simulation speed, so changing it keeps the position.
+  let snake = null;   // {elapsed (s), v, ramp, total (s), follow, doneAt}
+  let speed = 1;
   const activeTrail = () => navTrail || (show.planned ? plannedTrail : null);
   function playSnake({ follow = false } = {}) {
     const t = activeTrail();
@@ -550,7 +563,7 @@ export async function createScene(state, el, { onProgress } = {}) {
     if (reducedMotion) { snake = null; t.setProgress(1); return; }
     const v = follow ? PEN_FLY_M_S : PEN_REVEAL_M_S;
     const ramp = Math.min(PEN_RAMP_S, t.len / v);     // a very short route: ramps only
-    snake = { start: performance.now(), v, ramp, total: t.len / v + ramp, follow, doneAt: null };
+    snake = { elapsed: 0, v, ramp, total: t.len / v + ramp, follow, doneAt: null };
     t.setProgress(0);
   }
   function penDistance(sn, len, tSec) {
@@ -565,14 +578,18 @@ export async function createScene(state, el, { onProgress } = {}) {
     if (!snake) return;
     const t = activeTrail();
     if (!t) { snake = null; return; }
-    const tSec = (now - snake.start) / 1000;
+    snake.elapsed += dt * (snake.follow ? speed : 1);
+    const tSec = snake.elapsed;
     const s = Math.min(penDistance(snake, t.len, tSec), t.len);
     const done = tSec >= snake.total;
     if (done && snake.doneAt == null) snake.doneAt = now;
     t.setProgress(s / t.len, { keepHead: done });
-    if (t.head?.visible) markScale(t.head);
+    if (t.head?.visible) {
+      markScale(t.head);
+      t.head.position.y += t.head.scale.x * 0.7;   // the dot stands on the line, not in the ground
+    }
     if (snake.follow) {
-      // camera behind and above the pen, looking a little ahead; smoothed by time, so no shake
+      // camera behind and above the astronaut, looking a little ahead; smoothed by time, no shake
       const head = t.pointAt(s);
       const ahead = t.pointAt(Math.min(s + 60, t.len));
       const back = head.clone().sub(ahead).setY(0);
@@ -756,11 +773,6 @@ export async function createScene(state, el, { onProgress } = {}) {
     updateButtons();
   }
 
-  function toggleBodycam() {
-    bodycam = !bodycam;
-    if (bodycam) { stopFly(); tween = null; }
-    updateButtons();
-  }
 
   function setShow(key, on) {
     show[key] = on;
@@ -774,10 +786,11 @@ export async function createScene(state, el, { onProgress } = {}) {
   const info = h('p', { class: 'v3d-info' });
   const flyBtn = h('button', { class: 'v3d-btn v3d-btn--primary', type: 'button', onclick: toggleFly },
     'Fly along route');
-  const bodyBtn = h('button', {
-    class: 'v3d-btn', type: 'button', onclick: toggleBodycam, 'aria-pressed': 'false',
-    title: 'Follow the HUD astronaut, looking where they walk (open the HUD with H and press Play)',
-  }, 'Bodycam');
+  const speedBtns = SPEEDS.map((x) => h('button', {
+    class: 'v3d-seg', type: 'button', 'aria-pressed': String(x === speed),
+    title: `Simulation speed ${x}x (${PEN_FLY_M_S * x} m/s along the route)`,
+    onclick: () => { speed = x; updateButtons(); },
+  }, `${x}×`));
   const resetBtn = h('button', {
     class: 'v3d-btn', type: 'button',
     onclick: () => { bodycam = false; const o = overview(); moveTo(o.pos, o.target); updateButtons(); },
@@ -871,18 +884,20 @@ export async function createScene(state, el, { onProgress } = {}) {
     h('div', { class: 'v3d-bar' },
       flyBtn,
       h('div', { class: 'v3d-tools' },
-        resetBtn, bodyBtn,
+        h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Simulation speed' },
+          h('span', { class: 'v3d-group-label' }, 'Speed'), speedBtns),
         h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Vertical exaggeration' },
           h('span', { class: 'v3d-group-label' }, 'Vertical exaggeration'), exagBtns),
-        overlaySel)),
+        h('div', { class: 'v3d-calm' }, resetBtn, overlaySel))),
     pickBanner);
 
   function updateButtons() {
     flyBtn.textContent = flying() ? 'Draw again from A' : navTrail ? 'Fly along your route' : 'Fly along the planned walk';
     flyBtn.disabled = !navTrail && !plannedTrail;
     flyBtn.setAttribute('aria-pressed', String(flying()));
-    bodyBtn.textContent = bodycam ? 'Stop bodycam' : 'Bodycam';
-    bodyBtn.setAttribute('aria-pressed', String(bodycam));
+    speedBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(SPEEDS[i] === speed)));
+    // while the astronaut walks, only the main action, the speed and the height stay in the bar
+    ui.classList.toggle('is-flying', flying());
     exagBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(EXAGGERATIONS[i] === exag)));
   }
 

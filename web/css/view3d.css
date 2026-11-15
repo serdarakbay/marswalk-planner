@@ -146,6 +146,9 @@
 #view3d-root .v3d-btn--primary { height: calc(var(--space-6) + var(--space-2)); padding: 0 var(--space-5); font-weight: 600; font-size: var(--text-md); }
 
 /* secondary tools: quieter, smaller, next to the main action */
+#view3d-root .v3d-calm { display: flex; align-items: center; gap: var(--space-2); }
+/* while the astronaut walks: only the main action, the speed and the height */
+#view3d-root .v3d-ui.is-flying .v3d-calm { display: none; }
 #view3d-root .v3d-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding-left: var(--space-2); border-left: 1px solid var(--color-border); }
 #view3d-root .v3d-tools .v3d-btn,
 #view3d-root .v3d-tools .v3d-seg,
