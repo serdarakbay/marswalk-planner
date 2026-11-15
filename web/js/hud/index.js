@@ -665,7 +665,9 @@ export function initHUD(state, el) {
       const air = tempAt(state.weather, s?.lmst_min);
       if (Number.isFinite(air)) {
         const limit = state.mission?.eva_min_temp_c;
-        const cold = Number.isFinite(limit) && air < limit;
+        // compared as shown (whole degrees): the EVA window starts at -40.0, which may read -40.1 here
+        // within the same minute, and "-40 °C cold" at the window's start would contradict it
+        const cold = Number.isFinite(limit) && Math.round(air) < limit;
         row(sunP.body, 'Air (approx.)', `${fmtNum(air, 0)} °C`, cold ? 'cold' : null);
       }
     }, sunP.body);
