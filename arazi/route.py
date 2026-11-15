@@ -13,7 +13,7 @@ from scipy.ndimage import distance_transform_edt
 from skimage.graph import MCP_Geometric
 
 from arazi.geo import CACHE, MARS_GEO, ROOT, WEB, load_area
-from arazi.walk import STOP_DWELL_MIN, dose_mSv, o2_rest_pct, o2_walk_pct, speed_m_min
+from arazi.walk import STOP_DWELL_MIN, dose_mSv, o2_lut, o2_rest_pct, o2_walk_pct, speed_m_min
 
 # Used only until Utku's stops.json exists: two placeholder stops near the habitat
 _DEFAULT_STOPS = [[137.375, -4.745], [137.392, -4.741]]
@@ -139,6 +139,7 @@ summary = {
     "stop_min": round(duration - walk_min, 1),
     "o2_walk_pct_per_min": round(float(seg_o2.sum()) / walk_min, 4),
     "o2_standing_pct_per_min": round(float(o2_rest_pct(1.0)), 4),
+    "o2_lut": o2_lut(),   # per-grade O2 table for the A-B route planner (cards/router.js)
 }
 
 def traverse_lines(path):

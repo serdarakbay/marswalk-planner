@@ -55,6 +55,23 @@ def o2_rest_pct(duration_min):
     return np.asarray(duration_min) * _REST_RATE
 
 
+def o2_lut(n=101):
+    """O2 table for the frontend route planner (web/js/cards/router.js reads summary.o2_lut).
+
+    grade is rise/run (signed, uphill > 0); pct_per_min is % of the tank per minute of
+    walking at that grade; rest_pct_per_min is standing still. Prefers Utku's
+    science.models.o2_lut() when it exists, so both stay the same.
+    """
+    if models and hasattr(models, "o2_lut"):
+        return models.o2_lut()
+    grades = np.linspace(-MAX_GRADE, MAX_GRADE, n)
+    return {
+        "grade": [round(float(g), 4) for g in grades],
+        "pct_per_min": [round(float(r), 5) for r in np.interp(grades, _LUT_GRADES, _LUT_RATE)],
+        "rest_pct_per_min": round(float(_REST_RATE), 5),
+    }
+
+
 def dose_mSv(duration_min):
     if models:
         return models.dose_mSv(duration_min)
