@@ -7,6 +7,7 @@ The astronaut's helmet-visor view. Opens with **H** or the HUD button in `planne
 - **Top bar:** local Mars time (LMST, Mars24), UTC, EVA window and time left, `REPLAY` label during the storm scenario.
 - **Life support:** O2 remaining and at return (est.), dose so far, planned dose (or the no-shelter dose during a storm), solar event multiplier, nearest shelter, delay.
 - **Next stop:** name, distance, ETA or time left at the stop, slope here, science note. On the route the slope comes from `route.geojson`; off it (walking to a shelter, stepping aside) it is computed from the heightmap, with **Steepest ahead**: the steepest stretch of the path still to walk, in the walking direction (never above 25° on the real data). Slopes of 15° (`slope_warn_deg`) or more are tagged *steep*. The heightmap grid is ~9 m, so its slope is smoother than the 1 m route values (median difference ~1°).
+- **Arrival preview:** from 5 min before a stop until the astronaut leaves it, the Next stop panel shows Curiosity's photo of that spot ("What you will see"), with sol, camera and credit, so the astronaut knows what to expect on arrival. The Navcam view is preferred (ground ahead and horizon), then Mastcam, then any other photo of the stop in `stops.json`. Photos are shown by URL and loaded as soon as the stop is next; if none loads, the preview stays away. Hidden during a storm, a dust devil manoeuvre and a detour. The mission log notes the moment ("Approaching …").
 - **Sun / Earth link:** Sun elevation and azimuth, Earth elevation, direct line of sight, radio to habitat, one-way and round-trip light time.
 - **Alerts:** rules from `web/data/alerts.json` (Utku) plus built-in ones (Earth below the horizon, outside the EVA window, scenario alerts).
 - **Radio shadow ahead:** from `safety.json` → `route[].comm_ok`, the HUD warns 10 min before a stretch without a link ("Radio shadow in 4 min, for 3 min: check in now") and counts down while in it.
@@ -61,7 +62,7 @@ Demo assumptions (walking speed 50 m/min, dust devil speed, size and distances) 
 node web/js/hud/test.mjs
 ```
 
-No dependencies. Part 1 checks the logic on small made-up inputs (stop order, storm and dust devil plans (hold and step aside), shelter options, paths around a wall, O2 and dose, radio shadows, radiation, alerts, missing data). Part 2 checks the real files in `web/data/` (sun.json, EVA window, stop order on the real route, O2 against summary.json, safety.json); a missing file is skipped. Exits with code 1 if anything fails.
+No dependencies. Part 1 checks the logic on small made-up inputs (stop order, storm and dust devil plans (hold and step aside), shelter options, arrival preview, paths around a wall, O2 and dose, radio shadows, radiation, alerts, missing data). Part 2 checks the real files in `web/data/` (sun.json, EVA window, stop order on the real route, O2 against summary.json, safety.json); a missing file is skipped. Exits with code 1 if anything fails.
 
 ## Events
 

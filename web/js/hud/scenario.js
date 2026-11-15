@@ -40,6 +40,7 @@ export const SCENARIO = {
   RETURN_PATH_FACTOR: 1.3,     // walk home is ~30 % longer than the straight line (assumption)
   SHADOW_WARN_MIN: 10,         // warn this many route minutes before a radio shadow
   DETOUR_WORK_MIN: 15,         // time spent sampling at a science target (assumption)
+  STOP_PREVIEW_MIN: 5,         // show Curiosity's view of the next stop this many route minutes before arriving
 };
 
 const OUTSIDE = new Set(['route', 'hold', 'evade', 'aside', 'rejoin', 'to_target', 'sampling', 'from_target',
@@ -514,6 +515,31 @@ export function simulate(p) {
 export { bearingDeg };
 
 // ---------------------------------------------------------------------------
+// Arrival preview: Curiosity's photo of the next stop, so the astronaut knows what to expect there.
+
+// The photo that best shows the place: a Navcam view first (wide, with the ground ahead and the
+// horizon), then Mastcam (often a rock up close), then whatever there is (MAHLI is a hand-lens
+// close-up, not a view of the site).
+export function previewPhoto(stop) {
+  const photos = Array.isArray(stop?.photos) ? stop.photos.filter((x) => x && typeof x.url === 'string' && x.url) : [];
+  if (!photos.length) return null;
+  const cam = (x) => `${x.camera_name ?? ''} ${x.camera ?? ''}`;
+  return photos.find((x) => /nav/i.test(cam(x))) ?? photos.find((x) => /mast/i.test(cam(x))) ?? photos[0];
+}
+
+// {stop, photo, eta_min} while the preview is due: from STOP_PREVIEW_MIN before arriving until the
+// astronaut leaves the stop, and only while walking the route (not in a storm, a dust devil
+// manoeuvre or a detour, when the visor has more urgent things to show). `entry` is the stop's
+// row of the schedule, `tau` the route minutes walked.
+export function stopPreview(entry, tau, mode = 'route') {
+  if (!entry?.stop || !Number.isFinite(tau) || !Number.isFinite(entry.t_min) || mode !== 'route') return null;
+  const leave = entry.t_leave ?? entry.t_min;
+  if (tau < entry.t_min - SCENARIO.STOP_PREVIEW_MIN || tau > leave) return null;
+  const photo = previewPhoto(entry.stop);
+  return photo ? { stop: entry.stop, photo, eta_min: Math.max(0, entry.t_min - tau) } : null;
+}
+
+// ---------------------------------------------------------------------------
 // Mission log: the key events of the simulated walk, [{t, level, text}] sorted by time.
 // Built once per plan; the HUD shows the entries up to the current simulation time.
 export function missionLog(plan, schedule = [], shadows = []) {
@@ -521,6 +547,7 @@ export function missionLog(plan, schedule = [], shadows = []) {
   if (!Array.isArray(steps) || !steps.length) return [];
   const log = [];
   const add = (t, level, text) => log.push({ t, level, text });
+  const approached = new Set();
   const arrived = new Set();
   const left = new Set();
   const inShadow = new Set();
@@ -560,6 +587,13 @@ export function missionLog(plan, schedule = [], shadows = []) {
     if (s.mode === 'route' || s.mode === 'hold') {
       for (const e of schedule) {
         const id = e.stop.id ?? e.stop.name;
+        // Same moment the visor starts showing Curiosity's photo of the stop (stopPreview)
+        // (only for the stop that is next: the one before it must have been left)
+        const isNext = schedule.find((x) => (x.t_leave ?? x.t_min) >= s.tau) === e;
+        if (isNext && !approached.has(id) && !arrived.has(id) && s.tau < e.t_min && stopPreview(e, s.tau, s.mode)) {
+          approached.add(id);
+          add(s.t, 'info', `Approaching ${e.stop.name || id}: Curiosity's view of it is on the visor`);
+        }
         if (!arrived.has(id) && s.tau >= e.t_min) {
           arrived.add(id);
           add(s.t, 'info', `Arrived at ${e.stop.name || id}`);

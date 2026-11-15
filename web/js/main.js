@@ -9,6 +9,7 @@ const DATA_FILES = {
   summary: 'data/summary.json',
   safety: 'data/safety/safety.json',
   stops: 'data/stops.json',
+  targets: 'data/targets.json',   // science targets off the route (HUD Targets panel)
   geology: 'data/geology.geojson',
   images: 'data/images.json',
   traverse: 'data/traverse.geojson',
@@ -111,6 +112,7 @@ new MutationObserver(() => {
 
 await Promise.all([
   startModule('map', './map/index.js', 'initMap', document.getElementById('map')),
+  startModule('sources', './map/sources.js', 'initSources', null),
   startModule('cards', './cards/index.js', 'initCards', document.getElementById('cards')),
   startModule('hud', './hud/index.js', 'initHUD', document.getElementById('hud-root')),
   // The 3D button only appears once Egemen's 3D view has started

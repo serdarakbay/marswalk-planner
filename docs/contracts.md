@@ -22,6 +22,7 @@ The full schema of every file under `web/data/`. Owner: Utku. If you need a sche
 | `summary` | `web/data/summary.json` | Demir |
 | `safety` | `web/data/safety/safety.json` | Utku |
 | `stops` | `web/data/stops.json` | Utku |
+| `targets` | `web/data/targets.json` | Serdar, Utku |
 | `geology` | `web/data/geology.geojson` | Serdar |
 | `images` | `web/data/images.json` | Egemen |
 | `traverse` | `web/data/traverse.geojson` | Egemen |
@@ -166,6 +167,27 @@ Pre-rendered PNG layers (slope, cost, ...).
 ```
 
 - Stops are listed in route order. The `detail` of the `stop:select` event is one of these objects.
+
+## targets.json (Serdar, Utku)
+
+```json
+[
+  {
+    "id": "t6",
+    "name": "Curiosity site, sol 3319",
+    "unit": "transition",
+    "coord": [137.39461, -4.74749],
+    "sol": 3319,
+    "note": "Curiosity photographed this spot on sol 3319 (2021-12-07). Layers where clay-rich rock gives way to sulfate-rich rock. ...",
+    "photos": [{"url": "https://mars.nasa.gov/msl-raw-images/...jpg", "sol": 3319, "camera": "NAV_LEFT_B", "credit": "NASA/JPL-Caltech"}]
+  }
+]
+```
+
+- Science targets off the planned route: places the crew can detour to (HUD Targets panel: walk time, O2 left at the habitat, go or no).
+- Written by `python -m science.targets` from `images.json` and `stops.json`: Curiosity photo positions inside the study area, at least 200 m from every route stop and from each other, in the order Curiosity drove.
+- `unit` is `clay`, `transition` or `sulfate`, from the sol, with the same boundaries as the stops. `photos` has the same fields as in `stops.json`.
+- If the file is missing, the HUD lists the route stops instead.
 
 ## geology.geojson (Serdar)
 

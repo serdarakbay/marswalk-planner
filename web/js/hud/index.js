@@ -25,7 +25,8 @@ import {
 import { createClock, SPEEDS } from './sim.js';
 import { createRouter, legRemaining, loadTerrainGrid, slopeAt, steepestOnPath } from './terrain.js';
 import {
-  bestRefuge, DETOUR_MODES, detourCheck, devilPass, isOutside, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate,
+  bestRefuge, DETOUR_MODES, detourCheck, devilPass, isOutside, missionLog, previewPhoto, refugeGuided, refugeOptions,
+  SCENARIO, simulate, stopPreview,
 } from './scenario.js';
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
@@ -229,6 +230,43 @@ export function initHUD(state, el) {
     }
   }
   rebuildPlan();
+  // Arrival preview: Curiosity's photo of a stop, shown in the Next stop panel while approaching.
+  // One figure per stop, built once and kept: render() re-appends the same node, so the image
+  // neither reloads nor flickers, and building it early loads the photo before it is needed.
+  // The photo is shown by URL (never downloaded into the repo); if it fails, the next one of the
+  // stop is tried, and with none left the preview simply stays away.
+  const stopFigures = new Map();
+  function stopFigure(stop) {
+    const key = stop?.id ?? stop?.name;
+    if (key == null) return null;
+    if (stopFigures.has(key)) return stopFigures.get(key);
+    const first = previewPhoto(stop);
+    const queue = first ? [first, ...stop.photos.filter((x) => x !== first && x && typeof x.url === 'string' && x.url)] : [];
+    const fig = { el: h('figure', 'hud-view'), failed: !queue.length };
+    stopFigures.set(key, fig);
+    if (fig.failed) return fig;
+    const img = h('img', 'hud-view__img');
+    const cap = h('figcaption', 'hud-view__cap');
+    const show = (photo) => {
+      const sol = Number.isFinite(photo.sol) ? ` · Sol ${photo.sol}` : '';
+      const cam = photo.camera_name || photo.camera;
+      cap.textContent = `Curiosity's view${sol}${cam ? ` · ${cam}` : ''} · ${photo.credit || 'NASA/JPL-Caltech'}`;
+      img.src = photo.url;
+    };
+    img.alt = `Curiosity's photo of ${stop.name || 'the stop'}`;
+    img.decoding = 'async';
+    img.addEventListener('error', () => {
+      queue.shift();
+      if (queue.length) { show(queue[0]); return; }
+      fig.failed = true;
+      fig.el.remove();
+      console.warn(`[hud] no photo of ${stop.name || key} could be loaded; arrival preview off for it`);
+    });
+    fig.el.append(h('p', 'hud-view__title', 'What you will see'), img, cap);
+    show(queue[0]);
+    return fig;
+  }
+
   let log = [];
   function rebuildLog() {
     try {
@@ -605,6 +643,10 @@ export function initHUD(state, el) {
         row(stopP.body, 'Route', 'not on planned route');
       }
       slopeRows();
+      // Arrival preview: Curiosity's photo of the stop, from a few minutes before arriving until
+      // leaving it. The figure is built as soon as the stop is next, so the photo is loaded by then.
+      const view = stopFigure(stop);
+      if (view && !view.failed && stopPreview(entry, tau, p ? p.mode : 'route')) stopP.body.append(view.el);
       if (stop.science) {
         stopP.body.append(h('p', 'hud-stop__note', stop.science));
       }
