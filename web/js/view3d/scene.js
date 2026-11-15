@@ -62,6 +62,10 @@ const SKIRT_UNDER_M = 60;          // under the DEM tile: this far below its low
 const EDGE_FADE = 0.035;           // share of the image blended into the ground colour at each edge
 const FOG_NEAR = 0.85;
 const FOG_FAR = 3.2;
+// Bodycam: dusty air at ground level (metres). The DEM tile ends a few hundred metres from parts of
+// the route; the haze hides that edge the way Martian dust hides the far plains.
+const BODY_FOG_NEAR_M = 700;
+const BODY_FOG_FAR_M = 2200;
 const MAX_DIST = 1.5;              // camera never further than this from its target
 const OVERVIEW_UP = 0.62;          // opening view, from the south
 const OVERVIEW_BACK = 0.72;
@@ -138,7 +142,7 @@ function labelSprite(text, color) {
   ctx.fillText(text, pad, c.height / 2 + 1);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false }));
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false, fog: false }));
   const hgt = 0.032;
   sp.scale.set((hgt * c.width) / c.height, hgt, 1);
   sp.center.set(0.5, -0.4);
@@ -1054,6 +1058,10 @@ export async function createScene(state, el, { onProgress } = {}) {
   let last = performance.now();
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   function frameLoop(now) {
+    // ground-level haze while the Bodycam is on, the clear overview fog otherwise
+    const fogNear = bodycam && astroShown ? BODY_FOG_NEAR_M : worldSize * FOG_NEAR;
+    const fogFar = bodycam && astroShown ? BODY_FOG_FAR_M : worldSize * FOG_FAR;
+    if (scene.fog.near !== fogNear) { scene.fog.near = fogNear; scene.fog.far = fogFar; }
     if (!running) return;
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
