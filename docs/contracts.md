@@ -22,7 +22,7 @@ The full schema of every file under `web/data/`. Owner: Utku. If you need a sche
 | `summary` | `web/data/summary.json` | Demir |
 | `safety` | `web/data/safety/safety.json` | Utku |
 | `stops` | `web/data/stops.json` | Utku |
-| `targets` | `web/data/targets.json` | Serdar, Utku |
+| `targets` | `web/data/targets.json` | Serdar |
 | `geology` | `web/data/geology.geojson` | Serdar |
 | `images` | `web/data/images.json` | Egemen |
 | `traverse` | `web/data/traverse.geojson` | Egemen |
@@ -109,6 +109,7 @@ Pre-rendered PNG layers (slope, cost, ...).
 
 - `slope_deg[i]` and `t_min[i]` belong to coordinate `i`; each array has the same length as the number of coordinates.
 - `t_min` is the cumulative time from the start.
+- `o2_pct` (optional, written by `arazi/route.py`): cumulative O2 used up to coordinate `i`, in % of the full tank; same length as the coordinates, starts at 0 and ends at `summary.json`'s `o2_used_pct` (before rounding). Each walking segment uses its own grade and the time at a stop counts as standing still (`science/models.py`, through `arazi/walk.py`).
 
 ## summary.json (Demir)
 
@@ -124,6 +125,21 @@ Pre-rendered PNG layers (slope, cost, ...).
 ```
 
 - `profile`: `d` in metres (distance from the start), `z` in metres (elevation relative to the Mars areoid), `slope` in degrees.
+- Optional O2 fields, written by `arazi/route.py` with the model in `science/models.py` (through `arazi/walk.py`):
+  - `walk_min`: time spent walking on the route, minutes.
+  - `stop_min`: time spent at the stops, minutes (route time minus `walk_min`, before rounding).
+  - `o2_walk_pct_per_min`: mean O2 use while walking this route, % of the tank per minute.
+  - `o2_standing_pct_per_min`: O2 use while standing still, % of the tank per minute (`o2_used_pct(1, 0, speed_m_s=0)`).
+  - `o2_lut`: per-grade O2 table, built by `o2_lut()` in `arazi/walk.py` from the same model as `o2_used_pct` in `science/models.py`.
+
+    ```json
+    "o2_lut": {"grade": [-0.4663, ..., 0, ..., 0.4663], "pct_per_min": [..., 0.15625, ...], "rest_pct_per_min": 0.12295}
+    ```
+
+    - `grade`: dz/dx as a fraction (not %), signed (uphill > 0), in ascending order, from −tan(`slope_max_deg`) to +tan(`slope_max_deg`).
+    - `pct_per_min[i]`: O2 used per minute while walking at `grade[i]`, % of the tank; same length as `grade`.
+    - `rest_pct_per_min`: O2 used per minute while standing still, % of the tank.
+    - Read by the A–B route planner (`web/js/cards/router.js`), which interpolates linearly between the grades. Without `o2_lut` the planner falls back to the planned route's average, `o2_used_pct / duration_min`.
 
 ## safety/safety.json (Utku)
 
@@ -168,7 +184,7 @@ Pre-rendered PNG layers (slope, cost, ...).
 
 - Stops are listed in route order. The `detail` of the `stop:select` event is one of these objects.
 
-## targets.json (Serdar, Utku)
+## targets.json (Serdar)
 
 ```json
 [
