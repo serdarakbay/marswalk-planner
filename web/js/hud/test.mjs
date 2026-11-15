@@ -12,7 +12,9 @@ import {
   distanceM, effectiveRadiation, evalAlerts, evaDose, nextStop, radiationAt, routeState,
   routeTimeline, shadowIntervals, stopSchedule, sunAt,
 } from './model.js';
-import { bestRefuge, detourCheck, devilPass, missionLog, refugeGuided, refugeOptions, SCENARIO, simulate } from './scenario.js';
+import {
+  bestRefuge, detourCheck, devilPass, missionLog, previewPhoto, refugeGuided, refugeOptions, SCENARIO, simulate, stopPreview,
+} from './scenario.js';
 import { createRouter, legRemaining, makeGrid, pathLength, slopeAt, steepestOnPath, zAt } from './terrain.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -322,6 +324,47 @@ test('mission log: start, scenario events and end, in time order', () => {
   assert.ok(log.every((x, i) => i === 0 || x.t >= log[i - 1].t), 'sorted by time');
 });
 
+test('arrival preview: the site view (Navcam) from 5 min before arriving until leaving, on the route only', () => {
+  const photos = [
+    { url: 'https://example.test/mahli.jpg', camera: 'MAHLI', camera_name: 'MAHLI', credit: 'NASA/JPL-Caltech/MSSS' },
+    { url: 'https://example.test/mast.jpg', camera: 'MAST_LEFT', camera_name: 'Mastcam', credit: 'NASA/JPL-Caltech/MSSS' },
+    { url: 'https://example.test/nav.jpg', camera: 'NAV_LEFT_B', camera_name: 'Navcam', credit: 'NASA/JPL-Caltech' },
+  ];
+  assert.equal(previewPhoto({ photos }).camera_name, 'Navcam', 'Navcam first');
+  assert.equal(previewPhoto({ photos: [photos[0], photos[1]] }).camera_name, 'Mastcam', 'then Mastcam');
+  assert.equal(previewPhoto({ photos: [photos[0]] }).camera_name, 'MAHLI', 'else whatever there is');
+  assert.equal(previewPhoto({ photos: [{ sol: 1 }] }), null, 'a photo without a URL does not count');
+  assert.equal(previewPhoto({}), null);
+
+  const entry = { stop: { ...stopB, photos }, t_min: 16, t_leave: 26 };
+  const lead = SCENARIO.STOP_PREVIEW_MIN;
+  assert.equal(stopPreview(entry, 16 - lead - 0.5), null, 'too early');
+  near(stopPreview(entry, 16 - lead).eta_min, lead, 1e-9, 'starts 5 min before');
+  assert.equal(stopPreview(entry, 20).eta_min, 0, 'stays while at the stop');
+  assert.equal(stopPreview(entry, 26.5), null, 'gone after leaving');
+  for (const mode of ['to_refuge', 'sheltered', 'hold', 'evade', 'to_target', 'home']) {
+    assert.equal(stopPreview(entry, 15, mode), null, `hidden in mode ${mode}`);
+  }
+  assert.equal(stopPreview({ stop: stopB, t_min: 16, t_leave: 26 }, 15), null, 'no photo, no preview');
+  assert.equal(stopPreview(null, 15), null);
+});
+
+test('mission log: "Approaching" once per stop with a photo, before its arrival, not while at the stop before', () => {
+  const photos = [{ url: 'https://example.test/mast.jpg', camera_name: 'Mastcam' }];
+  const plan = simulate({ ...base, storm: null, dust: null });
+  const sch = stopSchedule(tl, [{ ...stopA, photos }, { ...stopB, photos }]);
+  const log = missionLog(plan, sch, []);
+  const at = (w) => log.filter((x) => x.text.startsWith(w));
+  assert.equal(at('Approaching Stop A').length, 1);
+  assert.equal(at('Approaching Stop B').length, 1);
+  assert.ok(at('Approaching Stop A')[0].t < at('Arrived at Stop A')[0].t, 'A: approaching before arrived');
+  assert.ok(at('Approaching Stop B')[0].t >= at('Left Stop A')[0].t - 1e-9, 'B: not announced while still at A');
+  assert.ok(at('Approaching Stop B')[0].t < at('Arrived at Stop B')[0].t, 'B: approaching before arrived');
+  assert.ok(log.every((x, i) => i === 0 || x.t >= log[i - 1].t), 'sorted by time');
+  const plain = missionLog(plan, stopSchedule(tl, [stopA, stopB]), []);
+  assert.equal(plain.filter((x) => x.text.startsWith('Approaching')).length, 0, 'no photos, no line');
+});
+
 test('radio shadows: intervals from comm_ok, empty for another route', () => {
   const len = tl.d.at(-1);
   const rows = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ d: (len * i) / 8, comm_ok: !(i === 2 || i === 3) }));
@@ -401,6 +444,18 @@ test('real route: stops in the order of stops.json, all on the route', () => {
   const sch = stopSchedule(rtl, stops);
   assert.equal(sch.length, stops.length, 'every stop scheduled');
   assert.deepEqual(sch.map((s) => s.stop.id), stops.map((s) => s.id));
+});
+
+test('real stops: every stop has a credited photo for the arrival preview, due 5 min before it', () => {
+  if (!route || !summary || !stops) return 'skip';
+  const sch = stopSchedule(routeTimeline(route, summary), stops);
+  for (const e of sch) {
+    const photo = previewPhoto(e.stop);
+    assert.ok(photo, `${e.stop.id} has a photo`);
+    assert.ok(/^https:\/\//.test(photo.url), `${e.stop.id} photo is an https URL`);
+    assert.ok(photo.credit, `${e.stop.id} photo has a credit`);
+    assert.ok(stopPreview(e, e.t_min - SCENARIO.STOP_PREVIEW_MIN + 0.1), `${e.stop.id} preview due before arriving`);
+  }
 });
 
 test('real route: plan without scenarios matches summary.json O2', () => {

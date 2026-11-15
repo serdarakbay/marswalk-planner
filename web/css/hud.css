@@ -267,6 +267,11 @@
 #hud-root .hud-meter__fill { height: 100%; background: var(--hud-ok); }
 
 #hud-root .hud-stop__name { margin: 0 0 var(--space-2); font-size: var(--text-md); font-weight: 600; }
+/* arrival preview: Curiosity's photo of the next stop */
+#hud-root .hud-view { margin: var(--space-2) 0 0; }
+#hud-root .hud-view__title { margin: 0 0 var(--space-1); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--hud-muted); }
+#hud-root .hud-view__img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: top; border: 1px solid var(--hud-panel-border); border-radius: var(--hud-radius); background: var(--hud-panel-bg); }
+#hud-root .hud-view__cap { margin-top: var(--space-1); font-size: var(--text-xs); line-height: 1.3; color: var(--hud-muted); }
 /* mission log (newest first) */
 #hud-root .hud-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 #hud-root .hud-log__item { display: flex; gap: var(--space-2); font-size: var(--text-xs); line-height: 1.3; padding-left: var(--space-2); border-left: 2px solid var(--hud-muted); }
