@@ -70,6 +70,13 @@ const CAMERA_CLEAR_M = 12;         // camera stays this far above the ground (x 
 const STRATA_ALPHA = 0.62;         // rock-layer tint over the HiRISE image
 const fmtElev = (z) => `${Math.round(z)} m`.replace('-', '\u2212');
 
+// Bodycam stop label: distance still to walk and the climb (or descent) to get there
+const AT_STOP_M = 15;              // closer than this: "here"
+const CLIMB_MIN_M = 5;             // smaller height differences are not shown
+const LABEL_UPDATE_MS = 250;       // the Bodycam label text is redrawn at most this often
+const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(2)} km`);
+const fmtClimb = (dz) => (Math.abs(dz) < CLIMB_MIN_M ? '' : ` · ${dz > 0 ? '↑' : '↓'}${Math.round(Math.abs(dz))} m`);
+
 // ---------------------------------------------------------------- helpers
 const css = (name, fallback) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -445,7 +452,8 @@ export async function createScene(state, el, { onProgress } = {}) {
       stick.userData.stop = stop;
       stick.castShadow = true;
       const name = `${i + 1}  ${stop.name || stop.id}`;
-      const lab = labelSprite(heights.real ? `${name} · ${fmtElev(stopElev(stop))}` : name, colors.sand);
+      const baseText = heights.real ? `${name} · ${fmtElev(stopElev(stop))}` : name;
+      const lab = labelSprite(baseText, colors.sand);
       lab.position.copy(head.position).add(new THREE.Vector3(0, 6, 0));
       // pulsing ring on the ground, shown only for the selected stop
       const ring = new THREE.Mesh(
@@ -456,7 +464,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       ring.visible = false;
       marks.add(stick, head, lab, ring);
       pickables.push(head, stick);
-      stopObjs.set(stop.id ?? i, { head, lab, ring, headY: head.position.y });
+      stopObjs.set(stop.id ?? i, { head, lab, ring, headY: head.position.y, stop, name, baseText, text: baseText });
     });
     applySelection();
 
@@ -681,6 +689,44 @@ export async function createScene(state, el, { onProgress } = {}) {
       shelterLine.geometry.setFromPoints([a, b]);
       shelterLine.material.color.set(colors.danger);
       shelterLine.visible = true;
+    }
+  }
+
+  // Bodycam labels: only the stop being walked to stays, showing the distance and the climb still
+  // ahead ("1  Clay-bearing mudstone · 1.12 km · ↑60 m"); the other stop labels step aside so the
+  // view stays clear. Off Bodycam every label shows the stop's elevation again.
+  let labelAt = 0;
+  function setLabelText(o, text) {
+    if (o.text === text) return;
+    const fresh = labelSprite(text, colors.sand);
+    fresh.position.copy(o.lab.position);
+    fresh.material.opacity = o.lab.material.opacity;
+    fresh.visible = o.lab.visible;
+    marks.remove(o.lab);
+    o.lab.material.map?.dispose();
+    o.lab.material.dispose();
+    marks.add(fresh);
+    o.lab = fresh;
+    o.text = text;
+  }
+  function updateStopLabels(now) {
+    const nextId = bodycam && astroShown && Array.isArray(hudTime?.coord) ? hudTime.next_stop ?? null : null;
+    if (nextId == null) {
+      for (const o of stopObjs.values()) { o.lab.visible = true; setLabelText(o, o.baseText); }
+      return;
+    }
+    if (now - labelAt < LABEL_UPDATE_MS) return;
+    labelAt = now;
+    const [ax, az] = frame.toXZ(hudTime.coord[0], hudTime.coord[1]);
+    for (const o of stopObjs.values()) {
+      const isNext = (o.stop.id ?? o.stop.name) === nextId;
+      o.lab.visible = isNext;
+      if (!isNext) continue;
+      const [sx, sz] = frame.toXZ(o.stop.coord[0], o.stop.coord[1]);
+      const d = Math.hypot(sx - ax, sz - az);
+      // real heights from the DEM, not the exaggerated scene heights
+      const climb = heights.real ? sampleGrid(grid, sx, sz) - sampleGrid(grid, ax, az) : 0;
+      setLabelText(o, d < AT_STOP_M ? `${o.name} · here` : `${o.name} · ${fmtDist(d)}${fmtClimb(climb)}`);
     }
   }
 
@@ -1023,6 +1069,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       controls.target.lerp(look, 0.15);
     }
     animateSelection(now);
+    updateStopLabels(now);
     controls.update();
     clampCamera();
     renderer.render(scene, camera);

@@ -921,8 +921,13 @@ export function initHUD(state, el) {
     const smooth = plan ? plan.posAt(elapsed) : null;
     let coord = smooth ? smooth.coord : p ? p.coord : null;
     let dM = null;
+    let nextId = null;
     try {
       const tau = smooth ? smooth.tau : p ? p.tau : elapsed;
+      // The stop being walked to (or visited), while the astronaut is out on the walk
+      const out = p ? isOutside(p.mode) : Number.isFinite(tau) && tau > 0;
+      const ns = out ? nextStop(schedule, tau) : null;
+      if (ns) nextId = ns.stop.id ?? ns.stop.name ?? null;
       const rs = routeState(timeline, tau);
       if (!p) coord = rs?.coord ?? null;
       if (!p || p.mode === 'route' || p.mode === 'hold') dM = rs?.d_m ?? null;
@@ -957,6 +962,7 @@ export function initHUD(state, el) {
                 : p?.mode === 'from_target' && p.detour ? (p.detour.home ? 'Habitat' : 'Back to the route')
                   : preview ? `Preview: ${preview.name}` : null,
         mode: p?.mode ?? null,
+        next_stop: nextId,
       },
     }));
   }
