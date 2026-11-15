@@ -3,8 +3,10 @@
 // first time the 3D button is pressed. Without WebGL this throws, so main.js
 // keeps the 3D button hidden (quiet fallback).
 //
-// Events in : view3d:toggle (header button), stop:select (map / cards), hud:time (HUD clock)
-// Events out: stop:select when a stop pin is clicked in 3D (same detail as the map)
+// Events in : view3d:toggle (header button), stop:select (map / cards), hud:time (HUD clock),
+//             nav:routes / nav:choose / nav:clear / nav:pick / nav:cancel (cards navigation)
+// Events out: stop:select when a stop pin is clicked in 3D (same detail as the map),
+//             nav:point {which, coord} when the terrain is clicked in pick mode
 // Writes    : document.body.dataset.view = '3d' | 'map'
 
 function hasWebGL() {
@@ -34,6 +36,8 @@ export function initView3D(state, el) {
   let loading = null;       // promise while scene.js is loading
   let lastTime = null;      // last hud:time detail, replayed when the scene appears
   let pendingStop = null;   // stop selected before the scene existed
+  let lastNav = null;       // your own routes from the cards (nav:routes), replayed on load
+  let pendingPick = null;   // nav:pick that arrived while the scene was loading
 
   const status = document.createElement('p');
   status.className = 'v3d-status';
@@ -51,6 +55,8 @@ export function initView3D(state, el) {
           view = v;
           if (lastTime) view.setTime(lastTime);
           if (pendingStop) view.focusStop(pendingStop, { instant: true });
+          if (lastNav) view.setNav(lastNav);
+          if (pendingPick) { view.setPick(pendingPick); pendingPick = null; }
           return v;
         })
         .catch((err) => {
@@ -81,6 +87,29 @@ export function initView3D(state, el) {
     if (!e.detail) return;
     if (view) view.focusStop(e.detail);
     else pendingStop = e.detail;
+  });
+
+  document.addEventListener('nav:routes', (e) => {
+    lastNav = e.detail || null;
+    if (view) view.setNav(lastNav);
+  });
+  document.addEventListener('nav:choose', (e) => {
+    const id = e.detail?.id;
+    if (lastNav && id) lastNav = { ...lastNav, chosen: id };
+    if (view && id) view.chooseNav(id);
+  });
+  document.addEventListener('nav:clear', () => {
+    lastNav = null;
+    if (view) view.setNav(null);
+  });
+  document.addEventListener('nav:pick', (e) => {
+    const which = e.detail?.which;
+    if (view) view.setPick(which);
+    else pendingPick = which;
+  });
+  document.addEventListener('nav:cancel', () => {
+    pendingPick = null;
+    if (view) view.setPick(null);
   });
 
   document.addEventListener('hud:time', (e) => {

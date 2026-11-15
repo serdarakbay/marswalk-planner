@@ -25,6 +25,9 @@ const BODY_UP_M = 7;               // and this far above the ground there
 const BODY_LOOK_M = 90;            // looks at a point this far ahead
 const BODY_CLEAR_M = 4;            // never closer than this to the ground under the camera
 const FOCUS_MS = 1400;
+const NAV_LIFT_M = 2.2;            // your own routes (navigation) float a little above the planned one
+const NAV_LIFT_ON_M = 3;           // the chosen one on top
+const NAV_PIN_M = 26;              // height of the A / B pins
 const STRATA_ALPHA = 0.62;         // rock-layer tint over the HiRISE image
 const fmtElev = (z) => `${Math.round(z)} m`.replace('-', '\u2212');
 
@@ -339,6 +342,89 @@ export async function createScene(state, el, { onProgress } = {}) {
     marks.add(astro);
     marks.add(shelterLine);
     placeAstronaut();
+    buildNav();
+  }
+
+  // ----- your own routes (cards navigation: nav:routes / nav:choose / nav:clear)
+  // Fastest = info, safest = ok, alternative = sand: the same colours as the option cards.
+  const navGroup = new THREE.Group();
+  scene.add(navGroup);
+  let nav = null;           // {start, end, options[], chosen}
+  let navCurve = null; let navLen = 0;
+  const navColor = (id) => (id === 'fastest' ? colors.info : id === 'safest' ? colors.ok : colors.sand);
+
+  function navPin(coord, letter, color) {
+    const p = posLL(coord[0], coord[1]);
+    const g = new THREE.Group();
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, NAV_PIN_M, 6), new THREE.MeshStandardMaterial({ color }));
+    stick.position.y = NAV_PIN_M / 2;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(5, 9, 16).rotateX(Math.PI), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 }));
+    cone.position.y = NAV_PIN_M + 4.5;
+    const lab = labelSprite(letter, color);
+    lab.position.y = NAV_PIN_M + 10;
+    g.add(stick, cone, lab);
+    g.position.copy(p);
+    return g;
+  }
+
+  function buildNav() {
+    navGroup.clear();
+    navCurve = null; navLen = 0;
+    if (!nav) { updateLegend(); return; }
+    // draw the chosen route last and thicker, so it sits on top (no options yet: only pin A)
+    const order = [...(nav.options || [])].sort((a, b) => (a.id === nav.chosen) - (b.id === nav.chosen));
+    for (const o of order) {
+      const c = o.feature?.geometry?.coordinates;
+      if (!Array.isArray(c) || c.length < 2) continue;
+      const on = o.id === nav.chosen;
+      const pts = lineOnTerrain(resample(c.filter((p, i) => i === 0 || p[0] !== c[i - 1][0] || p[1] !== c[i - 1][1]), ROUTE_STEP_M),
+        (on ? NAV_LIFT_ON_M : NAV_LIFT_M) * exag);
+      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+      const col = navColor(o.id);
+      const tube = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, Math.min(pts.length * 2, 4000), on ? 1.8 : 0.8, 6, false),
+        new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: on ? 0.6 : 0.25, transparent: !on, opacity: on ? 1 : 0.6 }),
+      );
+      navGroup.add(tube);
+      if (on) { navCurve = curve; navLen = curve.getLength(); }
+    }
+    if (Array.isArray(nav.start)) navGroup.add(navPin(nav.start, 'A', colors.text));
+    if (Array.isArray(nav.end)) navGroup.add(navPin(nav.end, 'B', colors.accent));
+    updateLegend();
+  }
+
+  function setNav(detail) {
+    nav = detail && Array.isArray(detail.options) ? { ...detail } : null;
+    fly = null;
+    buildNav();
+    updateButtons();
+    if (nav) frameNav();
+  }
+
+  function chooseNav(id) {
+    if (!nav) return;
+    nav.chosen = id;
+    buildNav();
+    updateButtons();
+  }
+
+  function frameNav() {
+    if (!nav || bodycam) return;
+    const box = new THREE.Box3();
+    for (const o of nav.options) for (const c of o.feature?.geometry?.coordinates || []) box.expandByPoint(posLL(c[0], c[1]));
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    const size = Math.max(box.getSize(new THREE.Vector3()).length(), 400);
+    moveTo(center.clone().add(new THREE.Vector3(0.15 * size, 0.6 * size, 0.9 * size)), center);
+  }
+
+  // pick mode: the next click on the terrain becomes a point for the planner
+  let pickWhich = null;
+  function setPick(which) {
+    pickWhich = which === 'start' || which === 'end' ? which : null;
+    pickBanner.hidden = !pickWhich;
+    if (pickWhich) pickBanner.textContent = `Click the terrain to place ${pickWhich === 'start' ? 'A, the start' : 'B, the destination'} · Esc cancels`;
+    renderer.domElement.style.cursor = pickWhich ? 'crosshair' : 'grab';
   }
 
   // ----- astronaut (from hud:time)
@@ -458,7 +544,7 @@ export async function createScene(state, el, { onProgress } = {}) {
 
   function toggleFly() {
     if (fly) { fly = null; updateButtons(); return; }
-    if (!routeCurve) return;
+    if (!navCurve && !routeCurve) return;
     tween = null;
     bodycam = false;
     fly = { s: 0 };
@@ -512,6 +598,18 @@ export async function createScene(state, el, { onProgress } = {}) {
     h('li', {}, h('span', { class: 'v3d-key v3d-key--shelter' }), 'Shelters'),
     h('li', {}, h('span', { class: 'v3d-key v3d-key--astro' }), 'Astronaut (HUD clock)'),
   );
+  const navLegend = [
+    ['fastest', 'Fastest (your route)'], ['safest', 'Safest (your route)'], ['alternative', 'Alternative (your route)'],
+  ].map(([id, label]) => {
+    const li = h('li', { hidden: true }, h('span', { class: 'v3d-key', style: `background:${navColor(id)}` }), label);
+    li.dataset.nav = id;
+    legend.append(li);
+    return li;
+  });
+  function updateLegend() {
+    for (const li of navLegend) li.hidden = !nav?.options?.some((o) => o.id === li.dataset.nav);
+  }
+  const pickBanner = h('p', { class: 'v3d-pick', hidden: true, role: 'status' });
 
   const strataPanel = h('div', { class: 'v3d-strata', hidden: true });
   if (strata) {
@@ -545,10 +643,12 @@ export async function createScene(state, el, { onProgress } = {}) {
       h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Vertical exaggeration' },
         h('span', { class: 'v3d-group-label' }, 'Height'), exagBtns),
       overlaySel),
+    pickBanner,
     h('p', { class: 'v3d-hint' }, 'Drag to orbit · right-drag to pan · scroll to zoom · click a stop'));
 
   function updateButtons() {
-    flyBtn.textContent = fly ? 'Stop flight' : 'Fly along route';
+    flyBtn.textContent = fly ? 'Stop flight' : navCurve ? 'Fly along your route' : 'Fly along route';
+    flyBtn.disabled = !navCurve && !routeCurve;
     flyBtn.setAttribute('aria-pressed', String(!!fly));
     bodyBtn.textContent = bodycam ? 'Stop bodycam' : 'Bodycam';
     bodyBtn.setAttribute('aria-pressed', String(bodycam));
@@ -587,6 +687,18 @@ export async function createScene(state, el, { onProgress } = {}) {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
+    if (pickWhich) {
+      // a stop pin snaps to the stop itself; anywhere else: the terrain under the cursor
+      const pin = ray.intersectObjects(pickables, false)[0]?.object.userData.stop;
+      const ground = ray.intersectObject(terrain, false)[0]?.point;
+      const coord = Array.isArray(pin?.coord) ? pin.coord : ground ? frame.toLonLat(ground.x, ground.z) : null;
+      if (coord) {
+        const which = pickWhich;
+        setPick(null);
+        document.dispatchEvent(new CustomEvent('nav:point', { detail: { which, coord } }));
+      }
+      return;
+    }
     const hit = ray.intersectObjects(pickables, false)[0];
     if (hit?.object.userData.stop) {
       document.dispatchEvent(new CustomEvent('stop:select', { detail: hit.object.userData.stop }));
@@ -597,7 +709,7 @@ export async function createScene(state, el, { onProgress } = {}) {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    renderer.domElement.style.cursor = ray.intersectObjects(pickables, false).length ? 'pointer' : 'grab';
+    renderer.domElement.style.cursor = pickWhich ? 'crosshair' : ray.intersectObjects(pickables, false).length ? 'pointer' : 'grab';
   });
   controls.addEventListener('start', () => {
     tween = null;
@@ -627,13 +739,15 @@ export async function createScene(state, el, { onProgress } = {}) {
       controls.target.lerpVectors(tween.fromT, tween.toT, k);
       if (t >= 1) tween = null;
     }
-    if (fly && routeCurve) {
+    const flyCurve = navCurve || routeCurve;
+    const flyLen = navCurve ? navLen : routeLen;
+    if (fly && flyCurve) {
       fly.s += FLY_SPEED_M_S * dt;
-      if (fly.s >= routeLen) { fly = null; updateButtons(); }
+      if (fly.s >= flyLen) { fly = null; updateButtons(); }
       else {
-        const u = fly.s / routeLen;
-        const p = routeCurve.getPointAt(u);
-        const ahead = routeCurve.getPointAt(Math.min(u + 60 / routeLen, 1));
+        const u = fly.s / flyLen;
+        const p = flyCurve.getPointAt(u);
+        const ahead = flyCurve.getPointAt(Math.min(u + 60 / flyLen, 1));
         const back = p.clone().sub(ahead).setY(0).normalize();
         const want = p.clone().add(back.multiplyScalar(110)).add(new THREE.Vector3(0, 75, 0));
         camera.position.lerp(want, 0.08);
@@ -674,6 +788,9 @@ export async function createScene(state, el, { onProgress } = {}) {
     },
     stop() { running = false; fly = null; bodycam = false; updateButtons(); },
     focusStop,
+    setNav,
+    chooseNav,
+    setPick,
     setTime(detail) {
       hudTime = detail;
       if (detail?.utc) { const r = sunRow(state.sun, state.eva, detail.utc); if (r) setSun(r); }

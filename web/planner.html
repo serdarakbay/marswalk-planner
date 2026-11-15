@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Martian Map</title>
-  <meta name="description" content="Marswalk planner for an astronaut EVA in Gale crater: layered map, safe route, stop cards and HUD.">
+  <meta name="description" content="Marswalk route planner for an astronaut EVA in Gale crater: pick a start and a destination on the map and get the fastest and the safest walk.">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
   <!-- Order matters: base.css defines the variables, cards.css uses them. The HUD loads its own CSS. -->
@@ -17,25 +17,32 @@
 </head>
 <body data-mode="map">
   <div class="app">
+    <!-- Full-screen map; everything else floats on top of it -->
+    <section class="map-wrap">
+      <div id="map" aria-label="Map: click to set your destination"></div>  <!-- Ege -->
+      <div id="view3d-root" hidden></div>                                   <!-- Egemen -->
+    </section>
+
     <header class="app-header">
-      <h1>Martian Map</h1>
-      <p class="subtitle">Marswalk planner · Gale crater</p>
-      <ul id="mission-status" class="status-strip" aria-label="Mission status"></ul>
+      <a class="brand" href="index.html" title="About the project">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Martian Map</span>
+        <span class="brand-sub">Gale crater</span>
+      </a>
+      <ul id="mission-status" class="status-strip" aria-label="Conditions today"></ul>
       <div class="actions">
         <button id="view3d-toggle" class="btn" type="button" aria-pressed="false" hidden>3D</button>
         <button id="hud-toggle" class="btn" type="button" aria-pressed="false">HUD <kbd>H</kbd></button>
       </div>
     </header>
 
-    <main class="app-main">
-      <aside id="panel" aria-label="Map layers"></aside>          <!-- Ege -->
-      <section class="map-wrap">
-        <div id="map" aria-label="Map"></div>                     <!-- Ege -->
-        <div id="view3d-root" hidden></div>                       <!-- Egemen -->
-        <div id="profile" aria-label="Elevation profile"></div>   <!-- Ege -->
-      </section>
-      <aside id="cards" aria-label="Stop details"></aside>        <!-- Egemen -->
-    </main>
+    <aside id="cards" aria-label="Route planner"></aside>                   <!-- Egemen -->
+    <div id="profile" aria-label="Elevation profile of the selected route" hidden></div>  <!-- Ege -->
+
+    <button id="layers-toggle" class="layers-toggle" type="button" aria-expanded="false" aria-controls="panel">
+      <span class="layers-icon" aria-hidden="true"></span>Layers
+    </button>
+    <aside id="panel" aria-label="Map layers" hidden></aside>               <!-- Ege -->
 
     <footer class="app-footer">
       Imagery: NASA/JPL-Caltech, NASA Mars Trek, USGS. Built for NASA Space Apps 2026.

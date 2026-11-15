@@ -22,7 +22,9 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding: var(--space-3);
+  /* clear of the header (top) and the route planner (left), which float over the 3D view */
+  padding: calc(var(--header-h, 0px) + var(--gap, var(--space-3))) var(--gap, var(--space-3)) var(--gap, var(--space-3))
+    calc(var(--cards-w, 0px) + 2 * var(--gap, var(--space-3)));
   pointer-events: none;
   font-family: var(--font-sans);
   color: var(--color-text);
@@ -32,11 +34,10 @@
 #view3d-root .v3d-title,
 #view3d-root .v3d-legend,
 #view3d-root .v3d-bar {
-  background: color-mix(in srgb, var(--color-bg) 78%, transparent);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(6px);
 }
 #view3d-root .v3d-title {
   max-width: 26rem;
@@ -44,7 +45,7 @@
   /* thin oxide -> oxide-text strip on top of the info panel */
   background:
     linear-gradient(90deg, var(--color-accent), var(--color-accent-text, var(--color-accent-hover))) top / 100% var(--space-1) no-repeat,
-    color-mix(in srgb, var(--color-bg) 78%, transparent);
+    var(--color-surface);
 }
 #view3d-root .v3d-kicker {
   margin: 0;
@@ -66,6 +67,7 @@
   font-size: var(--text-xs);
 }
 #view3d-root .v3d-legend li { display: flex; align-items: center; gap: var(--space-2); }
+#view3d-root .v3d-legend li[hidden] { display: none; }
 #view3d-root .v3d-key { flex: none; display: inline-block; width: var(--space-4); height: var(--space-1); border-radius: var(--radius-sm); }
 #view3d-root .v3d-key--route { background: var(--color-accent); }
 #view3d-root .v3d-key--traverse { background: repeating-linear-gradient(90deg, var(--color-info) 0 var(--space-1), transparent var(--space-1) var(--space-2)); }
@@ -122,10 +124,24 @@
   margin: var(--space-1) 0 0;
   padding: 0 var(--space-2);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+  background: var(--color-surface);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
+
+/* navigation pick mode: the next click on the terrain places A or B */
+#view3d-root .v3d-pick {
+  align-self: center;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-text, var(--color-accent-hover)));
+  color: var(--color-text-inverse);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+#view3d-root .v3d-pick[hidden] { display: none; }
 
 /* rock layers (clay -> sulfate) explainer, shown when that layer is draped */
 #view3d-root .v3d-strata {
@@ -170,6 +186,9 @@
 /* HUD mode (class set by index.js from body[data-mode]): the visor panels own the screen */
 #view3d-root.is-hud .v3d-ui { display: none; }
 
+@media (max-width: 900px) {
+  #view3d-root .v3d-ui { padding: calc(var(--header-h, 0px) + var(--gap, var(--space-3))) var(--space-3) calc(48vh + var(--space-3)); }
+}
 @media (max-width: 720px) {
   #view3d-root .v3d-legend { display: none; }
 }

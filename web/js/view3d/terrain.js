@@ -32,6 +32,7 @@ export function makeFrame(bbox) {
   return {
     bbox, width, depth,
     toXZ: (lon, lat) => [(lon - lon0) * mLon, -(lat - lat0) * M_PER_DEG],
+    toLonLat: (x, z) => [lon0 + x / mLon, lat0 - z / M_PER_DEG],
   };
 }
 
