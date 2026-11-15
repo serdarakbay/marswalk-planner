@@ -60,7 +60,9 @@ function ribbonGeometry(THREE, pts, width) {
   const idx = new Uint32Array((n - 1) * 6);
   for (let i = 0; i < n - 1; i++) {
     const a = i * 2; const b = a + 1; const c = a + 2; const d = a + 3;
-    idx.set([a, b, c, b, d, c], i * 6);
+    // counter-clockwise seen from above, so the front face points up (three.js draws front faces
+    // only, and the raycaster picks them only): the other way round the ribbon is invisible
+    idx.set([a, c, b, b, c, d], i * 6);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
