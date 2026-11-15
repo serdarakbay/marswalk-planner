@@ -99,6 +99,81 @@ The full list of commands, by owner, is in [CLAUDE.md](CLAUDE.md).
 | Serdar | Horizons, EVA window, HUD, geologic map, science targets (with Utku), data sources panel |
 | Utku | Science models, safety layers, radiation, story |
 
+## Who built what
+
+Taken from the commit history. Where two names are given, the work was shared: the second person supplied the data or model it builds on, or owns the file it was added to and agreed the change.
+
+### Ege
+
+| Work | By |
+|---|---|
+| Team plan, `CLAUDE.md` rules (ownership, git, data contracts, page layout), GitHub Pages deploy | Ege |
+| Page skeleton: `main.js` state loader, `base.css` palette, module boxes | Ege |
+| Leaflet map with Mars Trek base layers, grouped layer panel, stop and habitat badges, header status chips | Ege, Utku (`layers.json`) |
+| Elevation profile: elevation, slope, route stats, radio-shadow bands, hover-to-map | Ege, Demir (`summary.json`), Utku (`safety.json`) |
+| Astronaut marker and profile line from `hud:time` | Ege, Serdar (HUD position) |
+| Storm replay on the map (nearest shelter ring and line, fly-to), geology and shelter layers | Ege, Utku, Serdar |
+| Radio relay on the map and the landing page | Ege, Utku (relay) |
+| Landing page: data-driven sections, 3D block diagram, contours, poster, HUD screenshot | Ege |
+| Backup tiles for the landing 3D block and the minimap | Ege, Utku (tile cache) |
+| README, screenshots, integration and merges into `main` | Ege |
+
+### Demir
+
+| Work | By |
+|---|---|
+| DEM check, clip and slope (USGS 1 m Gale DEM) | Demir |
+| Cost map, slope and cost overlays, `to_overlay_png()` shared with Utku | Demir |
+| Least-cost route and `summary.json` through the real clay-to-sulfate stops | Demir, Utku (stops, O2 model) |
+| Return-time rings (15 min), shared walking model | Demir, Utku (O2 model) |
+| Heightmap (`summary.terrain`) used by the 3D view, the landing block and the HUD paths | Demir |
+| Shaded relief and roughness layers, comparison with Curiosity's traverse | Demir, Egemen (traverse) |
+
+### Egemen
+
+| Work | By |
+|---|---|
+| Curiosity raw images and traverse, REMS temperature (`images.json`, `traverse.geojson`, `weather.json`) | Egemen |
+| Stop cards: nearby Curiosity photos, arrival and departure times, mission briefing, guided stop tour | Egemen, Utku (stops) |
+| Regolith palette for the cards and the 3D view | Egemen |
+| 3D view: HiRISE-draped real terrain at true scale, route, stops, habitat, Sun shadows, fly-through, HUD astronaut | Egemen, Demir (heightmap), Serdar (`hud:time`) |
+| UI credits (`docs/credits.md`) | Egemen |
+
+### Serdar
+
+| Work | By |
+|---|---|
+| Sun and Earth position from JPL Horizons, local Mars time with the Mars24 algorithm (`sun.json`) | Serdar |
+| EVA window from the Sun elevation and Curiosity's REMS temperature (`eva_window.json`) | Serdar, Egemen (REMS data) |
+| Real geologic units from the USGS map SIM 3292, clipped to Gale crater (`geology.geojson`) | Serdar (taken over from Utku) |
+| HUD: visor view, next stop and arrival time, O2, dose, Sun and Earth panels, simulation clock (play, speed, time slider, smooth position), H key | Serdar |
+| HUD alerts: `alerts.json` rules plus built-in ones (Earth below the horizon, outside the EVA window), radio-shadow countdown, point of no return | Serdar, Utku (alert rules, radio shadow in `safety.json`) |
+| Mission log, arrival preview (Curiosity's Navcam view of the next stop), Stop at stops | Serdar, Egemen (Curiosity photos, stop cards) |
+| Solar storm replay (20 May 2024): shelters ranked by dose, best one recommended, crew can pick another, back to the habitat when O2 runs short | Serdar, Utku (replay storm block, shelters, O2 and dose models) |
+| Paths around steep ground (Dijkstra on the heightmap, nothing steeper than 25°), slope off the route | Serdar, Demir (heightmap) |
+| Two dust devils: hold position, then step aside off the track and rejoin the route | Serdar |
+| Science targets off the route: `science/targets.py` and `targets.json` | Serdar, Utku (candidates and unit rules) |
+| Targets panel: "can I go there?" (O2 reserve, EVA window), path preview, detour with sampling | Serdar |
+| HUD self-tests (`node web/js/hud/test.mjs`, 36 checks on logic and real data) | Serdar |
+| Data sources panel with live status (`web/js/map/sources.js`, footer link) | Serdar, Ege (map) |
+| Map: storm path line, moving dust devil circle, zoom that includes the hazard, click for elevation and slope, cursor coordinates, lat/lon grid, overview minimap | Serdar, Ege (map owner) |
+| Header keeps the 3D and HUD buttons on screen at laptop widths | Serdar, Ege (`base.css`) |
+| 3D view: Bodycam that follows the HUD astronaut, path line that follows the HUD path | Serdar, Egemen (3D view owner) |
+| HUD documentation: `web/js/hud/README.md`, HUD parts of this README and `CLAUDE.md` | Serdar, Ege |
+
+### Utku
+
+| Work | By |
+|---|---|
+| `area.json` (study area, habitat), data contracts (`docs/contracts.md`), mock data and its checker | Utku |
+| `mission.json` (every threshold and constant), O2 and dose models, assumptions (`docs/story/assumptions.md`) | Utku |
+| Mars Trek layers (`layers.json`) and the backup tile cache | Utku |
+| Solar events from DONKI and `radiation.json` with the 20 May 2024 replay storm (habitat dose factor, storm duration) | Utku |
+| Real science stops for the clay-to-sulfate story (`stops.json`) | Utku |
+| Radio shadow, shelters along the route, radio relay (`safety.json`) | Utku, Demir (DEM clip, `to_overlay_png()`) |
+| HUD alert rules (`alerts.json`) | Utku |
+| Science target candidates and unit rules for `targets.json` | Utku, Serdar |
+
 ## Credits
 
 **Imagery and data**

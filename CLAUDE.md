@@ -37,6 +37,16 @@ Before you start, find out which team member the user is (from the branch name o
 | Serdar | Horizons, EVA window, HUD, geologic map, science targets (with Utku), data sources panel | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `science/targets.py`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/data/targets.json`, `web/js/hud/`, `web/css/hud.css`, `web/js/map/sources.js` (in Ege's folder, by agreement) |
 | Utku | Science, safety layers, radiation, story | `harita`, `bilim` | `science/` (except `science/eva/` and `science/targets.py`, including `science/safety/`), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, and in `web/data/`: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
 
+**Who built what:** README.md, "Who built what", lists everyone's work from the commit history, with both names on shared work. Keep it current when you add a feature. Shared work by Serdar:
+- Science targets (`science/targets.py`, `targets.json`): Serdar, Utku.
+- Storm replay in the HUD: Serdar, on Utku's replay block, shelters and models.
+- HUD paths around steep ground: Serdar, on Demir's heightmap.
+- EVA window: Serdar, on Egemen's REMS data.
+- Map additions (storm path, dust devil circle, click elevation and slope, cursor coordinates, grid, minimap, data sources panel): Serdar, in Ege's map with Ege's agreement.
+- 3D Bodycam and HUD path line: Serdar, in Egemen's 3D view with Egemen's agreement.
+
+Keep both names when you edit these.
+
 **Mocks:** Utku writes all mock files under `web/data/`. When the real file is ready, its owner's script overwrites the mock.
 
 **Data ownership rule:** One person downloads each raw dataset. Two people may build different products from the same data, but every output file has exactly one author. If someone else needs that data, they read the owner's intermediate output or `web/data/` file; they do not call the API themselves.
