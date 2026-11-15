@@ -23,7 +23,7 @@ import {
   stopSchedule, sunAt,
 } from './model.js';
 import { createClock, SPEEDS } from './sim.js';
-import { createRouter, legRemaining, loadTerrainGrid, slopeAt, steepestOnPath } from './terrain.js';
+import { createRouter, legRemaining, loadTerrainGrid, slopeAt, steepestOnPath, zAt } from './terrain.js';
 import {
   bestRefuge, DETOUR_MODES, detourCheck, devilPass, isOutside, missionLog, previewPhoto, refugeGuided, refugeOptions,
   SCENARIO, simulate, stopPreview,
@@ -31,6 +31,67 @@ import {
 
 // The slider covers the EVA window plus this margin on both sides (UI only).
 const SIM_MARGIN_MIN = 30;
+
+// O2 % per minute at a signed grade (dz/dx) from Demir's per-grade table (summary.o2_lut),
+// interpolated linearly and held at the ends, like the cards route planner (router.js).
+function lutRate(lut, grade) {
+  const gs = lut.grade;
+  const ps = lut.pct_per_min;
+  if (grade <= gs[0]) return ps[0];
+  for (let i = 1; i < gs.length; i++) {
+    if (grade <= gs[i]) return ps[i - 1] + ((grade - gs[i - 1]) / (gs[i] - gs[i - 1])) * (ps[i] - ps[i - 1]);
+  }
+  return ps[ps.length - 1];
+}
+
+/**
+ * An A–B route from the cards planner (nav:routes option) as a route the HUD can walk.
+ * O2 per vertex (o2_pct): each segment at its own signed grade, read from the heightmap grid,
+ * at the summary.o2_lut rate; a repeated vertex (the planner's dwell at the destination) at the
+ * standing rate. The curve is scaled to the option's own O2 total, so the HUD and the planner
+ * card agree. Without the grid or the table there is no o2_pct and the HUD spreads the total
+ * over the walk. Pure (no DOM), for the tests.
+ * @returns {{route, summary}|null}
+ */
+export function abRoute(option, plannedSummary, grid) {
+  const feat = option?.feature;
+  const coords = feat?.geometry?.coordinates;
+  if (!Array.isArray(coords) || coords.length < 2) return null;
+  const props = { ...(feat.properties || {}) };
+  delete props.o2_pct;
+  const t = props.t_min;
+  const lut = plannedSummary?.o2_lut;
+  const lutOk = lut && Array.isArray(lut.grade) && Array.isArray(lut.pct_per_min) && lut.grade.length === lut.pct_per_min.length;
+  let walkO2 = 0;
+  let walkMin = 0;
+  if (grid && lutOk && Array.isArray(t) && t.length === coords.length) {
+    const o2 = [0];
+    for (let i = 1; i < coords.length; i++) {
+      const dt = Math.max(0, t[i] - t[i - 1]);
+      const d = distanceM(coords[i - 1], coords[i]);
+      let rate;
+      if (d < 0.5) {
+        rate = Number(lut.rest_pct_per_min) || lutRate(lut, 0);
+      } else {
+        const za = zAt(grid, coords[i - 1]);
+        const zb = zAt(grid, coords[i]);
+        rate = lutRate(lut, za == null || zb == null ? 0 : (zb - za) / d);
+        walkO2 += rate * dt;
+        walkMin += dt;
+      }
+      o2.push(o2[i - 1] + rate * dt);
+    }
+    const total = option.summary?.o2_used_pct;
+    const k = Number.isFinite(total) && o2[o2.length - 1] > 0 ? total / o2[o2.length - 1] : 1;
+    props.o2_pct = o2.map((v) => Math.round(v * k * 1000) / 1000);
+    walkO2 *= k;
+  }
+  // The planned route's rates stay (standing still, the heightmap); its walking average does not
+  const { o2_walk_pct_per_min: _planned, ...rest } = plannedSummary || {};
+  const summary = { ...rest, ...(option.summary || {}) };
+  if (walkMin > 0) summary.o2_walk_pct_per_min = walkO2 / walkMin;
+  return { route: { type: 'Feature', geometry: feat.geometry, properties: props }, summary };
+}
 
 const CSS_URL = new URL('../../css/hud.css', import.meta.url).href;
 
@@ -175,19 +236,36 @@ export function initHUD(state, el) {
   const fallbackStop = Array.isArray(state.stops) && state.stops.length ? state.stops[0] : null;
   let open = !el.hidden;
 
+  // The route being walked: the planned one (Demir), or an A–B route chosen in the cards planner
+  // (nav:choose). abId is that option's id, null for the planned route.
+  let activeRoute = state.route;
+  let activeSummary = state.summary;
+  let abId = null;
+  let abOptions = [];   // last nav:routes options
+
   // Route timing (null until Demir's route.geojson / summary.json exist)
   let timeline = null;
   let schedule = [];
   let shadows = [];   // radio-shadow stretches ahead, in route minutes
-  try {
-    timeline = routeTimeline(state.route, state.summary);
-    schedule = stopSchedule(timeline, state.stops);
-    shadows = shadowIntervals(timeline, state.safety);
-  } catch (err) {
-    console.error('[hud] route timeline failed', err);
+  let activeMin = null;
+  function buildRoute() {
+    timeline = null;
+    schedule = [];
+    shadows = [];
+    try {
+      timeline = routeTimeline(activeRoute, activeSummary);
+      // The stops and safety.json (radio shadows) belong to the planned route only
+      if (!abId) {
+        schedule = stopSchedule(timeline, state.stops);
+        shadows = shadowIntervals(timeline, state.safety);
+      }
+    } catch (err) {
+      console.error('[hud] route timeline failed', err);
+    }
+    activeMin = timeline?.total_min ?? state.eva?.duration_min ?? null;
   }
+  buildRoute();
   const evaStart = parseUtc(state.eva?.start_utc);
-  const activeMin = timeline?.total_min ?? state.eva?.duration_min ?? null;
 
   // Step-by-step plan of the walk with the scenarios that are switched on (see scenario.js)
   let plan = null;
@@ -212,10 +290,10 @@ export function initHUD(state, el) {
         startMin: (range.start - evaStart) / 60000,
         endMin: (range.end - evaStart) / 60000,
         // walking rate off the route (Demir, summary.json); older summaries: the route average
-        o2PerMin: Number.isFinite(state.summary?.o2_walk_pct_per_min) ? state.summary.o2_walk_pct_per_min
-          : Number.isFinite(state.summary?.o2_used_pct) ? state.summary.o2_used_pct / timeline.total_min : 0,
-        o2StandPerMin: Number.isFinite(state.summary?.o2_standing_pct_per_min)
-          ? state.summary.o2_standing_pct_per_min : FALLBACK.o2_standing_pct_per_min,
+        o2PerMin: Number.isFinite(activeSummary?.o2_walk_pct_per_min) ? activeSummary.o2_walk_pct_per_min
+          : Number.isFinite(activeSummary?.o2_used_pct) ? activeSummary.o2_used_pct / timeline.total_min : 0,
+        o2StandPerMin: Number.isFinite(activeSummary?.o2_standing_pct_per_min)
+          ? activeSummary.o2_standing_pct_per_min : FALLBACK.o2_standing_pct_per_min,
         doseBasePerMin: base / 1440,
         storm: storm && hasReplay ? {
           t0: stormT0,
@@ -292,6 +370,7 @@ export function initHUD(state, el) {
       for (const tg of targetList) targets.push({ id: `T:${tg.id}`, coord: tg.coord });
       router = createRouter(grid, targets);
       router.warm();
+      if (abId) useRoute(abId, { reset: false });   // the A–B route's O2 can now follow the grade
       rebuilt();
     })
     .catch((err) => console.error('[hud] terrain grid failed; refuge paths are straight lines', err));
@@ -334,11 +413,11 @@ export function initHUD(state, el) {
     const stormOn = p ? p.stormOn : storm;
     // Live status follows the simulation clock; the replay (storm) overrides it while it lasts.
     const rad = effectiveRadiation(radiationAt(state.radiation, time), stormOn);
-    const plannedDose = evaDose(radiationAt(state.radiation, time), eva, timeline?.total_min, state.summary);
-    const dose = evaDose(rad, eva, timeline?.total_min, state.summary);
+    const plannedDose = evaDose(radiationAt(state.radiation, time), eva, timeline?.total_min, activeSummary);
+    const dose = evaDose(rad, eva, timeline?.total_min, activeSummary);
     const doseNow = p ? p.dose : doseAt(dose, frac);
     let o2 = null;
-    const routeLeft = p ? routeO2Left(timeline, state.summary, p.tau) : null;
+    const routeLeft = p ? routeO2Left(timeline, activeSummary, p.tau) : null;
     if (p && routeLeft != null) {
       // Once a storm or dust devil has started, the plan's final O2 includes the waits and detours;
       // before that the HUD cannot know it is coming, so it shows the plain route estimate: O2 used
@@ -348,7 +427,7 @@ export function initHUD(state, el) {
       const atReturn = started ? Math.max(plan.finalO2, nominal) : nominal;
       o2 = { used_pct: p.o2, remaining_pct: Math.max(0, 100 - p.o2), at_return_pct: Math.max(0, 100 - atReturn) };
     } else if (!p) {
-      o2 = o2At(state.summary, frac);
+      o2 = o2At(activeSummary, frac);
     }
     // Inside the habitat: before the EVA, after the route, or back early because of the storm.
     // T+0 counts as inside: the astronaut is still at the habitat door.
@@ -357,7 +436,7 @@ export function initHUD(state, el) {
     const rs = onRoute ? routeState(timeline, tau) : null;
     const pos = p ? (atHabitat ? null : p.coord) : rs?.coord ?? null;
     // Shelter / radio-shadow info only matters while walking the route.
-    let safe1 = onRoute ? safetyAt(state.safety, rs?.d_m) : null;
+    let safe1 = onRoute && !abId ? safetyAt(state.safety, rs?.d_m) : null;
     // safety.json built for another route: its row is far from here, so ignore it (stale data)
     if (safe1 && Number.isFinite(rs?.d_m) && Math.abs(safe1.d - rs.d_m) > 50) safe1 = null;
     const isStorm = rad?.status === 'storm';
@@ -373,7 +452,7 @@ export function initHUD(state, el) {
     // Point of no return: O2 above the reserve, minus the O2 to walk home from here
     let turnBack = null;
     // Walking home costs the walking rate (summary.o2_walk_pct_per_min), not the route average
-    const perMin = walkO2PerMin(state.summary, timeline);
+    const perMin = walkO2PerMin(activeSummary, timeline);
     if (o2 && !atHabitat && Array.isArray(state.area?.habitat) && Number.isFinite(perMin) && timeline) {
       const here = pos ?? state.area.habitat;
       const homeMin = (distanceM(here, state.area.habitat) * SCENARIO.RETURN_PATH_FACTOR) / SCENARIO.WALK_M_PER_MIN;
@@ -423,7 +502,7 @@ export function initHUD(state, el) {
       dose_mSv: out ? doseNow ?? null : null,
       elapsed_min: elapsed,
       eva_remaining_min: out && status?.state === 'open' ? status.min : null,
-      max_slope_deg: state.summary?.max_slope_deg ?? null,
+      max_slope_deg: activeSummary?.max_slope_deg ?? null,
       slope_deg: rs?.slope_deg ?? null,
       // Radio link: the shadow intervals (same scale as the countdown) when available, else safety.json row
       comm_ok: onRoute && shadows.length ? !curShadow : typeof safe1?.comm_ok === 'boolean' ? safe1.comm_ok : null,
@@ -599,7 +678,7 @@ export function initHUD(state, el) {
     const stopP = panel('Next stop');
     safe('stop', () => {
       const scheduled = nextStop(schedule, tau);
-      const stop = pinnedStop ?? scheduled?.stop ?? (schedule.length ? null : fallbackStop);
+      const stop = pinnedStop ?? scheduled?.stop ?? (schedule.length || abId ? null : fallbackStop);
       // Slope: on the route from Demir's route.geojson; off it (walking to a shelter, stepping
       // aside from a dust devil) from the heightmap, plus the steepest stretch of the path ahead
       const slopeRows = () => {
@@ -918,6 +997,34 @@ export function initHUD(state, el) {
     if (open) render();
   }
 
+  // Cards route planner (Egemen, nav.js): nav:choose walks that A–B route, nav:clear goes back to
+  // the planned route. The geometry comes with nav:routes ({options: [{id, feature, summary}]}).
+  function useRoute(id, { reset = true } = {}) {
+    const opt = id ? abOptions.find((o) => o.id === id) : null;
+    const ab = opt ? abRoute(opt, state.summary, terrainGrid) : null;
+    if (!ab && !abId) return;   // already on the planned route
+    abId = ab ? id : null;
+    activeRoute = ab ? ab.route : state.route;
+    activeSummary = ab ? ab.summary : state.summary;
+    buildRoute();
+    if (!reset) return;
+    if (clock && evaStart) {   // walk the new route from its start: Play
+      clock.pause();
+      clock.seek(evaStart);
+    }
+    rebuilt();
+  }
+  document.addEventListener('nav:routes', (e) => {
+    abOptions = Array.isArray(e.detail?.options) ? e.detail.options : [];
+    // Same option with a new geometry (the points moved), or back to the planned route
+    if (abId) useRoute(abOptions.some((o) => o.id === abId) ? abId : null);
+  });
+  document.addEventListener('nav:choose', (e) => useRoute(e.detail?.id ?? null));
+  document.addEventListener('nav:clear', () => {
+    abOptions = [];
+    if (abId) useRoute(null);
+  });
+
   // 'hud:time' tells the map where the astronaut is (approved by Ege, 2026-11-14).
   // detail: {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null}
   // coord and d_m are null until route.geojson exists. active is false when the HUD is closed.
@@ -939,7 +1046,8 @@ export function initHUD(state, el) {
       if (ns) nextId = ns.stop.id ?? ns.stop.name ?? null;
       const rs = routeState(timeline, tau);
       if (!p) coord = rs?.coord ?? null;
-      if (!p || p.mode === 'route' || p.mode === 'hold') dM = rs?.d_m ?? null;
+      // d_m is a distance on the planned route (map profile); none on an A–B route
+      if (!abId && (!p || p.mode === 'route' || p.mode === 'hold')) dM = rs?.d_m ?? null;
     } catch (err) {
       console.error('[hud] route state failed', err);
     }
