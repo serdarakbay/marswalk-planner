@@ -151,7 +151,13 @@ The map, cards, HUD and 3D view never import each other's files; they talk only 
 - HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; the H key opens and closes the HUD, and `stop:select` updates the next stop.
 - HUD (Serdar) emits `document.dispatchEvent(new CustomEvent('hud:time', {detail}))` on every simulated clock step: `detail = {active, playing, utc, elapsed_min, coord: [lon, lat] | null, d_m | null, storm, shelter: [lon, lat] | null, hazard: {coord: [lon, lat], radius_m} | null, mode, refuge_path: [[lon, lat], ...] | null, refuge_label}`. `coord` is null when there is no route; during the scenarios it follows the astronaut off the route too (walking to a shelter and back). `storm` is true while the replayed storm is on, and `shelter` is then the terrain shelter the astronaut is heading to or waiting in (null when they go back to the habitat). `hazard` is the dust devil while it exists (HUD "Dust devil" scenario). `mode` is one of `pre`, `route`, `hold`, `evade`, `aside`, `rejoin`, `to_target`, `sampling`, `from_target`, `to_refuge`, `sheltered`, `return`, `home`, `done` (`web/js/hud/scenario.js`). The map also draws `hazard` as a moving circle. `refuge_path` is the path still to walk to the storm refuge, aside from a dust devil's track, or back to the route, computed by the HUD around ground steeper than 25° on Demir's heightmap (`web/js/hud/terrain.js`); `refuge_label` names its end ("Shelter S4", "Habitat", "Step aside", "Back to the route", a science target name, or "Preview: <target>" for a target picked in the HUD Targets panel). The map (Ege) listens and shows the astronaut marker, and the elevation profile shows the same position; both hide it when `active` is false. During a storm the map highlights the refuge and draws `refuge_path` to it (a straight line to `shelter` when there is no path).
 - The HUD reads, besides `sun`, `eva`, `route` and `summary`: Utku's `safety.shelters` (`coord`, `svf`), `radiation.replay` (`event_multiplier`, `duration_min`, `habitat_dose_factor`) and `alerts.json`, and Demir's heightmap through `summary.terrain` (rg16 PNG) for the paths around steep ground. If you change these fields, tell Serdar and run `node web/js/hud/test.mjs`.
-- 3D view (Egemen): `web/js/view3d/index.js` → `export function initView3D(state, el)`; listens to `view3d:toggle`, `stop:select` and `hud:time`.
+- 3D view (Egemen): `web/js/view3d/index.js` → `export function initView3D(state, el)`; listens to `view3d:toggle`, `stop:select`, `hud:time` and the `nav:*` events.
+- **Route planner (`nav:*`)**: the planner in `#cards` (Egemen, `web/js/cards/nav.js` and `router.js`) computes the routes in the browser from Demir's heightmap; the map (Ege) and the 3D view (Egemen) draw them.
+  - `nav:pick {which}` / `nav:cancel`: the planner starts / stops waiting for a click to place pin `which` (`'start'` or `'end'`).
+  - `nav:point {which, coord: [lon, lat]}`: the map or the 3D view placed or dragged a pin; the planner listens.
+  - `nav:routes {start, end, roundTrip, options[], chosen}`: the planner's routes (fastest, safest, alternative); the map and the 3D view draw them, the chosen one in oxide.
+  - `nav:choose {id}`: a route was picked, from the planner or by clicking it on the map.
+  - `nav:clear`: no destination; the map and the 3D view remove the routes and pins.
 - `main.js` calls these init functions. There are no other globals.
 
 ### Page layout: whose box is where
@@ -160,9 +166,10 @@ The map, cards, HUD and 3D view never import each other's files; they talk only 
 
 | Box | Owner | Note |
 |---|---|---|
-| `#panel` | Ege | Layer panel |
-| `#map`, `#profile` | Ege | Leaflet map, elevation profile |
-| `#cards` | Egemen | `initCards(state, el)` receives this element |
+| `#map` | Ege | Full-screen Leaflet map; everything else floats on top of it |
+| `#panel` | Ege | Layers popover, opened by the Layers button (bottom-right); starts `hidden` |
+| `#profile` | Ege | Elevation profile of the selected route; starts `hidden`, shown once a route is chosen |
+| `#cards` | Egemen | Floating route planner (top-left); `initCards(state, el)` receives this element |
 | `#hud-root` | Serdar | `initHUD(state, el)` receives this element; starts `hidden` |
 | `#view3d-root` | Egemen | `initView3D(state, el)` receives this element; starts `hidden` |
 
