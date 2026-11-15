@@ -6,17 +6,45 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js/+esm';
 import {
-  makeFrame, sampleGrid, routeCoords, buildHeights, buildBaseImage, overlayChoices, composeImage, distM,
+  makeFrame, sampleGrid, routeCoords, buildHeights, buildBaseImage, overlayChoices, composeImage,
   strataCanvas, STRATA_STEP_M,
 } from './terrain.js';
+import { chaikin, makeTrail, resampleXZ } from './trail.js';
 
 const EXAGGERATIONS = [1, 2, 3];
 // true scale on the real DEM; the flat placeholder needs a boost to show anything
-const DEFAULT_EXAGGERATION = { real: 1, placeholder: 2 };
-const ROUTE_LIFT_M = 1.5;          // keep lines just above the surface
-const ROUTE_STEP_M = 4;            // resample the route for a smooth tube
+// 2x by default: Mount Sharp's relief reads at a glance; 1x (true scale) is one click away
+const DEFAULT_EXAGGERATION = { real: 2, placeholder: 2 };
+// Lighting: the Sun from sun.json (real EVA-time angle); without it a low default sun shows relief
+const SUN_DEFAULT = { sun_az: 135, sun_el: 30 };
+const SUN_INTENSITY = 2.7;
+const SKY_INTENSITY = 0.5;         // hemisphere fill: shadows stay readable, never black
+const ROUTE_STEP_M = 4;            // trail points every 4 m
 const PIN_HEIGHT_M = 40;
 const FLY_SPEED_M_S = 45;          // fly-through speed along the route
+// Route trails (display only; the route data is not changed)
+const TRAIL_LIFT_M = 1.2;          // above the ground (x exaggeration), never buried
+const TRAIL_SMOOTH = 2;            // Chaikin passes that round the grid staircase
+const TRAIL_W_ON = 4;              // selected route ribbon width (m)
+const TRAIL_GLOW = 3.4;            // its glow, as a multiple of that width
+const TRAIL_W_OFF = 1.8;           // other routes: thin and faint
+const TRAIL_OFF_OPACITY = 0.55;
+const TRAIL_W_REF = 2.6;           // planned walk and Curiosity's path (when switched on)
+const TRAIL_HIT_M = 30;            // click target width for the faint routes
+// The astronaut draws the route: constant speed along it (by distance, not time), easing in and
+// out at the ends, leaving the line behind like a pen on paper
+const PEN_REVEAL_M_S = 1100;       // when a route is picked or the 3D view opens: a quick sketch
+const PEN_FLY_M_S = 60;            // "Fly along your route" at 1x: the camera follows the astronaut
+const SPEEDS = [1, 2, 4];          // simulation speed buttons
+const PEN_RAMP_S = 0.7;            // time to reach full speed, and to slow down to B
+const PEN_REST_MS = 700;           // the astronaut rests on B, then goes; the line stays
+const CAM_FOLLOW = 2.2;            // camera smoothing (1/s): higher = tighter
+const FLY_BACK_M = 120;            // fly-along camera: behind and above the snake's head
+const FLY_UP_M = 80;
+// Pen and A / B markers: about 2-3x the line width on screen, kept within limits when zooming
+const MARK_SCREEN = 0.0042;        // size as a share of the distance to the camera
+const MARK_MIN_M = 2.5;
+const MARK_MAX_M = 9;
 // Bodycam: the HUD astronaut's view (hud:time), looking where they walk; the astronaut figure
 // is hidden. A little above true eye height: the terrain grid is ~9 m and the height is
 // exaggerated, so a 1.7 m camera would sit in the blur.
@@ -25,9 +53,20 @@ const BODY_UP_M = 7;               // and this far above the ground there
 const BODY_LOOK_M = 90;            // looks at a point this far ahead
 const BODY_CLEAR_M = 4;            // never closer than this to the ground under the camera
 const FOCUS_MS = 1400;
-const NAV_LIFT_M = 2.2;            // your own routes (navigation) float a little above the planned one
-const NAV_LIFT_ON_M = 3;           // the chosen one on top
-const NAV_PIN_M = 26;              // height of the A / B pins
+// World beyond the DEM tile (all as multiples of the tile size)
+const SKIRT_SCALE = 7;             // ground plane width
+const SKIRT_SEGMENTS = 160;
+const SKIRT_SETTLE = 0.6;          // edge heights settle to the mean level over this distance
+const SKIRT_DROP_M = 3;            // ground beyond sits this much lower, so the DEM covers it
+const SKIRT_UNDER_M = 60;          // under the DEM tile: this far below its lowest point
+const EDGE_FADE = 0.035;           // share of the image blended into the ground colour at each edge
+const FOG_NEAR = 0.85;
+const FOG_FAR = 3.2;
+const MAX_DIST = 1.5;              // camera never further than this from its target
+const OVERVIEW_UP = 0.62;          // opening view, from the south
+const OVERVIEW_BACK = 0.72;
+const CAMERA_CLEAR_M = 12;         // camera stays this far above the ground (x exaggeration)
+
 const STRATA_ALPHA = 0.62;         // rock-layer tint over the HiRISE image
 const fmtElev = (z) => `${Math.round(z)} m`.replace('-', '\u2212');
 
@@ -100,19 +139,63 @@ function labelSprite(text, color) {
   return sp;
 }
 
-function skyTexture() {
+// Mars daytime sky from the palette: dusty butterscotch at the horizon, a deeper rust overhead.
+// (hex palette colours only: THREE.Color does not parse color-mix())
+const mixCss = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t);
+function marsSky() {
+  const sand = css('--color-sand', '#8A6A2E');
+  const paper = css('--color-surface-2', '#EEE4D6');
+  const accent = css('--color-accent', '#B4532A');
+  const dust = css('--color-dust', '#6B5A4E');
+  const horizon = mixCss(paper, sand, 0.45).lerp(new THREE.Color(accent), 0.12);
+  const zenith = mixCss(dust, accent, 0.35);
+  return { horizon, zenith };
+}
+
+function skyTexture({ horizon, zenith }) {
   const c = document.createElement('canvas');
   c.width = 4; c.height = 256;
   const ctx = c.getContext('2d');
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, css('--color-bg', 'black'));
-  g.addColorStop(0.55, css('--color-surface', 'black'));
-  g.addColorStop(1, css('--color-dust', 'gray'));
+  g.addColorStop(0, `#${zenith.getHexString()}`);
+  g.addColorStop(0.62, `#${zenith.clone().lerp(horizon, 0.75).getHexString()}`);
+  g.addColorStop(1, `#${horizon.getHexString()}`);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 4, 256);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+// Average colour of an image (for the ground beyond the DEM)
+function averageColor(canvas) {
+  const c = document.createElement('canvas');
+  c.width = 16; c.height = 16;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(canvas, 0, 0, 16, 16);
+  const px = ctx.getImageData(0, 0, 16, 16).data;
+  let r = 0; let g = 0; let b = 0;
+  for (let i = 0; i < px.length; i += 4) { r += px[i]; g += px[i + 1]; b += px[i + 2]; }
+  const n = px.length / 4;
+  return `rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`;
+}
+
+// Soften the image edges into that average colour, so the DEM edge has no hard line
+function fadeEdges(canvas, color, share) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width; const hgt = canvas.height;
+  const bw = Math.round(w * share); const bh = Math.round(hgt * share);
+  const band = (x0, y0, x1, y1, x, y, ww, hh) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, ww, hh);
+  };
+  band(0, 0, bw, 0, 0, 0, bw, hgt);
+  band(w, 0, w - bw, 0, w - bw, 0, bw, hgt);
+  band(0, 0, 0, bh, 0, 0, w, bh);
+  band(0, hgt, 0, hgt - bh, 0, hgt - bh, w, bh);
 }
 
 // ---------------------------------------------------------------- scene
@@ -127,6 +210,7 @@ export async function createScene(state, el, { onProgress } = {}) {
     danger: css('--color-danger', 'red'),
     hud: css('--color-hud', 'cyan'),
     text: css('--color-text', 'white'),
+    textInv: css('--color-text-inverse', 'white'),
     bg: css('--color-bg', 'black'),
     dust: css('--color-dust', 'gray'),
     // rock-layer colours; fall back to the older palette if base.css has no clay/sulfate yet
@@ -157,15 +241,18 @@ export async function createScene(state, el, { onProgress } = {}) {
   renderer.domElement.className = 'v3d-canvas';
 
   const scene = new THREE.Scene();
-  scene.background = skyTexture();
-  scene.fog = new THREE.Fog(new THREE.Color(colors.dust), 3200, 9000);
+  // World: the DEM tile, a ground beyond it that fades into dusty haze, and a Mars sky
+  const sky = marsSky();
+  const worldSize = Math.max(frame.width, frame.depth);
+  scene.background = skyTexture(sky);
+  scene.fog = new THREE.Fog(sky.horizon, worldSize * FOG_NEAR, worldSize * FOG_FAR);
 
   const camera = new THREE.PerspectiveCamera(45, 1, 1, 20000);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.maxPolarAngle = Math.PI * 0.47;
   controls.minDistance = 30;
-  controls.maxDistance = 6000;
+  controls.maxDistance = worldSize * MAX_DIST;
 
   // ----- terrain mesh
   const n = grid.n;
@@ -179,19 +266,57 @@ export async function createScene(state, el, { onProgress } = {}) {
   terrain.castShadow = true;
   scene.add(terrain);
 
+  // Ground beyond the DEM (no data there: no relief is invented). It continues the edge heights
+  // and settles to the mean level, sits a little lower so the DEM always covers it, in the
+  // average colour of the imagery, and disappears into the fog.
+  const skirtGeo = new THREE.PlaneGeometry(worldSize * SKIRT_SCALE, worldSize * SKIRT_SCALE, SKIRT_SEGMENTS, SKIRT_SEGMENTS);
+  skirtGeo.rotateX(-Math.PI / 2);
+  const groundColor = averageColor(base.canvas);
+  fadeEdges(base.canvas, groundColor, EDGE_FADE);
+  texture.needsUpdate = true;
+  const skirt = new THREE.Mesh(skirtGeo, new THREE.MeshStandardMaterial({ color: groundColor, roughness: 1, metalness: 0 }));
+  skirt.receiveShadow = true;
+  scene.add(skirt);
+  const zMean = zBase;
+  // lowest DEM point: under the DEM tile the ground plane sits well below it (its coarse grid
+  // would otherwise poke through narrow valleys as flat grey patches)
+  let zLow = Infinity;
+  for (const z of grid.z) if (z < zLow) zLow = z;
+  function skirtHeights() {
+    const p = skirtGeo.attributes.position;
+    const hw = frame.width / 2; const hd = frame.depth / 2;
+    for (let k = 0; k < p.count; k++) {
+      const x = p.getX(k); const zz = p.getZ(k);
+      if (Math.abs(x) < hw && Math.abs(zz) < hd) {
+        p.setY(k, (zLow - zBase) * exag - SKIRT_UNDER_M);
+        continue;
+      }
+      const cx = Math.min(Math.max(x, -hw), hw); const cz = Math.min(Math.max(zz, -hd), hd);
+      const out = Math.hypot(x - cx, zz - cz);
+      const f = Math.min(out / (worldSize * SKIRT_SETTLE), 1);
+      const ease = f * f * (3 - 2 * f);
+      const z = sampleGrid(grid, cx, cz) * (1 - ease) + zMean * ease;
+      p.setY(k, (z - zBase) * exag - SKIRT_DROP_M * exag);
+    }
+    p.needsUpdate = true;
+    skirtGeo.computeVertexNormals();
+  }
+
   function applyHeights() {
     const p = geo.attributes.position;
     for (let k = 0; k < p.count; k++) p.setY(k, (grid.z[k] - zBase) * exag);
     p.needsUpdate = true;
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
+    skirtHeights();
   }
   applyHeights();
 
   // ----- lights (Sun from sun.json)
-  const hemi = new THREE.HemisphereLight(new THREE.Color(colors.sand), new THREE.Color(colors.bg), 0.55);
+  // sky fill from above (Mars sky), dusty bounce from below: soft, so the Sun's shading carries the relief
+  const hemi = new THREE.HemisphereLight(sky.horizon, new THREE.Color(colors.dust), SKY_INTENSITY);
   scene.add(hemi);
-  const sunLight = new THREE.DirectionalLight(0xffffff, 2.2);
+  const sunLight = new THREE.DirectionalLight(0xffffff, SUN_INTENSITY);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(2048, 2048);
   const half = Math.max(frame.width, frame.depth) * 0.75;
@@ -202,13 +327,13 @@ export async function createScene(state, el, { onProgress } = {}) {
   let sunInfo = null;
   function setSun(row) {
     sunInfo = row;
-    const az = ((row?.sun_az ?? 135) * Math.PI) / 180;
-    const el = Math.max(row?.sun_el ?? 35, 2) * (Math.PI / 180);
+    const az = ((row?.sun_az ?? SUN_DEFAULT.sun_az) * Math.PI) / 180;
+    const el = Math.max(row?.sun_el ?? SUN_DEFAULT.sun_el, 2) * (Math.PI / 180);
     const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
     sunLight.position.copy(dir.multiplyScalar(5000));
-    const day = (row?.sun_el ?? 35) > 0;
-    sunLight.intensity = day ? 2.2 : 0.05;
-    hemi.intensity = day ? 0.55 : 0.18;
+    const day = (row?.sun_el ?? SUN_DEFAULT.sun_el) > 0;
+    sunLight.intensity = day ? SUN_INTENSITY : 0.05;
+    hemi.intensity = day ? SKY_INTENSITY : 0.18;
     updateInfo();
   }
 
@@ -217,22 +342,23 @@ export async function createScene(state, el, { onProgress } = {}) {
   scene.add(marks);
   const pickables = [];
   const coords = routeCoords(state.route);
-  let routeCurve = null;
-  let routeLen = 0;
+  let plannedTrail = null;     // Demir's planned walk
+  let traverseGroup = null;    // Curiosity's path
+  const show = { planned: false, traverse: false };   // both off at first, like the 2D map
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  function lineOnTerrain(pts, lift) {
-    return pts.map(([lon, lat]) => posLL(lon, lat, lift));
-  }
-
-  function resample(path, step) {
-    const out = [path[0]];
-    for (let i = 1; i < path.length; i++) {
-      const a = path[i - 1]; const b = path[i];
-      const d = distM(a, b);
-      const k = Math.max(1, Math.ceil(d / step));
-      for (let s = 1; s <= k; s++) out.push([a[0] + ((b[0] - a[0]) * s) / k, a[1] + ((b[1] - a[1]) * s) / k]);
+  // [lon, lat] path -> points on the terrain: grid corners rounded (Chaikin), evenly spaced,
+  // each at the ground height there plus a small lift. Display only.
+  function drape(path) {
+    const xz = [];
+    for (const c of path) {
+      if (!Array.isArray(c)) continue;
+      const p = frame.toXZ(c[0], c[1]);
+      const prev = xz[xz.length - 1];
+      if (!prev || prev[0] !== p[0] || prev[1] !== p[1]) xz.push(p);
     }
-    return out;
+    return resampleXZ(chaikin(xz, TRAIL_SMOOTH), ROUTE_STEP_M)
+      .map(([x, z]) => new THREE.Vector3(x, yAt(x, z) + TRAIL_LIFT_M * exag, z));
   }
 
   const stopObjs = new Map();   // stop id -> {head, lab, ring, headY}
@@ -247,20 +373,17 @@ export async function createScene(state, el, { onProgress } = {}) {
     pickables.length = 0;
     stopObjs.clear();
 
-    // planned route
+    // planned science walk (Demir's route, the one the HUD follows): off until switched on in the key
+    plannedTrail = null;
     if (coords.length >= 2) {
-      const pts = lineOnTerrain(resample(coords, ROUTE_STEP_M), ROUTE_LIFT_M * exag);
-      routeCurve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
-      routeLen = routeCurve.getLength();
-      const tube = new THREE.Mesh(
-        new THREE.TubeGeometry(routeCurve, Math.min(pts.length * 2, 4000), 1.3, 6, false),
-        new THREE.MeshStandardMaterial({ color: colors.accent, emissive: colors.accent, emissiveIntensity: 0.45 }),
-      );
-      tube.castShadow = true;
-      marks.add(tube);
+      plannedTrail = makeTrail(THREE, drape(coords), { color: colors.sand, width: TRAIL_W_REF, head: true });
+      plannedTrail.visible = show.planned;
+      marks.add(plannedTrail);
     }
 
-    // Curiosity traverse (dashed), split at re-entries so no fake jumps are drawn
+    // Curiosity's path, split at re-entries so no fake jumps are drawn: off until switched on
+    traverseGroup = new THREE.Group();
+    traverseGroup.visible = show.traverse;
     const tg = state.traverse?.geometry || state.traverse?.features?.[0]?.geometry;
     if (tg?.coordinates?.length) {
       const parts = [];
@@ -269,14 +392,12 @@ export async function createScene(state, el, { onProgress } = {}) {
         const br = [0, ...(state.traverse.properties?.breaks || []), tg.coordinates.length];
         for (let i = 0; i < br.length - 1; i++) parts.push(tg.coordinates.slice(br[i], br[i + 1]));
       }
-      const mat = new THREE.LineDashedMaterial({ color: colors.info, dashSize: 14, gapSize: 9, transparent: true, opacity: 0.9 });
       for (const part of parts) {
         if (part.length < 2) continue;
-        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(lineOnTerrain(resample(part, 6), 2 * exag)), mat);
-        line.computeLineDistances();
-        marks.add(line);
+        traverseGroup.add(makeTrail(THREE, drape(part), { color: colors.info, width: TRAIL_W_REF }));
       }
     }
+    marks.add(traverseGroup);
 
     // habitat
     const hab = state.area.habitat;
@@ -284,7 +405,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       const p = posLL(hab[0], hab[1]);
       const dome = new THREE.Mesh(
         new THREE.SphereGeometry(9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshStandardMaterial({ color: colors.text, roughness: 0.4, metalness: 0.2 }),
+        new THREE.MeshStandardMaterial({ color: colors.textInv, roughness: 0.35, metalness: 0.15 }),   // a light dome, not a black blob
       );
       dome.position.copy(p);
       dome.castShadow = true;
@@ -350,62 +471,142 @@ export async function createScene(state, el, { onProgress } = {}) {
   const navGroup = new THREE.Group();
   scene.add(navGroup);
   let nav = null;           // {start, end, options[], chosen}
-  let navCurve = null; let navLen = 0;
-  const navColor = (id) => (id === 'fastest' ? colors.info : id === 'safest' ? colors.ok : colors.sand);
+  let navTrail = null;      // the selected route's trail
+  const navHits = [];       // click targets of the other routes
+  colors.muted = css('--color-muted-route', colors.dust);
 
+  // A / B: a small disc on the ground with a light rim, and its letter just above; unit size,
+  // scaled every frame like the astronaut (markScale)
+  const navPins = [];
   function navPin(coord, letter, color) {
-    const p = posLL(coord[0], coord[1]);
     const g = new THREE.Group();
-    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, NAV_PIN_M, 6), new THREE.MeshStandardMaterial({ color }));
-    stick.position.y = NAV_PIN_M / 2;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(5, 9, 16).rotateX(Math.PI), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 }));
-    cone.position.y = NAV_PIN_M + 4.5;
+    const mark = new THREE.Group();   // scaled every frame; the letter keeps its own screen size
+    const lit = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, roughness: 0.5 });
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), lit);
+    const rim = new THREE.Mesh(new THREE.SphereGeometry(1.3, 20, 12), new THREE.MeshBasicMaterial({ color: colors.textInv, side: THREE.BackSide }));
+    dot.scale.y = 0.55; rim.scale.y = 0.55;   // a flattened bead, it does not hide the line
+    mark.add(rim, dot);
     const lab = labelSprite(letter, color);
-    lab.position.y = NAV_PIN_M + 10;
-    g.add(stick, cone, lab);
-    g.position.copy(p);
+    lab.scale.multiplyScalar(0.7);
+    g.add(mark, lab);
+    g.position.copy(posLL(coord[0], coord[1], TRAIL_LIFT_M * exag));
+    g.userData = { mark, lab };
+    navPins.push(g);
     return g;
   }
+  const markSize = (obj) => Math.min(Math.max(camera.position.distanceTo(obj.position) * MARK_SCREEN, MARK_MIN_M), MARK_MAX_M);
+  function markScale(obj) { obj.scale.setScalar(markSize(obj)); }
+  function pinScale(pin) {
+    const r = markSize(pin);
+    pin.userData.mark.scale.setScalar(r);
+    pin.userData.lab.position.y = r * 1.4;
+  }
 
+  // Only the selected route stands out (oxide, glowing); the others are thin, faint and clickable
   function buildNav() {
     navGroup.clear();
-    navCurve = null; navLen = 0;
-    if (!nav) { updateLegend(); return; }
-    // draw the chosen route last and thicker, so it sits on top (no options yet: only pin A)
-    const order = [...(nav.options || [])].sort((a, b) => (a.id === nav.chosen) - (b.id === nav.chosen));
-    for (const o of order) {
-      const c = o.feature?.geometry?.coordinates;
-      if (!Array.isArray(c) || c.length < 2) continue;
-      const on = o.id === nav.chosen;
-      const pts = lineOnTerrain(resample(c.filter((p, i) => i === 0 || p[0] !== c[i - 1][0] || p[1] !== c[i - 1][1]), ROUTE_STEP_M),
-        (on ? NAV_LIFT_ON_M : NAV_LIFT_M) * exag);
-      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
-      const col = navColor(o.id);
-      const tube = new THREE.Mesh(
-        new THREE.TubeGeometry(curve, Math.min(pts.length * 2, 4000), on ? 1.8 : 0.8, 6, false),
-        new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: on ? 0.6 : 0.25, transparent: !on, opacity: on ? 1 : 0.6 }),
-      );
-      navGroup.add(tube);
-      if (on) { navCurve = curve; navLen = curve.getLength(); }
+    navTrail = null;
+    navHits.length = 0;
+    navPins.length = 0;
+    if (nav) {
+      for (const o of nav.options || []) {
+        const c = o.feature?.geometry?.coordinates;
+        if (!Array.isArray(c) || c.length < 2) continue;
+        if (o.id === nav.chosen) {
+          navTrail = makeTrail(THREE, drape(c), {
+            color: colors.accent, width: TRAIL_W_ON, glow: TRAIL_GLOW, head: true, headColor: colors.accent, rimColor: colors.textInv,
+          });
+          navTrail.renderOrder = 6;
+          navGroup.add(navTrail);
+        } else {
+          const t = makeTrail(THREE, drape(c), { color: colors.muted, width: TRAIL_W_OFF, opacity: TRAIL_OFF_OPACITY, hitWidth: TRAIL_HIT_M });
+          t.hit.userData.navId = o.id;
+          navHits.push(t.hit);
+          navGroup.add(t);
+        }
+      }
+      if (Array.isArray(nav.start)) navGroup.add(navPin(nav.start, 'A', colors.text));
+      if (Array.isArray(nav.end)) navGroup.add(navPin(nav.end, 'B', colors.accent));
     }
-    if (Array.isArray(nav.start)) navGroup.add(navPin(nav.start, 'A', colors.text));
-    if (Array.isArray(nav.end)) navGroup.add(navPin(nav.end, 'B', colors.accent));
+    // a snake already under way carries on over the rebuilt trail; otherwise draw it whole
+    if (!snake) activeTrail()?.setProgress(1);
     updateLegend();
   }
 
   function setNav(detail) {
     nav = detail && Array.isArray(detail.options) ? { ...detail } : null;
-    fly = null;
+    snake = null;
     buildNav();
     updateButtons();
-    if (nav) frameNav();
+    if (nav?.options?.length) { frameNav(); playSnake(); }
   }
 
   function chooseNav(id) {
-    if (!nav) return;
+    if (!nav || nav.chosen === id) return;
     nav.chosen = id;
+    snake = null;
     buildNav();
     updateButtons();
+    playSnake();
+  }
+
+  // ----- the astronaut draws the active route from A to B, like a pen line on paper
+  // Speed is constant along the way (m/s), with a short ease in and out: distance s(t) follows a
+  // trapezoid speed profile, so a long route takes longer but the astronaut always moves the same.
+  // The clock (elapsed) runs at the chosen simulation speed, so changing it keeps the position.
+  let snake = null;   // {elapsed (s), v, ramp, total (s), follow, doneAt}
+  let speed = 1;
+  const activeTrail = () => navTrail || (show.planned ? plannedTrail : null);
+  function playSnake({ follow = false } = {}) {
+    const t = activeTrail();
+    if (!t) return;
+    if (reducedMotion) { snake = null; t.setProgress(1); return; }
+    const v = follow ? PEN_FLY_M_S : PEN_REVEAL_M_S;
+    const ramp = Math.min(PEN_RAMP_S, t.len / v);     // a very short route: ramps only
+    snake = { elapsed: 0, v, ramp, total: t.len / v + ramp, follow, doneAt: null };
+    t.setProgress(0);
+  }
+  function penDistance(sn, len, tSec) {
+    const { v, ramp, total } = sn;
+    if (tSec <= 0) return 0;
+    if (tSec >= total) return len;
+    if (tSec < ramp) return (v * tSec * tSec) / (2 * ramp);
+    if (tSec > total - ramp) return len - (v * (total - tSec) ** 2) / (2 * ramp);
+    return v * (tSec - ramp / 2);
+  }
+  function stepSnake(now, dt) {
+    if (!snake) return;
+    const t = activeTrail();
+    if (!t) { snake = null; return; }
+    snake.elapsed += dt * (snake.follow ? speed : 1);
+    const tSec = snake.elapsed;
+    const s = Math.min(penDistance(snake, t.len, tSec), t.len);
+    const done = tSec >= snake.total;
+    if (done && snake.doneAt == null) snake.doneAt = now;
+    t.setProgress(s / t.len, { keepHead: done });
+    if (t.head?.visible) {
+      markScale(t.head);
+      t.head.position.y += t.head.scale.x * 0.7;   // the dot stands on the line, not in the ground
+    }
+    if (snake.follow) {
+      // camera behind and above the astronaut, looking a little ahead; smoothed by time, no shake
+      const head = t.pointAt(s);
+      const ahead = t.pointAt(Math.min(s + 60, t.len));
+      const back = head.clone().sub(ahead).setY(0);
+      if (back.lengthSq() < 1e-6) back.copy(camera.position).sub(head).setY(0);
+      if (back.lengthSq() < 1e-6) back.set(0, 0, 1);
+      back.normalize();
+      const want = head.clone().addScaledVector(back, FLY_BACK_M).add(new THREE.Vector3(0, FLY_UP_M, 0));
+      const a = 1 - Math.exp(-dt * CAM_FOLLOW);
+      camera.position.lerp(want, a);
+      controls.target.lerp(done ? head : ahead, Math.min(1, a * 1.6));
+    }
+    if (done && now - snake.doneAt >= PEN_REST_MS) {
+      const wasFlying = snake.follow;
+      snake = null;
+      t.setProgress(1);
+      if (wasFlying) updateButtons();
+    }
   }
 
   function frameNav() {
@@ -485,24 +686,35 @@ export async function createScene(state, el, { onProgress } = {}) {
 
   // ----- camera moves
   let tween = null;   // {from, to, fromT, toT, start, ms}
-  let fly = null;     // {s: metres along route}
   let bodycam = false; // camera follows the HUD astronaut
 
   function overview() {
-    // frame the route, the stops and the habitat (they can be far apart); seen from the
-    // south, so the walk reads bottom (habitat) to top (stop 1), clear of the info panel
-    const box = new THREE.Box3();
-    const pts = [...coords, ...(Array.isArray(state.stops) ? state.stops.map((s) => s.coord) : []), state.area.habitat]
-      .filter((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]));
-    if (pts.length) for (const c of pts) box.expandByPoint(posLL(c[0], c[1]));
-    else box.setFromObject(terrain);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = Math.max(box.getSize(new THREE.Vector3()).length(), 600);
-    return { target: center, pos: center.clone().add(new THREE.Vector3(0.15 * size, 0.55 * size, 0.95 * size)) };
+    // the whole DEM tile, from the south, filling the screen
+    const center = new THREE.Vector3(0, yAt(0, 0), 0);
+    return { target: center, pos: center.clone().add(new THREE.Vector3(0, OVERVIEW_UP * worldSize, OVERVIEW_BACK * worldSize)) };
+  }
+
+  // Keep the camera over the world: the target stays on the DEM tile, the camera above the ground
+  // and not too far out (the fog and the sky never show their limits)
+  const hw = frame.width / 2; const hd = frame.depth / 2;
+  function clampCamera() {
+    const t = controls.target;
+    const tx = Math.min(Math.max(t.x, -hw), hw); const tz = Math.min(Math.max(t.z, -hd), hd);
+    if (tx !== t.x || tz !== t.z) {
+      camera.position.x += tx - t.x; camera.position.z += tz - t.z;
+      t.x = tx; t.z = tz;
+    }
+    const groundUnder = Math.max(yAt(camera.position.x, camera.position.z), skirtYAt(camera.position.x, camera.position.z));
+    const minY = groundUnder + CAMERA_CLEAR_M * Math.max(exag, 1);
+    if (camera.position.y < minY) camera.position.y = minY;
+  }
+  function skirtYAt(x, z) {
+    const r = Math.hypot(Math.max(Math.abs(x) - hw, 0), Math.max(Math.abs(z) - hd, 0));
+    return r > 0 ? -SKIRT_DROP_M * exag : -Infinity;
   }
 
   function moveTo(pos, target, ms = FOCUS_MS) {
-    fly = null;
+    if (snake?.follow) { snake = null; activeTrail()?.setProgress(1); }
     if (ms <= 0) { camera.position.copy(pos); controls.target.copy(target); return; }
     tween = { from: camera.position.clone(), to: pos, fromT: controls.target.clone(), toT: target, start: performance.now(), ms };
   }
@@ -542,37 +754,53 @@ export async function createScene(state, el, { onProgress } = {}) {
     moveTo(target.clone().add(dir).add(new THREE.Vector3(0, 140, 0)), target, instant ? 0 : FOCUS_MS);
   }
 
+  const flying = () => !!snake?.follow;
+  function stopFly() {
+    if (!flying()) return;
+    snake = null;
+    activeTrail()?.setProgress(1);
+    updateButtons();
+  }
+  // The button always (re)starts the drawing from A; pressing it mid-way starts over, never stacks
   function toggleFly() {
-    if (fly) { fly = null; updateButtons(); return; }
-    if (!navCurve && !routeCurve) return;
+    snake = null;
+    // no route of your own yet: fly the planned science walk (shown for the flight)
+    if (!navTrail && plannedTrail && !show.planned) setShow('planned', true);
+    if (!activeTrail()) return;
     tween = null;
     bodycam = false;
-    fly = { s: 0 };
+    playSnake({ follow: true });
     updateButtons();
   }
 
-  function toggleBodycam() {
-    bodycam = !bodycam;
-    if (bodycam) { fly = null; tween = null; }
+
+  function setShow(key, on) {
+    show[key] = on;
+    if (key === 'planned' && plannedTrail) { plannedTrail.visible = on; if (on && !navTrail) playSnake(); }
+    if (key === 'traverse' && traverseGroup) traverseGroup.visible = on;
+    updateLegend();
     updateButtons();
   }
 
   // ----- UI
   const info = h('p', { class: 'v3d-info' });
-  const flyBtn = h('button', { class: 'v3d-btn v3d-btn--primary', type: 'button', onclick: toggleFly, disabled: !coords.length },
+  const flyBtn = h('button', { class: 'v3d-btn v3d-btn--primary', type: 'button', onclick: toggleFly },
     'Fly along route');
-  const bodyBtn = h('button', {
-    class: 'v3d-btn', type: 'button', onclick: toggleBodycam, 'aria-pressed': 'false',
-    title: 'Follow the HUD astronaut, looking where they walk (open the HUD with H and press Play)',
-  }, 'Bodycam');
+  const speedBtns = SPEEDS.map((x) => h('button', {
+    class: 'v3d-seg', type: 'button', 'aria-pressed': String(x === speed),
+    title: `Simulation speed ${x}x (${PEN_FLY_M_S * x} m/s along the route)`,
+    onclick: () => { speed = x; updateButtons(); },
+  }, `${x}×`));
   const resetBtn = h('button', {
     class: 'v3d-btn', type: 'button',
     onclick: () => { bodycam = false; const o = overview(); moveTo(o.pos, o.target); updateButtons(); },
   }, 'Reset view');
   const exagBtns = EXAGGERATIONS.map((x) => h('button', {
     class: 'v3d-seg', type: 'button', 'aria-pressed': String(x === exag),
+    title: x === 1 ? 'True scale: heights as measured' : `Heights stretched ${x} times to show the relief`,
+    'aria-label': x === 1 ? '1 times, true scale' : `${x} times`,
     onclick: () => setExag(x),
-  }, `${x}×`));
+  }, x === 1 ? '1× true' : `${x}×`));
   const choices = overlayChoices(state);
   let strata = null;
   if (heights.real) {
@@ -591,23 +819,28 @@ export async function createScene(state, el, { onProgress } = {}) {
     },
   }, h('option', { value: '-1' }, 'Imagery only'), choices.map((o, i) => h('option', { value: String(i) }, o.name || o.id)));
 
+  // Map key: a small button top-right that opens the legend, the switches and the sources
+  const toggleRow = (key, cls, label) => {
+    const box = h('input', { type: 'checkbox', onchange: (e) => setShow(key, e.target.checked) });
+    box.checked = show[key];
+    return { box, li: h('li', {}, h('label', { class: 'v3d-switch' }, box, h('span', { class: `v3d-key ${cls}` }), label)) };
+  };
+  const plannedRow = coords.length >= 2 ? toggleRow('planned', 'v3d-key--planned', 'Planned science walk') : null;
+  const traverseRow = state.traverse ? toggleRow('traverse', 'v3d-key--traverse', "Curiosity rover's path") : null;
+  const yourRoute = h('li', { hidden: true }, h('span', { class: 'v3d-key v3d-key--route' }), 'Your route (selected)');
+  const otherRoutes = h('li', { hidden: true }, h('span', { class: 'v3d-key v3d-key--other' }), 'Other options (click to pick)');
   const legend = h('ul', { class: 'v3d-legend' },
-    h('li', {}, h('span', { class: 'v3d-key v3d-key--route' }), 'Planned route'),
-    h('li', {}, h('span', { class: 'v3d-key v3d-key--traverse' }), 'Curiosity traverse'),
-    h('li', {}, h('span', { class: 'v3d-key v3d-key--stop' }), 'Stops'),
+    yourRoute, otherRoutes,
+    plannedRow?.li, traverseRow?.li,
+    h('li', {}, h('span', { class: 'v3d-key v3d-key--stop' }), 'Science stops'),
     h('li', {}, h('span', { class: 'v3d-key v3d-key--shelter' }), 'Shelters'),
     h('li', {}, h('span', { class: 'v3d-key v3d-key--astro' }), 'Astronaut (HUD clock)'),
   );
-  const navLegend = [
-    ['fastest', 'Fastest (your route)'], ['safest', 'Safest (your route)'], ['alternative', 'Alternative (your route)'],
-  ].map(([id, label]) => {
-    const li = h('li', { hidden: true }, h('span', { class: 'v3d-key', style: `background:${navColor(id)}` }), label);
-    li.dataset.nav = id;
-    legend.append(li);
-    return li;
-  });
   function updateLegend() {
-    for (const li of navLegend) li.hidden = !nav?.options?.some((o) => o.id === li.dataset.nav);
+    yourRoute.hidden = !navTrail;
+    otherRoutes.hidden = !navHits.length;
+    if (plannedRow) plannedRow.box.checked = show.planned;
+    if (traverseRow) traverseRow.box.checked = show.traverse;
   }
   const pickBanner = h('p', { class: 'v3d-pick', hidden: true, role: 'status' });
 
@@ -629,36 +862,49 @@ export async function createScene(state, el, { onProgress } = {}) {
     );
   }
 
+  const keyPanel = h('div', { class: 'v3d-keypanel', id: 'v3d-keypanel', hidden: true },
+    h('p', { class: 'v3d-kicker' }, '3D terrain'),
+    info,
+    legend,
+    h('p', { class: heights.real ? 'v3d-src' : 'v3d-src v3d-src--warn' }, heights.label),
+    h('p', { class: 'v3d-src' }, `Image: ${base.label}`),
+    h('p', { class: 'v3d-src' }, 'Drag to orbit · right-drag to pan · scroll to zoom · click a stop or a faint route'));
+  const keyBtn = h('button', {
+    class: 'v3d-keybtn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'v3d-keypanel',
+    onclick: () => {
+      keyPanel.hidden = !keyPanel.hidden;
+      keyBtn.setAttribute('aria-expanded', String(!keyPanel.hidden));
+    },
+  }, 'Map key');
+
   const ui = h('div', { class: 'v3d-ui' },
     h('div', { class: 'v3d-top' },
-      h('div', { class: 'v3d-title' },
-        h('p', { class: 'v3d-kicker' }, '3D terrain'),
-        info,
-        h('p', { class: heights.real ? 'v3d-src' : 'v3d-src v3d-src--warn' }, heights.label),
-        h('p', { class: 'v3d-src' }, `Image: ${base.label}`),
-        strataPanel),
-      legend),
+      strataPanel,
+      h('div', { class: 'v3d-keywrap' }, keyBtn, keyPanel)),
     h('div', { class: 'v3d-bar' },
-      flyBtn, bodyBtn, resetBtn,
-      h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Vertical exaggeration' },
-        h('span', { class: 'v3d-group-label' }, 'Height'), exagBtns),
-      overlaySel),
-    pickBanner,
-    h('p', { class: 'v3d-hint' }, 'Drag to orbit · right-drag to pan · scroll to zoom · click a stop'));
+      flyBtn,
+      h('div', { class: 'v3d-tools' },
+        h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Simulation speed' },
+          h('span', { class: 'v3d-group-label' }, 'Speed'), speedBtns),
+        h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Vertical exaggeration' },
+          h('span', { class: 'v3d-group-label' }, 'Vertical exaggeration'), exagBtns),
+        h('div', { class: 'v3d-calm' }, resetBtn, overlaySel))),
+    pickBanner);
 
   function updateButtons() {
-    flyBtn.textContent = fly ? 'Stop flight' : navCurve ? 'Fly along your route' : 'Fly along route';
-    flyBtn.disabled = !navCurve && !routeCurve;
-    flyBtn.setAttribute('aria-pressed', String(!!fly));
-    bodyBtn.textContent = bodycam ? 'Stop bodycam' : 'Bodycam';
-    bodyBtn.setAttribute('aria-pressed', String(bodycam));
+    flyBtn.textContent = flying() ? 'Draw again from A' : navTrail ? 'Fly along your route' : 'Fly along the planned walk';
+    flyBtn.disabled = !navTrail && !plannedTrail;
+    flyBtn.setAttribute('aria-pressed', String(flying()));
+    speedBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(SPEEDS[i] === speed)));
+    // while the astronaut walks, only the main action, the speed and the height stay in the bar
+    ui.classList.toggle('is-flying', flying());
     exagBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(EXAGGERATIONS[i] === exag)));
   }
 
   function updateInfo() {
     const bits = [];
     if (sunInfo) bits.push(`Sun ${Math.round(sunInfo.sun_el)}° high, az ${Math.round(sunInfo.sun_az)}°`, `LMST ${sunInfo.lmst}`);
-    bits.push(`height ×${exag}`);
+    bits.push(exag === 1 ? 'true scale' : `heights ×${exag}`);
     info.textContent = bits.join(' · ');
   }
 
@@ -702,6 +948,11 @@ export async function createScene(state, el, { onProgress } = {}) {
     const hit = ray.intersectObjects(pickables, false)[0];
     if (hit?.object.userData.stop) {
       document.dispatchEvent(new CustomEvent('stop:select', { detail: hit.object.userData.stop }));
+      return;
+    }
+    const route = navHits.length ? ray.intersectObjects(navHits, false)[0] : null;
+    if (route?.object.userData.navId) {
+      document.dispatchEvent(new CustomEvent('nav:choose', { detail: { id: route.object.userData.navId } }));
     }
   });
   renderer.domElement.style.cursor = 'grab';
@@ -709,11 +960,12 @@ export async function createScene(state, el, { onProgress } = {}) {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    renderer.domElement.style.cursor = pickWhich ? 'crosshair' : ray.intersectObjects(pickables, false).length ? 'pointer' : 'grab';
+    renderer.domElement.style.cursor = pickWhich ? 'crosshair'
+      : ray.intersectObjects(pickables, false).length || (navHits.length && ray.intersectObjects(navHits, false).length) ? 'pointer' : 'grab';
   });
   controls.addEventListener('start', () => {
     tween = null;
-    if (fly || bodycam) { fly = null; bodycam = false; updateButtons(); }
+    if (flying() || bodycam) { stopFly(); bodycam = false; updateButtons(); }
   });
 
   // ----- size + loop
@@ -739,21 +991,8 @@ export async function createScene(state, el, { onProgress } = {}) {
       controls.target.lerpVectors(tween.fromT, tween.toT, k);
       if (t >= 1) tween = null;
     }
-    const flyCurve = navCurve || routeCurve;
-    const flyLen = navCurve ? navLen : routeLen;
-    if (fly && flyCurve) {
-      fly.s += FLY_SPEED_M_S * dt;
-      if (fly.s >= flyLen) { fly = null; updateButtons(); }
-      else {
-        const u = fly.s / flyLen;
-        const p = flyCurve.getPointAt(u);
-        const ahead = flyCurve.getPointAt(Math.min(u + 60 / flyLen, 1));
-        const back = p.clone().sub(ahead).setY(0).normalize();
-        const want = p.clone().add(back.multiplyScalar(110)).add(new THREE.Vector3(0, 75, 0));
-        camera.position.lerp(want, 0.08);
-        controls.target.lerp(ahead, 0.12);
-      }
-    }
+    stepSnake(now, dt);
+    for (const p of navPins) pinScale(p);
     astro.visible = astroShown && !bodycam;
     if (bodycam && astroShown) {
       const at = astro.position;
@@ -766,6 +1005,7 @@ export async function createScene(state, el, { onProgress } = {}) {
     }
     animateSelection(now);
     controls.update();
+    clampCamera();
     renderer.render(scene, camera);
     requestAnimationFrame(frameLoop);
   }
@@ -784,9 +1024,10 @@ export async function createScene(state, el, { onProgress } = {}) {
       running = true;
       last = performance.now();
       resize();
+      playSnake();   // opening the 3D view draws the route from A to B
       requestAnimationFrame(frameLoop);
     },
-    stop() { running = false; fly = null; bodycam = false; updateButtons(); },
+    stop() { running = false; snake = null; activeTrail()?.setProgress(1); bodycam = false; updateButtons(); },
     focusStop,
     setNav,
     chooseNav,

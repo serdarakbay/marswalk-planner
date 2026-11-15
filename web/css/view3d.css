@@ -31,22 +31,45 @@
 }
 #view3d-root .v3d-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
 
-#view3d-root .v3d-title,
-#view3d-root .v3d-legend,
+#view3d-root .v3d-keypanel,
+#view3d-root .v3d-strata,
 #view3d-root .v3d-bar {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
-#view3d-root .v3d-title {
-  max-width: 26rem;
-  padding: var(--space-2) var(--space-3);
-  /* thin oxide -> oxide-text strip on top of the info panel */
+/* Map key: a small button top-right; the panel under it holds the info, the legend and the sources */
+#view3d-root .v3d-keywrap { display: grid; justify-items: end; gap: var(--space-2); margin-left: auto; }
+#view3d-root .v3d-keybtn {
+  height: var(--space-6);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  pointer-events: auto;
+}
+#view3d-root .v3d-keybtn::after { content: " \25BE"; color: var(--color-text-muted); }
+#view3d-root .v3d-keybtn[aria-expanded="true"]::after { content: " \25B4"; }
+#view3d-root .v3d-keybtn:hover,
+#view3d-root .v3d-keybtn:focus-visible,
+#view3d-root .v3d-keybtn[aria-expanded="true"] { border-color: var(--color-accent); outline: none; }
+#view3d-root .v3d-keypanel {
+  width: min(20rem, 80vw);
+  padding: var(--space-3);
+  pointer-events: auto;
+  /* thin oxide -> oxide-text strip on top */
   background:
     linear-gradient(90deg, var(--color-accent), var(--color-accent-text, var(--color-accent-hover))) top / 100% var(--space-1) no-repeat,
     var(--color-surface);
 }
+#view3d-root .v3d-keypanel[hidden] { display: none; }
 #view3d-root .v3d-kicker {
   margin: 0;
   font-size: var(--text-xs);
@@ -61,16 +84,22 @@
 #view3d-root .v3d-legend {
   display: grid;
   gap: var(--space-1);
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
+  margin: var(--space-2) 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   list-style: none;
   font-size: var(--text-xs);
 }
+#view3d-root .v3d-switch { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+#view3d-root .v3d-switch input { margin: 0; accent-color: var(--color-accent); }
 #view3d-root .v3d-legend li { display: flex; align-items: center; gap: var(--space-2); }
 #view3d-root .v3d-legend li[hidden] { display: none; }
 #view3d-root .v3d-key { flex: none; display: inline-block; width: var(--space-4); height: var(--space-1); border-radius: var(--radius-sm); }
-#view3d-root .v3d-key--route { background: var(--color-accent); }
-#view3d-root .v3d-key--traverse { background: repeating-linear-gradient(90deg, var(--color-info) 0 var(--space-1), transparent var(--space-1) var(--space-2)); }
+#view3d-root .v3d-key--route { background: var(--color-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent); }
+#view3d-root .v3d-key--other { height: 2px; background: var(--color-muted-route, var(--color-dust)); }
+#view3d-root .v3d-key--planned { background: var(--color-sand); }
+#view3d-root .v3d-key--traverse { background: var(--color-info); }
 #view3d-root .v3d-key--stop { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--color-sand); }
 #view3d-root .v3d-key--shelter { width: var(--space-2); height: var(--space-2); background: var(--color-ok); transform: rotate(45deg); }
 #view3d-root .v3d-key--astro { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--color-hud); }
@@ -114,6 +143,20 @@
   color: var(--color-text-inverse);
 }
 #view3d-root .v3d-btn--primary:hover { background: var(--color-accent-text, var(--color-accent-hover)); }
+#view3d-root .v3d-btn--primary { height: calc(var(--space-6) + var(--space-2)); padding: 0 var(--space-5); font-weight: 600; font-size: var(--text-md); }
+
+/* secondary tools: quieter, smaller, next to the main action */
+#view3d-root .v3d-calm { display: flex; align-items: center; gap: var(--space-2); }
+/* while the astronaut walks: only the main action, the speed and the height */
+#view3d-root .v3d-ui.is-flying .v3d-calm { display: none; }
+#view3d-root .v3d-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); padding-left: var(--space-2); border-left: 1px solid var(--color-border); }
+#view3d-root .v3d-tools .v3d-btn,
+#view3d-root .v3d-tools .v3d-seg,
+#view3d-root .v3d-tools .v3d-select { height: calc(var(--space-5) + var(--space-1)); padding: 0 var(--space-2); background: transparent; font-size: var(--text-xs); }
+#view3d-root .v3d-tools .v3d-btn[aria-pressed="true"],
+#view3d-root .v3d-tools .v3d-seg[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-text, var(--color-accent-hover)));
+}
 
 #view3d-root .v3d-group { display: flex; align-items: center; gap: var(--space-1); }
 #view3d-root .v3d-group-label { margin-right: var(--space-1); font-size: var(--text-xs); color: var(--color-text-muted); }
@@ -145,9 +188,9 @@
 
 /* rock layers (clay -> sulfate) explainer, shown when that layer is draped */
 #view3d-root .v3d-strata {
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
+  max-width: 24rem;
+  padding: var(--space-2) var(--space-3);
+  pointer-events: auto;
 }
 #view3d-root .v3d-strata[hidden] { display: none; }
 #view3d-root .v3d-strata-bar {
@@ -190,5 +233,6 @@
   #view3d-root .v3d-ui { padding: calc(var(--header-h, 0px) + var(--gap, var(--space-3))) var(--space-3) calc(48vh + var(--space-3)); }
 }
 @media (max-width: 720px) {
-  #view3d-root .v3d-legend { display: none; }
+  #view3d-root .v3d-tools { border-left: 0; padding-left: 0; justify-content: center; }
+  #view3d-root .v3d-group-label { display: none; }
 }
