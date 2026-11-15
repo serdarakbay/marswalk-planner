@@ -94,8 +94,14 @@ seg_len = np.diff(d)
 grade = np.divide(np.diff(zs), seg_len, out=np.zeros_like(seg_len), where=seg_len > 0)
 seg_min = seg_len / speed_m_min(grade)
 t = np.concatenate([[0], np.cumsum(seg_min)])
+# O2 (% of tank) used so far at each vertex: each segment at its own grade
+# (uphill costs more), plus standing still during the dwell at each stop
+seg_o2 = o2_walk_pct(seg_min, grade)
+o2 = np.concatenate([[0], np.cumsum(seg_o2)])
 for si in stop_index:
-    t[np.array(keep) >= si] += STOP_DWELL_MIN
+    after = np.array(keep) >= si
+    t[after] += STOP_DWELL_MIN
+    o2[after] += o2_rest_pct(STOP_DWELL_MIN)
 
 # Pixel centres -> lon/lat
 xs, ys = tr * (cols + 0.5, rows + 0.5)
@@ -110,6 +116,7 @@ route = {
     "properties": {
         "slope_deg": [round(float(s), 1) for s in slopes],
         "t_min": [round(float(x), 1) for x in t],
+        "o2_pct": [round(float(x), 2) for x in o2],   # extra: cumulative O2 used (% of tank)
     },
 }
 
@@ -117,8 +124,8 @@ route = {
 prof_idx = np.searchsorted(d, np.arange(0, d[-1], PROFILE_EVERY_M))
 prof_idx = np.unique(np.append(prof_idx, len(d) - 1))
 duration = float(t[-1])
-# O2: each segment at its own grade (uphill costs more), plus standing at the stops
-o2_used = float(o2_walk_pct(seg_min, grade).sum() + o2_rest_pct(STOP_DWELL_MIN * len(stop_index)))
+o2_used = float(o2[-1])
+walk_min = float(seg_min.sum())
 summary = {
     "distance_m": round(float(d[-1])),
     "duration_min": round(duration),
@@ -127,6 +134,11 @@ summary = {
     "max_slope_deg": round(float(slopes.max()), 1),
     "profile": [{"d": round(float(d[i])), "z": round(float(zs[i]), 1),
                  "slope": round(float(slopes[i]), 1)} for i in prof_idx],
+    # Extra fields for the HUD (O2 rates from Utku's model, same as o2_pct above)
+    "walk_min": round(walk_min, 1),
+    "stop_min": round(duration - walk_min, 1),
+    "o2_walk_pct_per_min": round(float(seg_o2.sum()) / walk_min, 4),
+    "o2_standing_pct_per_min": round(float(o2_rest_pct(1.0)), 4),
 }
 
 def traverse_lines(path):
