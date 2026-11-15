@@ -55,8 +55,11 @@
 /* simulation controls */
 #hud-root .hud-sim {
   display: flex;
+  /* two rows when needed: clock (play, speed, slider, time) on top, scenario buttons below */
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   align-self: center;
   width: 100%;
   max-width: 720px;
@@ -82,7 +85,8 @@
 #hud-root .hud-sim__play[aria-pressed="true"] { color: var(--color-text-inverse); background: var(--hud-accent); border-color: var(--hud-accent); }
 #hud-root .hud-sim__play:hover,
 #hud-root .hud-sim__speed:hover { border-color: var(--hud-accent); }
-#hud-root .hud-sim__track { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
+/* the slider keeps a usable width; the scenario buttons wrap to the next row instead */
+#hud-root .hud-sim__track { position: relative; flex: 1 1 260px; min-width: 260px; display: flex; align-items: center; }
 #hud-root .hud-sim__range { width: 100%; margin: 0; accent-color: var(--hud-accent); cursor: pointer; }
 /* scenario events above the slider: storm (red), in shelter (amber), dust devil / hold (yellow) */
 #hud-root .hud-sim__events { position: absolute; left: 0; right: 0; top: calc(-1 * var(--space-1)); height: var(--space-1); pointer-events: none; }
@@ -303,7 +307,7 @@
   #hud-root .hud-bottom .hud-panel { width: 100%; }
   /* controls stay reachable while scrolling */
   #hud-root .hud-sim { position: sticky; bottom: 0; flex-wrap: wrap; }
-  #hud-root .hud-sim__track { order: 3; flex-basis: 100%; }
+  #hud-root .hud-sim__track { order: 3; flex-basis: 100%; min-width: 0; }
   #hud-root .hud-sim__label { margin-left: auto; }
 }
 
