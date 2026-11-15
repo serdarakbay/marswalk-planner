@@ -487,11 +487,21 @@ function navLayer(map, probe, onProfile) {
     if (Array.isArray(data?.start)) b.extend(toLatLng(data.start));
     if (Array.isArray(data?.end)) b.extend(toLatLng(data.end));
     if (!b.isValid()) return;
+    if (map.getBounds().contains(b)) return;
+    // keep the routes clear of the planner on the left and the profile at the bottom; on a narrow
+    // screen (planner as a bottom sheet) or a tiny window the padding would not fit: use none
+    const size = map.getSize();
+    if (size.x < 2 * NAV_FIT_PADDING || size.y < 2 * NAV_FIT_PADDING) return;   // hidden or minimised
     const pad = NAV_FIT_PADDING;
-    const left = document.getElementById('cards')?.offsetWidth || 0;
-    // keep the routes clear of the planner on the left and the profile at the bottom
-    if (!map.getBounds().contains(b)) {
-      map.flyToBounds(b, { paddingTopLeft: [left + 2 * pad, 2 * pad], paddingBottomRight: [pad, 4 * pad], maxZoom: 17, duration: 0.8 });
+    const cards = document.getElementById('cards');
+    const side = cards && cards.offsetWidth < size.x / 2 ? cards.offsetWidth : 0;
+    const tl = [side + 2 * pad, 2 * pad];
+    const br = [pad, 4 * pad];
+    const fits = size.x > tl[0] + br[0] + pad && size.y > tl[1] + br[1] + pad;
+    try {
+      map.flyToBounds(b, fits ? { paddingTopLeft: tl, paddingBottomRight: br, maxZoom: 17, duration: 0.8 } : { maxZoom: 17, duration: 0.8 });
+    } catch (err) {
+      console.warn('[map] could not frame the routes', err.message);
     }
   }
 
