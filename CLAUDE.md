@@ -34,8 +34,8 @@ Before you start, find out which team member the user is (from the branch name o
 | Ege | Services, map, integration | `harita` | `web/index.html` (landing page), `web/planner.html`, `web/css/landing.css`, `web/js/landing/`, `web/js/main.js`, `web/js/map/`, `web/css/base.css`, `web/assets/`, `CLAUDE.md`, `.gitignore`, `.github/`, `.claude/settings.json`, `.env.example`, `README.md` |
 | Demir | Terrain and route | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Data: Curiosity and REMS + stop cards + UI/3D design | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css`, `web/js/view3d/`, `web/css/view3d.css` |
-| Serdar | Horizons, EVA window, HUD, geologic map | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/js/hud/`, `web/css/hud.css` |
-| Utku | Science, safety layers, radiation, story | `harita`, `bilim` | `science/` (except `science/eva/`, including `science/safety/`), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, and in `web/data/`: `area.json`, `layers.json`, `stops.json`, `targets.json`, `donki.json`, `radiation.json`, `alerts.json` |
+| Serdar | Horizons, EVA window, HUD, geologic map, science targets (with Utku), data sources panel | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `science/targets.py`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/data/targets.json`, `web/js/hud/`, `web/css/hud.css`, `web/js/map/sources.js` (in Ege's folder, by agreement) |
+| Utku | Science, safety layers, radiation, story | `harita`, `bilim` | `science/` (except `science/eva/` and `science/targets.py`, including `science/safety/`), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, and in `web/data/`: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
 
 **Mocks:** Utku writes all mock files under `web/data/`. When the real file is ready, its owner's script overwrites the mock.
 
@@ -70,6 +70,7 @@ science/               Utku: models.py (O2, dose), radiation, stops, alerts
 science/safety/        Utku: radio shadow (viewshed), shelters (sky-view), safety.json
 science/mocks/         Utku: mock generator and checker for web/data/
 science/eva/           Serdar: EVA window
+science/targets.py     Serdar, Utku: science targets off the route → targets.json (Serdar's script on Utku's candidates and unit rules in stops.py; Serdar runs and edits it)
 config/mission.json    Utku: every threshold and constant (single source)
 web/
   index.html           Ege: landing page (redirects to planner.html when the URL has app parameters)
@@ -77,7 +78,7 @@ web/
   css/landing.css      Ege: landing page styles
   js/landing/          Ege: landing page scripts (data, 3D block diagram, contours)
   js/main.js           Ege: planner entry point, wires the modules together
-  js/map/              Ege: Leaflet, layer panel, route, profile
+  js/map/              Ege: Leaflet, layer panel, route, profile (sources.js: Serdar, the Data sources popover in the footer)
   js/hud/              Serdar: HUD mode
   js/cards/            Egemen: stop cards
   js/view3d/           Egemen: 3D view
@@ -119,7 +120,7 @@ Full schemas are in `docs/contracts.md`. Summary:
 | `summary.json` | Demir | `distance_m`, `duration_min`, `o2_used_pct`, `dose_mSv`, `max_slope_deg`, `profile[{d,z,slope}]` |
 | `safety.json` | Utku | `overlays[]` (same schema as `overlays.json`; the layer panel reads both), `shelters[{coord,svf}]`, `route[{d,comm_ok,shelter_min}]`, `offline_min` |
 | `stops.json` | Utku | `[{id,name,coord[lon,lat],science,photos[{url,sol,camera,credit}]}]` |
-| `targets.json` | Utku | `[{id,name,unit,coord[lon,lat],sol,note,photos[]}]`: science targets off the route (HUD Targets panel) |
+| `targets.json` | Serdar, Utku | `[{id,name,unit,coord[lon,lat],sol,note,photos[]}]`: science targets off the route (HUD Targets panel) |
 | `geology.geojson` | Serdar | Polygons; properties: `unit`, `name`, `note` |
 | `images.json` | Egemen | `[{url,sol,camera,utc,site,drive,credit}]` |
 | `traverse.geojson` | Egemen | Curiosity's path inside the bbox (LineString) |
@@ -275,10 +276,11 @@ python -m science.mocks.check_mocks
 python -m pipeline.fetch.curiosity
 python -m pipeline.fetch.rems
 
-# Horizons, EVA and geology (Serdar)
+# Horizons, EVA, geology and science targets (Serdar)
 python -m pipeline.fetch.horizons
 python -m science.eva.build
 python -m pipeline.fetch.usgs
+python -m science.targets              # science targets off the route, from images.json + stops.json
 node web/js/hud/test.mjs               # HUD self-tests (logic + real web/data files), no install needed
 
 # Terrain (Demir), in this order
@@ -293,7 +295,6 @@ python -m arazi.return_rings
 python -m science.models               # prints and checks the model values
 python -m pipeline.fetch.donki
 python -m science.safety.build         # needs dem_clip.tif + route.geojson
-python -m science.targets              # science targets off the route, from images.json + stops.json
 python -m science.build_all
 
 # Local preview: everyone sees their own branch on their own machine
