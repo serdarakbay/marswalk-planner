@@ -11,7 +11,7 @@ Challenge: **Interplanetary Survival Guide: Martian Map**. We are building a web
 - stop cards (Curiosity photos + a science note)
 - a HUD mode (visor view: next stop, remaining O2 and dose, alerts)
 
-- **Code freeze:** Sunday 15 November, 12:00 (Istanbul). After that, bug fixes only.
+- **Code freeze:** Sunday 15 November, 15:30 (Istanbul). After that, bug fixes only.
 - **Submission target:** Sunday 18:00. The submission system closes at 23:59.
 - **Language:** Code, comments, documentation, commit messages, UI text, the project page and slides are all in **English**.
 
