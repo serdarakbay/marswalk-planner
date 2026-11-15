@@ -109,7 +109,7 @@ data/cache/            NOT in git: raw DEM, intermediate rasters
 - **Force push** (`--force`, `--force-with-lease`) only on your own branch and only when really needed; never on `main` or on someone else's branch.
 - Code lives in the folder given in the ownership table.
 - Changes to someone else's files, including Ege's map and page files, are agreed with the owner first; say so in the commit message.
-- **Merge times:** Sat 14:00, 17:00, 20:00, 23:00; Sun 09:00, 11:30. Open the PR 15 minutes before a merge time.
+- **Merge times:** Sat 14:00, 17:00, 20:00, 23:00; Sun 09:00, 11:30, 15:30 (last merge, at the code freeze). Open the PR 15 minutes before a merge time.
 - Before opening a PR: `git pull --rebase origin main`. Do not merge `main` or your own remote branch into your branch; rebase instead.
 - `main` must always work, because GitHub Pages publishes from `main`.
 - **Commit message format:** `[veri] add layers.json`, `[arazi] slope map`, `[harita] ...`, `[hud] ...`, `[bilim] ...`
