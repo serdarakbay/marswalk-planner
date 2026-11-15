@@ -3,7 +3,9 @@
 **NASA Space Apps Challenge 2026 · Interplanetary Survival Guide: Martian Map**
 
 **Live site:** https://serdarakbay.github.io/marswalk-planner/  
-**Planner:** https://serdarakbay.github.io/marswalk-planner/planner.html · 
+
+**Planner:** https://serdarakbay.github.io/marswalk-planner/planner.html 
+
 **Storm replay:** https://serdarakbay.github.io/marswalk-planner/planner.html?radiation=replay
 
 ![The planner: HiRISE base map of the Gale crater study area with the planned Marswalk route through three science stops, the habitat, shelters, the radio relay, Curiosity's traverse and the elevation profile](web/assets/readme/planner.jpg)
