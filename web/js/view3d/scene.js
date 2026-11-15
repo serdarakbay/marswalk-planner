@@ -674,6 +674,20 @@ export async function createScene(state, el, { onProgress } = {}) {
     new THREE.LineBasicMaterial({ color: colors.ok }),
   );
   shelterLine.visible = false;
+  // Dust devil (hud:time.hazard = {coord, radius_m}): a see-through dust column, wider at the top
+  // like a funnel (Demir's proposal)
+  const DEVIL_HEIGHT_M = 300;
+  const devil = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 0.4, 1, 24, 1, true),
+    new THREE.MeshBasicMaterial({ color: colors.dust, transparent: true, opacity: 0.35,
+      depthWrite: false, side: THREE.DoubleSide, fog: false }),   // seen through the Bodycam haze
+  );
+  devil.visible = false;
+  scene.add(devil);
+  // Storm: the haze turns reddish while the storm is on
+  const fogBase = scene.fog.color.clone();
+  const stormTint = new THREE.Color(colors.danger);
+  const STORM_TINT = 0.35;
   let hudTime = null;
   const walkDir = new THREE.Vector3(0, 0, -1);   // walking direction (bodycam), smoothed
   let lastAstro = null;
@@ -685,6 +699,15 @@ export async function createScene(state, el, { onProgress } = {}) {
     astroShown = show;
     astro.visible = show && !bodycam;
     shelterLine.visible = false;
+    const hz = t?.active ? t.hazard : null;
+    devil.visible = !!(hz && Array.isArray(hz.coord));
+    if (devil.visible) {
+      const r = Number.isFinite(hz.radius_m) ? hz.radius_m : 20;
+      const hgt = DEVIL_HEIGHT_M * exag;
+      devil.scale.set(r, hgt, r);
+      devil.position.copy(posLL(hz.coord[0], hz.coord[1], hgt / 2));
+    }
+    scene.fog.color.copy(fogBase).lerp(stormTint, t?.active && t.storm ? STORM_TINT : 0);
     if (!show) { lastAstro = null; return; }
     astro.position.copy(posLL(t.coord[0], t.coord[1]));
     // Walking direction from the last position (ignore tiny moves: standing, sampling)
