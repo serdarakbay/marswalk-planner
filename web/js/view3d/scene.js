@@ -78,6 +78,7 @@ const fmtElev = (z) => `${Math.round(z)} m`.replace('-', '\u2212');
 const AT_STOP_M = 15;              // closer than this: "here"
 const CLIMB_MIN_M = 5;             // smaller height differences are not shown
 const LABEL_UPDATE_MS = 250;       // the Bodycam label text is redrawn at most this often
+const PIN_HIDE_M = 40;             // Bodycam: a stop pin this close to the walker is hidden (it would fill the view)
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(2)} km`);
 const fmtClimb = (dz) => (Math.abs(dz) < CLIMB_MIN_M ? '' : ` · ${dz > 0 ? '↑' : '↓'}${Math.round(Math.abs(dz))} m`);
 
@@ -469,7 +470,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       marks.add(stick, head, lab, ring);
       pickables.push(head, stick);
       stopObjs.set(stop.id ?? i, {
-        head, lab, ring, headY: head.position.y, stop, name, baseText, text: baseText,
+        head, stick, lab, ring, headY: head.position.y, stop, name, baseText, text: baseText,
         labTop: lab.position.clone(),                              // above the pin head (overview)
         labFoot: ground.clone().add(new THREE.Vector3(0, 2, 0)),   // at the pin's foot (Bodycam)
       });
@@ -554,7 +555,11 @@ export async function createScene(state, el, { onProgress } = {}) {
     snake = null;
     buildNav();
     updateButtons();
-    if (nav?.options?.length) { frameNav(); playSnake(); }
+    if (bodycam && bodyRoute) {
+      bodyRoute = !!navTrail;
+      routeS = 0;
+      setTimeout(() => document.dispatchEvent(new CustomEvent('hud:play')), 0);
+    } else if (nav?.options?.length) { frameNav(); playSnake(); }
   }
 
   function chooseNav(id) {
@@ -563,7 +568,10 @@ export async function createScene(state, el, { onProgress } = {}) {
     snake = null;
     buildNav();
     updateButtons();
-    playSnake();
+    if (bodycam && bodyRoute) {
+      routeS = 0;
+      setTimeout(() => document.dispatchEvent(new CustomEvent('hud:play')), 0);
+    } else playSnake();
   }
 
   // ----- the astronaut draws the active route from A to B, like a pen line on paper
@@ -666,6 +674,20 @@ export async function createScene(state, el, { onProgress } = {}) {
     new THREE.LineBasicMaterial({ color: colors.ok }),
   );
   shelterLine.visible = false;
+  // Dust devil (hud:time.hazard = {coord, radius_m}): a see-through dust column, wider at the top
+  // like a funnel (Demir's proposal)
+  const DEVIL_HEIGHT_M = 300;
+  const devil = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 0.4, 1, 24, 1, true),
+    new THREE.MeshBasicMaterial({ color: colors.dust, transparent: true, opacity: 0.35,
+      depthWrite: false, side: THREE.DoubleSide, fog: false }),   // seen through the Bodycam haze
+  );
+  devil.visible = false;
+  scene.add(devil);
+  // Storm: the haze turns reddish while the storm is on
+  const fogBase = scene.fog.color.clone();
+  const stormTint = new THREE.Color(colors.danger);
+  const STORM_TINT = 0.35;
   let hudTime = null;
   const walkDir = new THREE.Vector3(0, 0, -1);   // walking direction (bodycam), smoothed
   let lastAstro = null;
@@ -677,6 +699,15 @@ export async function createScene(state, el, { onProgress } = {}) {
     astroShown = show;
     astro.visible = show && !bodycam;
     shelterLine.visible = false;
+    const hz = t?.active ? t.hazard : null;
+    devil.visible = !!(hz && Array.isArray(hz.coord));
+    if (devil.visible) {
+      const r = Number.isFinite(hz.radius_m) ? hz.radius_m : 20;
+      const hgt = DEVIL_HEIGHT_M * exag;
+      devil.scale.set(r, hgt, r);
+      devil.position.copy(posLL(hz.coord[0], hz.coord[1], hgt / 2));
+    }
+    scene.fog.color.copy(fogBase).lerp(stormTint, t?.active && t.storm ? STORM_TINT : 0);
     if (!show) { lastAstro = null; return; }
     astro.position.copy(posLL(t.coord[0], t.coord[1]));
     // Walking direction from the last position (ignore tiny moves: standing, sampling)
@@ -721,15 +752,103 @@ export async function createScene(state, el, { onProgress } = {}) {
     o.text = text;
     o.low = low;
   }
+  // Bodycam on a route picked in the planner: one label at B with the distance still to walk along
+  // the route and the climb to B (real DEM heights)
+  let routeLabel = null;   // {lab, text, low, labFoot, labTop} like a stop, kept in the scene itself
+  let routeS = 0;
+  function routeProgress(t, x, z) {
+    let best = routeS; let bestD = Infinity;
+    for (let q = Math.max(0, routeS - 20); q <= t.len; q += 5) {
+      const pt = t.pointAt(q);
+      const d = Math.hypot(pt.x - x, pt.z - z);
+      if (d < bestD) { bestD = d; best = q; }
+      if (q > routeS + 400 && bestD < 15) break;   // found it well ahead of the last position
+    }
+    routeS = best;
+    return best;
+  }
+  // Distance along the trail where it passes B (the turning point of a round trip), cached per trail
+  let bCache = { trail: null, s: 0 };
+  function bOnRoute(t) {
+    if (bCache.trail === t) return bCache.s;
+    const [bx, bz] = frame.toXZ(nav.end[0], nav.end[1]);
+    let best = t.len; let bestD = Infinity;
+    for (let s = 0; s <= t.len; s += 5) {
+      const q = t.pointAt(s);
+      const d = Math.hypot(q.x - bx, q.z - bz);
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    bCache = { trail: t, s: best };
+    return best;
+  }
+  function clearRouteLabel() {
+    if (!routeLabel) return;
+    scene.remove(routeLabel.lab);
+    routeLabel.lab.material.map?.dispose();
+    routeLabel.lab.material.dispose();
+    routeLabel = null;
+  }
+  function showPins(at) {
+    // hide a stop's pin when the walker is right at it; show every pin otherwise
+    for (const o of stopObjs.values()) {
+      let near = false;
+      if (at) {
+        const [sx, sz] = frame.toXZ(o.stop.coord[0], o.stop.coord[1]);
+        near = Math.hypot(sx - at[0], sz - at[1]) < PIN_HIDE_M;
+      }
+      o.head.visible = !near;
+      if (o.stick) o.stick.visible = !near;
+    }
+  }
   function updateStopLabels(now) {
+    if (bodycam && bodyRoute && navTrail && Array.isArray(nav?.end) && astroShown && Array.isArray(hudTime?.coord)) {
+      if (now - labelAt < LABEL_UPDATE_MS) return;
+      labelAt = now;
+      for (const o of stopObjs.values()) o.lab.visible = false;
+      const t = navTrail;
+      const [hx, hz] = frame.toXZ(hudTime.coord[0], hudTime.coord[1]);
+      const sNow = routeProgress(t, hx, hz);
+      const head = { x: hx, z: hz };
+      showPins([hx, hz]);
+      // A round trip passes B halfway: until then the label is B, afterwards A (back at the start)
+      const sB = bOnRoute(t);
+      const toB = !(Array.isArray(nav.start) && sNow > sB + AT_STOP_M && t.len - sB > AT_STOP_M);
+      const goal = toB ? nav.end : nav.start;
+      const letter = toB ? 'B' : 'A';
+      const left = toB ? Math.max(0, sB - sNow) : t.len - sNow;
+      const [gx, gz] = frame.toXZ(goal[0], goal[1]);
+      const climb = heights.real ? sampleGrid(grid, gx, gz) - sampleGrid(grid, head.x, head.z) : 0;
+      if (!routeLabel || routeLabel.letter !== letter) {
+        clearRouteLabel();
+        const foot = posLL(goal[0], goal[1], 2);
+        routeLabel = { lab: labelSprite(letter, colors.sand), text: null, letter, labFoot: foot };
+        scene.add(routeLabel.lab);
+      }
+      const text = left < AT_STOP_M ? `${letter} · here` : `${letter} · ${fmtDist(left)}${fmtClimb(climb)}`;
+      if (routeLabel.text !== text) {
+        const fresh = labelSprite(text, colors.sand);
+        fresh.position.copy(routeLabel.labFoot);
+        fresh.center.set(0.5, 1.4);
+        scene.remove(routeLabel.lab);
+        routeLabel.lab.material.map?.dispose();
+        routeLabel.lab.material.dispose();
+        scene.add(fresh);
+        routeLabel.lab = fresh;
+        routeLabel.text = text;
+      }
+      return;
+    }
+    clearRouteLabel();
     const nextId = bodycam && astroShown && Array.isArray(hudTime?.coord) ? hudTime.next_stop ?? null : null;
     if (nextId == null) {
       for (const o of stopObjs.values()) { o.lab.visible = true; setLabelText(o, o.baseText); }
+      showPins(null);
       return;
     }
     if (now - labelAt < LABEL_UPDATE_MS) return;
     labelAt = now;
     const [ax, az] = frame.toXZ(hudTime.coord[0], hudTime.coord[1]);
+    showPins([ax, az]);
     for (const o of stopObjs.values()) {
       const isNext = (o.stop.id ?? o.stop.name) === nextId;
       o.lab.visible = isNext;
@@ -744,7 +863,8 @@ export async function createScene(state, el, { onProgress } = {}) {
 
   // ----- camera moves
   let tween = null;   // {from, to, fromT, toT, start, ms}
-  let bodycam = false; // camera follows the HUD astronaut
+  let bodycam = false; // camera follows the HUD astronaut, or walks the route picked in the planner
+  let bodyRoute = false; // a route is picked in the planner: the HUD walks it, labels count to B
 
   function overview() {
     // the whole DEM tile, from the south, filling the screen
@@ -812,9 +932,9 @@ export async function createScene(state, el, { onProgress } = {}) {
     moveTo(target.clone().add(dir).add(new THREE.Vector3(0, 140, 0)), target, instant ? 0 : FOCUS_MS);
   }
 
-  const flying = () => !!snake?.follow;
+  const flying = () => snake?.follow === true;
   function stopFly() {
-    if (!flying()) return;
+    if (!snake?.follow) return;   // a fly-over or a Bodycam walk along the route
     snake = null;
     activeTrail()?.setProgress(1);
     updateButtons();
@@ -830,15 +950,23 @@ export async function createScene(state, el, { onProgress } = {}) {
     playSnake({ follow: true });
     updateButtons();
   }
-  // Bodycam: the camera follows the HUD astronaut, looking where they walk (storm refuge, dust devil
-  // step-aside, detours). The HUD drives the position through hud:time, so switching it on asks the
-  // HUD to open and play ('hud:play'); with the walk already playing it just keeps going.
+  // Bodycam: the camera follows the HUD astronaut at ground level, looking where they walk. The HUD
+  // walks the route picked in the planner (Utku: nav:choose) or else the planned science walk, with
+  // the storm refuge, dust devil step-aside and detours. Switching it on tells the HUD which route
+  // (the planner and this view ignore a nav:choose of the route they already show) and asks it to
+  // open and play ('hud:play').
   function toggleBodycam() {
     bodycam = !bodycam;
     if (bodycam) {
       stopFly();
       tween = null;
+      bodyRoute = !!navTrail;
+      routeS = 0;
+      if (bodyRoute && nav?.chosen) document.dispatchEvent(new CustomEvent('nav:choose', { detail: { id: nav.chosen } }));
       document.dispatchEvent(new CustomEvent('hud:play'));
+    } else {
+      stopFly();
+      bodyRoute = false;
     }
     updateButtons();
   }
@@ -1059,8 +1187,9 @@ export async function createScene(state, el, { onProgress } = {}) {
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   function frameLoop(now) {
     // ground-level haze while the Bodycam is on, the clear overview fog otherwise
-    const fogNear = bodycam && astroShown ? BODY_FOG_NEAR_M : worldSize * FOG_NEAR;
-    const fogFar = bodycam && astroShown ? BODY_FOG_FAR_M : worldSize * FOG_FAR;
+    const ground = bodycam && astroShown;
+    const fogNear = ground ? BODY_FOG_NEAR_M : worldSize * FOG_NEAR;
+    const fogFar = ground ? BODY_FOG_FAR_M : worldSize * FOG_FAR;
     if (scene.fog.near !== fogNear) { scene.fog.near = fogNear; scene.fog.far = fogFar; }
     if (!running) return;
     const dt = Math.min((now - last) / 1000, 0.1);
