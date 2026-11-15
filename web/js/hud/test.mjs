@@ -18,6 +18,7 @@ import {
   bestRefuge, detourCheck, devilPass, missionLog, previewPhoto, refugeGuided, refugeOptions, SCENARIO, simulate, stopPreview,
 } from './scenario.js';
 import { createRouter, legRemaining, makeGrid, pathLength, slopeAt, steepestOnPath, zAt } from './terrain.js';
+import { abRoute } from './index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(here, '../../data');
@@ -455,6 +456,59 @@ test('missing data never throws', () => {
   assert.deepEqual(evalAlerts(null, {}), []);
 });
 
+// --- A–B route from the cards planner (nav:choose): O2 from the heightmap grade and o2_lut ---
+// A straight walk east across the grid; t_min at 50 m/min; flat ground and a 10 % ramp.
+const AB_LUT = { grade: [-0.5, 0, 0.5], pct_per_min: [0.15625, 0.15625, 0.40625], rest_pct_per_min: 0.123 };
+const abCoords = Array.from({ length: 11 }, (_, i) => [0.0005 + i * 0.0005, -0.003]);
+function abOption(coords, total) {
+  const t = [0];
+  for (let i = 1; i < coords.length; i++) t.push(t[i - 1] + distanceM(coords[i - 1], coords[i]) / 50);
+  return {
+    id: 'fastest',
+    feature: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: { t_min: t, slope_deg: t.map(() => 0) } },
+    summary: { duration_min: t.at(-1), o2_used_pct: total, distance_m: 0 },
+  };
+}
+const flatGrid = makeGrid(new Float32Array(GW * GW), GW, GW, gridBounds);
+const rampZ = new Float32Array(GW * GW);
+for (let y = 0; y < GW; y++) for (let x = 0; x < GW; x++) rampZ[y * GW + x] = 0.1 * x * flatGrid.dx;   // +10 % to the east
+const rampGrid = makeGrid(rampZ, GW, GW, gridBounds);
+const planned = { o2_lut: AB_LUT, o2_standing_pct_per_min: 0.123, o2_walk_pct_per_min: 9, terrain: { png: 'x' } };
+const perMinute = (o2, t) => (o2.at(-1) - o2[0]) / (t.at(-1) - t[0]);
+
+test('A–B route: O2 follows the grade (heightmap + o2_lut), dwell at the standing rate, scaled to the planner total', () => {
+  const flat = abRoute(abOption(abCoords), planned, flatGrid);
+  const t = flat.route.properties.t_min;
+  near(perMinute(flat.route.properties.o2_pct, t), 0.15625, 1e-3, 'flat: flat-ground rate');
+  near(flat.summary.o2_walk_pct_per_min, 0.15625, 1e-3, 'walking rate of this route, not the planned one');
+  assert.equal(flat.summary.terrain.png, 'x', 'heightmap of the planned summary kept');
+  const up = abRoute(abOption(abCoords), planned, rampGrid);
+  near(perMinute(up.route.properties.o2_pct, t), 0.15625 + 0.5 * 0.1, 2e-3, 'uphill 10 %');
+  const down = abRoute(abOption([...abCoords].reverse()), planned, rampGrid);
+  near(perMinute(down.route.properties.o2_pct, t), 0.15625, 1e-3, 'downhill: flat-ground rate (model clips)');
+  const dwell = abOption([...abCoords, abCoords.at(-1)]);
+  const dt = dwell.feature.properties.t_min;
+  dt[dt.length - 1] += 15;   // the repeated last vertex is 15 min after the one before it
+  const dw = abRoute(dwell, planned, flatGrid).route.properties.o2_pct;
+  near(dw.at(-1) - dw.at(-2), 15 * 0.123, 1e-3, 'repeated vertex: 15 min standing');
+  const scaled = abRoute(abOption(abCoords, 4), planned, rampGrid).route.properties.o2_pct;
+  near(scaled.at(-1), 4, 1e-6, 'ends at the planner card total');
+  assert.equal(abRoute(abOption(abCoords), planned, null).route.properties.o2_pct, undefined, 'no grid: no o2_pct');
+  assert.equal(abRoute({ id: 'x' }, planned, flatGrid), null, 'no geometry: null');
+});
+
+test('A–B route: the HUD plan walks it and O2 drops at the flat rate', () => {
+  const ab = abRoute(abOption(abCoords), planned, flatGrid);
+  const atl = routeTimeline(ab.route, ab.summary);
+  assert.ok(Array.isArray(atl.o2), 'o2_pct used by the timeline');
+  const plan = simulate({ ...base, tl: atl, habitat: abCoords[0], o2PerMin: ab.summary.o2_walk_pct_per_min, startMin: -2, endMin: 30 });
+  const a = plan.at(1);
+  const b = plan.at(5);
+  assert.equal(a.mode, 'route');
+  near((b.o2 - a.o2) / 4, 0.15625, 2e-3, 'O2 per minute on flat ground');
+  assert.ok(distanceM(b.coord, routeState(atl, 5).coord) < 1, 'astronaut on the A–B route');
+});
+
 // --- Part 2: the real data files ------------------------------------------------------------
 console.log('\nPart 2: real data (web/data)');
 const read = (f) => {
@@ -587,6 +641,14 @@ test('real safety.json: radio shadows add up to a few minutes, shelters within r
   assert.ok(total > 0 && total < 60, `total without link ${total.toFixed(1)} min`);
   const worst = Math.max(...safety.route.map((r) => r.shelter_min ?? 0));
   assert.ok(worst <= 15, `worst shelter time ${worst} min`);
+});
+
+test('real o2_lut: an A–B route on flat ground uses about 0.156 % O2 per minute', () => {
+  if (!summary?.o2_lut) return 'skip';
+  const ab = abRoute(abOption(abCoords), summary, flatGrid);
+  const atl = routeTimeline(ab.route, ab.summary);
+  const plan = simulate({ ...base, tl: atl, habitat: abCoords[0], o2PerMin: ab.summary.o2_walk_pct_per_min, startMin: -2, endMin: 30 });
+  near((plan.at(5).o2 - plan.at(1).o2) / 4, 0.156, 0.002, 'flat walking rate from Utku\'s model');
 });
 
 console.log(`\n${passed} passed, ${failed} failed${skipped ? `, ${skipped} skipped` : ''}`);
