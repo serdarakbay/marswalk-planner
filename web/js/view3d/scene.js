@@ -772,6 +772,13 @@ export async function createScene(state, el, { onProgress } = {}) {
     playSnake({ follow: true });
     updateButtons();
   }
+  // Bodycam: the camera follows the HUD astronaut, looking where they walk (storm refuge, dust devil
+  // step-aside, detours). The HUD drives the position through hud:time; open it with H and press Play.
+  function toggleBodycam() {
+    bodycam = !bodycam;
+    if (bodycam) { stopFly(); tween = null; }
+    updateButtons();
+  }
 
 
   function setShow(key, on) {
@@ -791,6 +798,10 @@ export async function createScene(state, el, { onProgress } = {}) {
     title: `Simulation speed ${x}x (${PEN_FLY_M_S * x} m/s along the route)`,
     onclick: () => { speed = x; updateButtons(); },
   }, `${x}×`));
+  const bodyBtn = h('button', {
+    class: 'v3d-btn', type: 'button', onclick: toggleBodycam, 'aria-pressed': 'false',
+    title: 'Follow the HUD astronaut, looking where they walk (open the HUD with H and press Play)',
+  }, 'Bodycam');
   const resetBtn = h('button', {
     class: 'v3d-btn', type: 'button',
     onclick: () => { bodycam = false; const o = overview(); moveTo(o.pos, o.target); updateButtons(); },
@@ -883,6 +894,7 @@ export async function createScene(state, el, { onProgress } = {}) {
       h('div', { class: 'v3d-keywrap' }, keyBtn, keyPanel)),
     h('div', { class: 'v3d-bar' },
       flyBtn,
+      bodyBtn,
       h('div', { class: 'v3d-tools' },
         h('div', { class: 'v3d-group', role: 'group', 'aria-label': 'Simulation speed' },
           h('span', { class: 'v3d-group-label' }, 'Speed'), speedBtns),
@@ -895,6 +907,8 @@ export async function createScene(state, el, { onProgress } = {}) {
     flyBtn.textContent = flying() ? 'Draw again from A' : navTrail ? 'Fly along your route' : 'Fly along the planned walk';
     flyBtn.disabled = !navTrail && !plannedTrail;
     flyBtn.setAttribute('aria-pressed', String(flying()));
+    bodyBtn.textContent = bodycam ? 'Stop bodycam' : 'Bodycam';
+    bodyBtn.setAttribute('aria-pressed', String(bodycam));
     speedBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(SPEEDS[i] === speed)));
     // while the astronaut walks, only the main action, the speed and the height stay in the bar
     ui.classList.toggle('is-flying', flying());
