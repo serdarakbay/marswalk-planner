@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Martian Map icon (Ege): an astronaut's helmet with Mars reflected in the visor -->
+  <defs>
+    <radialGradient id="mars" cx="38%" cy="32%" r="75%">
+      <stop offset="0" stop-color="#E08454"/>
+      <stop offset="0.55" stop-color="#B4532A"/>
+      <stop offset="1" stop-color="#7A3317"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#41627F"/>
+      <stop offset="1" stop-color="#2A201B"/>
+    </linearGradient>
+    <clipPath id="visor">
+      <ellipse cx="32" cy="29" rx="15.5" ry="12.5"/>
+    </clipPath>
+  </defs>
+
+  <!-- shoulders -->
+  <path d="M9 63 C9 51 19 46 32 46 C45 46 55 51 55 63 Z" fill="#EEE4D6" stroke="#2A201B" stroke-width="3" stroke-linejoin="round"/>
+  <!-- ear pieces -->
+  <rect x="6" y="23" width="6" height="11" rx="2.5" fill="#B4532A" stroke="#2A201B" stroke-width="2.5"/>
+  <rect x="52" y="23" width="6" height="11" rx="2.5" fill="#B4532A" stroke="#2A201B" stroke-width="2.5"/>
+  <!-- helmet -->
+  <circle cx="32" cy="28.5" r="21.5" fill="#F7F2EA" stroke="#2A201B" stroke-width="3"/>
+  <!-- visor: dark glass with Mars and two stars -->
+  <ellipse cx="32" cy="29" rx="15.5" ry="12.5" fill="url(#glass)"/>
+  <g clip-path="url(#visor)">
+    <circle cx="37" cy="32" r="9" fill="url(#mars)"/>
+    <circle cx="34" cy="35" r="2" fill="#7A3317" opacity="0.7"/>
+    <circle cx="40.5" cy="29" r="1.3" fill="#7A3317" opacity="0.7"/>
+    <circle cx="23" cy="25" r="1.1" fill="#F7F2EA"/>
+    <circle cx="27" cy="35" r="0.8" fill="#F7F2EA" opacity="0.8"/>
+    <path d="M20 24 Q23 19 30 18" stroke="#F7F2EA" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.55"/>
+  </g>
+  <ellipse cx="32" cy="29" rx="15.5" ry="12.5" fill="none" stroke="#2A201B" stroke-width="2.5"/>
+</svg>
