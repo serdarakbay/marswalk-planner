@@ -458,6 +458,23 @@ test('real stops: every stop has a credited photo for the arrival preview, due 5
   }
 });
 
+test('real targets.json: off the route stops, inside the area, one of the three units', () => {
+  const targets = read('targets.json');
+  const area = read('area.json');
+  if (!targets || !stops || !area) return 'skip';
+  assert.ok(Array.isArray(targets) && targets.length >= 3, 'at least a few targets');
+  assert.equal(new Set(targets.map((t) => t.id)).size, targets.length, 'ids are unique');
+  assert.ok(new Set(targets.map((t) => t.unit)).size > 1, 'more than one unit, so the filter is useful');
+  const b = area.bbox;
+  for (const t of targets) {
+    assert.ok(['clay', 'transition', 'sulfate'].includes(t.unit), `${t.id} unit`);
+    assert.ok(t.coord[0] >= b.west && t.coord[0] <= b.east && t.coord[1] >= b.south && t.coord[1] <= b.north, `${t.id} inside the bbox`);
+    const d = Math.min(...stops.map((st) => distanceM(t.coord, st.coord)));
+    assert.ok(d >= 150, `${t.id} is ${Math.round(d)} m from a stop: a place of its own`);
+    assert.ok(t.name && t.note, `${t.id} has a name and a note`);
+  }
+});
+
 test('real route: plan without scenarios matches summary.json O2', () => {
   if (!route || !summary) return 'skip';
   const rtl = routeTimeline(route, summary);

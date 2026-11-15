@@ -35,7 +35,7 @@ Before you start, find out which team member the user is (from the branch name o
 | Demir | Terrain and route | `arazi` | `arazi/`, `web/data/overlays/`, `web/data/overlays.json`, `web/data/route.geojson`, `web/data/summary.json` |
 | Egemen | Data: Curiosity and REMS + stop cards + UI/3D design | `veri` | `pipeline/fetch/curiosity.py`, `pipeline/fetch/rems.py`, `web/data/images.json`, `web/data/traverse.geojson`, `web/data/weather.json`, `web/js/cards/`, `web/css/cards.css`, `web/js/view3d/`, `web/css/view3d.css` |
 | Serdar | Horizons, EVA window, HUD, geologic map | `hud` | `pipeline/fetch/horizons.py`, `pipeline/fetch/usgs.py`, `science/eva/`, `web/data/sun.json`, `web/data/eva_window.json`, `web/data/geology.geojson`, `web/js/hud/`, `web/css/hud.css` |
-| Utku | Science, safety layers, radiation, story | `harita`, `bilim` | `science/` (except `science/eva/`, including `science/safety/`), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, and in `web/data/`: `area.json`, `layers.json`, `stops.json`, `donki.json`, `radiation.json`, `alerts.json` |
+| Utku | Science, safety layers, radiation, story | `harita`, `bilim` | `science/` (except `science/eva/`, including `science/safety/`), `config/`, `docs/story/`, `docs/contracts.md`, `requirements.txt`, `pipeline/common.py`, `pipeline/fetch/trek.py`, `pipeline/fetch/tiles.py`, `pipeline/fetch/donki.py`, `web/tiles/`, `web/data/safety/`, and in `web/data/`: `area.json`, `layers.json`, `stops.json`, `targets.json`, `donki.json`, `radiation.json`, `alerts.json` |
 
 **Mocks:** Utku writes all mock files under `web/data/`. When the real file is ready, its owner's script overwrites the mock.
 
@@ -119,6 +119,7 @@ Full schemas are in `docs/contracts.md`. Summary:
 | `summary.json` | Demir | `distance_m`, `duration_min`, `o2_used_pct`, `dose_mSv`, `max_slope_deg`, `profile[{d,z,slope}]` |
 | `safety.json` | Utku | `overlays[]` (same schema as `overlays.json`; the layer panel reads both), `shelters[{coord,svf}]`, `route[{d,comm_ok,shelter_min}]`, `offline_min` |
 | `stops.json` | Utku | `[{id,name,coord[lon,lat],science,photos[{url,sol,camera,credit}]}]` |
+| `targets.json` | Utku | `[{id,name,unit,coord[lon,lat],sol,note,photos[]}]`: science targets off the route (HUD Targets panel) |
 | `geology.geojson` | Serdar | Polygons; properties: `unit`, `name`, `note` |
 | `images.json` | Egemen | `[{url,sol,camera,utc,site,drive,credit}]` |
 | `traverse.geojson` | Egemen | Curiosity's path inside the bbox (LineString) |
@@ -133,7 +134,7 @@ Full schemas are in `docs/contracts.md`. Summary:
 
 The map, cards, HUD and 3D view never import each other's files; they talk only through this interface:
 
-- `web/js/main.js` (Ege) loads every `web/data/` file once into a single `state` object: `{area, layers, overlays, route, summary, safety, stops, geology, images, traverse, weather, sun, eva, donki, radiation, alerts, mission}`. `mission` is `config/mission.json`, which GitHub Pages copies to `web/data/mission.json` at deploy time (for a local preview, copy it once; the copy is git-ignored). Read thresholds from `state.mission` instead of writing them in JS. A missing or broken file stays `null`; the app never crashes.
+- `web/js/main.js` (Ege) loads every `web/data/` file once into a single `state` object: `{area, layers, overlays, route, summary, safety, stops, targets, geology, images, traverse, weather, sun, eva, donki, radiation, alerts, mission}`. `mission` is `config/mission.json`, which GitHub Pages copies to `web/data/mission.json` at deploy time (for a local preview, copy it once; the copy is git-ignored). Read thresholds from `state.mission` instead of writing them in JS. A missing or broken file stays `null`; the app never crashes.
 - When a stop is clicked, the map (Ege) dispatches `document.dispatchEvent(new CustomEvent('stop:select', {detail: stop}))`.
 - Cards (Egemen): `web/js/cards/index.js` → `export function initCards(state, el)`; listens to `stop:select`.
 - HUD (Serdar): `web/js/hud/index.js` → `export function initHUD(state, el)`; the H key opens and closes the HUD, and `stop:select` updates the next stop.
@@ -292,6 +293,7 @@ python -m arazi.return_rings
 python -m science.models               # prints and checks the model values
 python -m pipeline.fetch.donki
 python -m science.safety.build         # needs dem_clip.tif + route.geojson
+python -m science.targets              # science targets off the route, from images.json + stops.json
 python -m science.build_all
 
 # Local preview: everyone sees their own branch on their own machine

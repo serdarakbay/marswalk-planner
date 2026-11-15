@@ -1,0 +1,372 @@
+[
+ {
+  "id": "t1",
+  "name": "Curiosity site, sol 2480",
+  "unit": "clay",
+  "coord": [
+   137.38353,
+   -4.73041
+  ],
+  "sol": 2480,
+  "note": "Curiosity photographed this spot on sol 2480 (2019-07-29). Mudstone of the clay-bearing unit. Clay minerals form when rock sits in water for a long time. How long did the lake last here, and was its water calm and habitable?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02480/mhli/2480MH0002270000902943R00_DXXX.jpg",
+    "sol": 2480,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2019-07-29T08:12:02Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02481/mcam/2481ML0131760040904672C00_DXXX.jpg",
+    "sol": 2481,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2019-07-30T09:16:18Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02481/opgs/edr/ncam/NLB_617748388EDR_F0763002NCAM00277M_.JPG",
+    "sol": 2481,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2019-07-30T09:23:14Z"
+   }
+  ]
+ },
+ {
+  "id": "t2",
+  "name": "Curiosity site, sol 2602",
+  "unit": "clay",
+  "coord": [
+   137.38143,
+   -4.73365
+  ],
+  "sol": 2602,
+  "note": "Curiosity photographed this spot on sol 2602 (2019-12-01). Mudstone of the clay-bearing unit. Clay minerals form when rock sits in water for a long time. How long did the lake last here, and was its water calm and habitable?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02602/mhli/2602MH0001630001000192S00_DXXX.jpg",
+    "sol": 2602,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2019-12-01T17:27:26Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02602/opgs/edr/ncam/NLB_628498634EDR_F0772954NCAM00289M_.JPG",
+    "sol": 2602,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2019-12-01T19:35:45Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02602/mcam/2602ML0136760030208243C00_DXXX.jpg",
+    "sol": 2602,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2019-12-01T19:55:58Z"
+   }
+  ]
+ },
+ {
+  "id": "t3",
+  "name": "Curiosity site, sol 2804",
+  "unit": "clay",
+  "coord": [
+   137.38902,
+   -4.73303
+  ],
+  "sol": 2804,
+  "note": "Curiosity photographed this spot on sol 2804 (2020-06-26). Mudstone of the clay-bearing unit. Clay minerals form when rock sits in water for a long time. How long did the lake last here, and was its water calm and habitable?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02804/mhli/2804MH0001930001003085R00_DXXX.jpg",
+    "sol": 2804,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2020-06-26T05:33:04Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02804/mcam/2804ML0147060030308005C00_DXXX.jpg",
+    "sol": 2804,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2020-06-26T06:14:07Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02804/opgs/edr/ncam/NLB_646422287EDR_F0810628NCAM00354M_.JPG",
+    "sol": 2804,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2020-06-26T06:26:10Z"
+   }
+  ]
+ },
+ {
+  "id": "t4",
+  "name": "Curiosity site, sol 2951",
+  "unit": "clay",
+  "coord": [
+   137.39415,
+   -4.73156
+  ],
+  "sol": 2951,
+  "note": "Curiosity photographed this spot on sol 2951 (2020-11-24). Mudstone of the clay-bearing unit. Clay minerals form when rock sits in water for a long time. How long did the lake last here, and was its water calm and habitable?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02951/mhli/2951MH0001930001004318R00_DXXX.jpg",
+    "sol": 2951,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2020-11-24T07:29:30Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/02951/mcam/2951ML0154130021104030C00_DXXX.jpg",
+    "sol": 2951,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2020-11-24T10:42:22Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/02951/opgs/edr/ncam/NLB_659484051EDR_F0832796NCAM00251M_.JPG",
+    "sol": 2951,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2020-11-24T10:44:15Z"
+   }
+  ]
+ },
+ {
+  "id": "t5",
+  "name": "Curiosity site, sol 3319",
+  "unit": "transition",
+  "coord": [
+   137.39461,
+   -4.74749
+  ],
+  "sol": 3319,
+  "note": "Curiosity photographed this spot on sol 3319 (2021-12-07). Layers where clay-rich rock gives way to sulfate-rich rock. Did the climate dry out gradually, or in wet and dry cycles?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03319/mhli/3319MH0001930001104400R00_DXXX.jpg",
+    "sol": 3319,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2021-12-07T09:47:57Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03319/mcam/3319ML1011170031300745C00_DXXX.jpg",
+    "sol": 3319,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2021-12-07T10:49:34Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03319/opgs/edr/ncam/NLB_692144143EDR_F0913204NCAM00354M_.JPG",
+    "sol": 3319,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2021-12-07T11:04:16Z"
+   }
+  ]
+ },
+ {
+  "id": "t6",
+  "name": "Curiosity site, sol 3369",
+  "unit": "transition",
+  "coord": [
+   137.39369,
+   -4.75118
+  ],
+  "sol": 3369,
+  "note": "Curiosity photographed this spot on sol 3369 (2022-01-27). Layers where clay-rich rock gives way to sulfate-rich rock. Did the climate dry out gradually, or in wet and dry cycles?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03369/mhli/3369MH0007720011200174E01_DXXX.jpg",
+    "sol": 3369,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2022-01-27T20:41:54Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03369/mcam/3369ML1013800041303441E01_DXXX.jpg",
+    "sol": 3369,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2022-01-27T21:10:30Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03369/opgs/edr/ncam/NLB_696587288EDR_F0923072NCAM00354M_.JPG",
+    "sol": 3369,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2022-01-27T21:17:23Z"
+   }
+  ]
+ },
+ {
+  "id": "t7",
+  "name": "Curiosity site, sol 3420",
+  "unit": "transition",
+  "coord": [
+   137.39095,
+   -4.74867
+  ],
+  "sol": 3420,
+  "note": "Curiosity photographed this spot on sol 3420 (2022-03-21). Layers where clay-rich rock gives way to sulfate-rich rock. Did the climate dry out gradually, or in wet and dry cycles?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03420/mcam/3420ML1016740130707317C00_DXXX.jpg",
+    "sol": 3420,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2022-03-21T02:26:46Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03420/mhli/3420MH0004490001201420S00_DXXX.jpg",
+    "sol": 3420,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2022-03-21T02:32:06Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03420/opgs/edr/ncam/NLB_701099163EDR_F0933408NCAM00312M_.JPG",
+    "sol": 3420,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2022-03-21T02:36:01Z"
+   }
+  ]
+ },
+ {
+  "id": "t8",
+  "name": "Curiosity site, sol 3508",
+  "unit": "transition",
+  "coord": [
+   137.39674,
+   -4.75551
+  ],
+  "sol": 3508,
+  "note": "Curiosity photographed this spot on sol 3508 (2022-06-19). Layers where clay-rich rock gives way to sulfate-rich rock. Did the climate dry out gradually, or in wet and dry cycles?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03508/mhli/3508MH0001710001203904S00_DXXX.jpg",
+    "sol": 3508,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2022-06-19T19:29:50Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03509/mcam/3509ML1022270631403808C00_DXXX.jpg",
+    "sol": 3509,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2022-06-20T17:28:13Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03509/opgs/edr/ncam/NLB_709015239EDR_F0953152NCAM00543M_.JPG",
+    "sol": 3509,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2022-06-20T17:31:52Z"
+   }
+  ]
+ },
+ {
+  "id": "t9",
+  "name": "Curiosity site, sol 3730",
+  "unit": "sulfate",
+  "coord": [
+   137.39812,
+   -4.76498
+  ],
+  "sol": 3730,
+  "note": "Curiosity photographed this spot on sol 3730 (2023-02-02). Layers rich in sulfate salts, which are left behind when water evaporates. Did the lake dry up for good here, or did water come back later?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03730/mhli/3730MH0008170001303618S00_DXXX.jpg",
+    "sol": 3730,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2023-02-02T17:15:05Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03730/opgs/edr/ncam/NLB_728628746EDR_F0992414NCAM00272M_.JPG",
+    "sol": 3730,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2023-02-02T17:46:33Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03730/mcam/3730ML1035110251405675C00_DXXX.jpg",
+    "sol": 3730,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2023-02-02T22:20:47Z"
+   }
+  ]
+ },
+ {
+  "id": "t10",
+  "name": "Curiosity site, sol 3864",
+  "unit": "sulfate",
+  "coord": [
+   137.39983,
+   -4.76863
+  ],
+  "sol": 3864,
+  "note": "Curiosity photographed this spot on sol 3864 (2023-06-20). Layers rich in sulfate salts, which are left behind when water evaporates. Did the lake dry up for good here, or did water come back later?",
+  "photos": [
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03864/mhli/3864MH0001630001400816S00_DXXX.jpg",
+    "sol": 3864,
+    "camera": "MAHLI",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "MAHLI",
+    "utc": "2023-06-20T07:58:27Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/03864/opgs/edr/ncam/NLB_740521639EDR_F1012294NCAM00354M_.JPG",
+    "sol": 3864,
+    "camera": "NAV_LEFT_B",
+    "credit": "NASA/JPL-Caltech",
+    "camera_name": "Navcam",
+    "utc": "2023-06-20T09:23:18Z"
+   },
+   {
+    "url": "https://mars.nasa.gov/msl-raw-images/msss/03864/mcam/3864ML1042580631602445C00_DXXX.jpg",
+    "sol": 3864,
+    "camera": "MAST_LEFT",
+    "credit": "NASA/JPL-Caltech/MSSS",
+    "camera_name": "Mastcam",
+    "utc": "2023-06-20T11:18:37Z"
+   }
+  ]
+ }
+]

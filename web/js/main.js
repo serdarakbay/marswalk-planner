@@ -9,6 +9,7 @@ const DATA_FILES = {
   summary: 'data/summary.json',
   safety: 'data/safety/safety.json',
   stops: 'data/stops.json',
+  targets: 'data/targets.json',   // science targets off the route (HUD Targets panel)
   geology: 'data/geology.geojson',
   images: 'data/images.json',
   traverse: 'data/traverse.geojson',
